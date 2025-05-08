@@ -1,0 +1,25 @@
+
+# Node
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Builds
+dist
+build
+
+# Env
+.env
+.env.*
+
+# Mac / system
+.DS_Store
+
+# Logs
+logs
+*.log
+
+# IDE
+.vscode
+.idea
+
