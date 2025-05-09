@@ -4,7 +4,7 @@ import { PublicUserProfile } from '../types/user';
 
 // Create axios instance with base configuration
 const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
+  baseURL: import.meta.env.VITE_API_BASE_URL,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -33,7 +33,7 @@ axiosInstance.interceptors.response.use(
           throw new Error('No refresh token');
         }
         const response = await axios.post(
-          `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/auth/refresh-token`,
+          `${import.meta.env.VITE_API_BASE_URL}/auth/refresh-token`,
           { refreshToken }
         );
         const { accessToken } = response.data;
@@ -186,7 +186,7 @@ export const publicApi = {
     try {
       const response = await axiosInstance.get(endpoints.user.publicProfile(userId));
       if (response.data.user && response.data.user.profileImage) {
-        response.data.user.profileImage = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/uploads/${response.data.user.profileImage}`;
+        response.data.user.profileImage = `${import.meta.env.VITE_API_BASE_URL}/uploads/${response.data.user.profileImage}`;
       }
       return response.data;
     } catch (error) {
