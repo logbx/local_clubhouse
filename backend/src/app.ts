@@ -37,7 +37,7 @@ const io = new Server(server, {
   }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/local-clubhouse';
 
 // Security middleware
@@ -128,8 +128,8 @@ const initializeServices = async () => {
     console.log('WebSocket service initialized');
 
     // Start server
-    server.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server is running on http://0.0.0.0:${PORT}`);
     });
   } catch (error) {
     console.error('Failed to initialize services:', error);
