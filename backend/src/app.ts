@@ -106,6 +106,19 @@ app.get('/', (req, res) => {
   res.json({ message: 'Local Clubhouse API is running' });
 });
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  const healthData = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    redis: redisService.isConnected() ? 'connected' : 'disconnected'
+  };
+  res.json(healthData);
+});
+
 // Validation error handler
 app.use(validationErrorHandler);
 
