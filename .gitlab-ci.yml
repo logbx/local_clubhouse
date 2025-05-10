@@ -5,6 +5,7 @@ deploy:
   stage: deploy
   script:
     - echo "Deploying to VPS..."
-    - ssh root@srv820288 "cd /root/saas-app && git pull origin main && pm2 restart all"
+    - ssh root@62.72.26.151 "cd /root/saas-app && git pull origin main && docker compose down && docker compose up -d --build"
+
   only:
     - main
