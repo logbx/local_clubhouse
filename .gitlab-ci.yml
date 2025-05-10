@@ -4,8 +4,32 @@ stages:
 deploy:
   stage: deploy
   script:
-    - echo "Deploying to VPS..."
-    - ssh root@62.72.26.151 "cd /root/saas-app && git pull origin main && docker compose down && docker compose up -d --build"
+    - echo "🚀 Starting deployment to VPS..."
+
+    # Retry logic: try up to 3 times with 5s delay
+    - |
+      for i in {1..3}; do
+        echo "🔐 Attempt $i: SSH into VPS and deploy"
+        ssh root@62.72.26.151 <<'EOF'
+          echo "📂 Navigating to app directory..."
+          cd /root/saas-app || exit 1
+
+          echo "🔄 Pulling latest code from Git..."
+          git pull origin main || { echo "⚠️ Pull failed, trying git fetch + reset..."; git fetch origin main && git reset --hard origin/main; }
+
+          echo "📦 Stopping existing containers..."
+          docker compose down || true
+
+          echo "🐳 Building and restarting containers..."
+          docker compose up -d --build
+
+          echo "✅ Deployment complete!"
+        EOF
+
+        [ $? -eq 0 ] && break
+        echo "❌ SSH attempt $i failed. Retrying in 5s..."
+        sleep 5
+      done
 
   only:
     - main
