@@ -19,6 +19,7 @@ export default defineConfig({
     strictPort: true,
     host: 'localhost',
     cors: true,
+    allowedHosts: ['localclubhouse.com', 'www.localclubhouse.com'],
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
