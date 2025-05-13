@@ -2,6 +2,7 @@ import { User, IUser } from '../models/user.model';
 import { UserRole } from '../types/user';
 import path from 'path';
 import fs from 'fs';
+import mongoose from 'mongoose';
 
 interface UpdateProfileData {
   fullName?: string;
@@ -10,6 +11,7 @@ interface UpdateProfileData {
   bio?: string;
   profileImage?: string;
   interests?: string[];
+  profileCompleted?: boolean;
 }
 
 export class UserService {
@@ -75,9 +77,10 @@ export class UserService {
     }
 
     // Set profileCompleted to true if all required fields are present
-    const hasRequiredFields = 
+    const hasRequiredFields = Boolean(
       (updateData.fullName || currentUser.fullName) && 
-      ((updateData.roles && updateData.roles.length > 0) || (currentUser.roles && currentUser.roles.length > 0));
+      ((updateData.roles && updateData.roles.length > 0) || (currentUser.roles && currentUser.roles.length > 0))
+    );
     
     updateData.profileCompleted = hasRequiredFields;
 
@@ -113,16 +116,21 @@ export class UserService {
 
   static async getUserProfile(userId: string): Promise<IUser> {
     try {
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        throw new Error('Invalid user ID format');
+      }
+
       const user = await User.findById(userId);
       if (!user) {
         throw new Error('User not found');
       }
       
       // Check if profile is completed based on required fields
-      const isProfileCompleted = 
+      const isProfileCompleted = Boolean(
         user.fullName && 
         user.roles && 
-        user.roles.length > 0;
+        user.roles.length > 0
+      );
       
       // Update profileCompleted if needed
       if (user.profileCompleted !== isProfileCompleted) {
