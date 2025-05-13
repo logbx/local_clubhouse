@@ -128,41 +128,38 @@ const ProfileSetupPage: React.FC = () => {
     setError(null);
 
     try {
-      console.log('[ProfileSetup] Submitting form data:', {
+      // Create the profile data object with the S3 URL
+      const profileData = {
         ...formData,
-        profileImage
-      });
+        profileImage: profileImage // Use the S3 URL from the upload
+      };
+
+      console.log('[ProfileSetup] Submitting form data:', profileData);
       
-      const response = await userService.updateProfile(formData);
+      const response = await userService.updateProfile(profileData);
       
-      // Accept both response.user and response.data.user for robustness
-      const userData = response?.user || response?.data?.user;
-      if (userData) {
-        console.log('Profile update successful:', userData);
-        // Create updated user object with all fields
+      if (response?.user) {
+        console.log('[ProfileSetup] Profile update successful:', response.user);
         const updatedUser = {
           ...user!,
-          ...userData,
+          ...response.user,
           roles: formData.roles,
-          bio: userData.bio || '',
-          phoneNumber: userData.phoneNumber || '',
-          profileImage: userData.profileImage || null,
-          interests: userData.interests || [],
-          profileCompleted: true // Set to true since we've completed the profile setup
+          bio: response.user.bio || '',
+          phoneNumber: response.user.phoneNumber || '',
+          profileImage: response.user.profileImage || null,
+          interests: response.user.interests || [],
+          profileCompleted: true
         };
         setUser(updatedUser);
         localStorage.setItem('user', JSON.stringify(updatedUser));
         await queryClient.invalidateQueries({ queryKey: ['profile'] });
-        setTimeout(() => {
-          navigate('/dashboard', { replace: true });
-        }, 100);
+        navigate('/dashboard', { replace: true });
       } else {
-        setError('Profile update failed: No user data returned from server.');
-        return;
+        throw new Error('No user data returned from server');
       }
     } catch (err: any) {
-      console.error('Profile update error:', err);
-      setError(err.response?.data?.error || 'Failed to update profile. Please try again.');
+      console.error('[ProfileSetup] Profile update error:', err);
+      setError(err.response?.data?.message || 'Failed to update profile. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

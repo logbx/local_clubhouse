@@ -9,7 +9,7 @@ const multerInstance = multer({
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
   fileFilter: (req, file, cb) => {
-    console.log('Multer processing file:', {
+    console.log('[UploadMiddleware] Processing file:', {
       fieldname: file.fieldname,
       originalname: file.originalname,
       mimetype: file.mimetype
@@ -26,7 +26,7 @@ const multerInstance = multer({
 
 // Export middleware that handles both file upload and URL cases
 export const uploadMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  console.log('Upload middleware processing request:', {
+  console.log('[UploadMiddleware] Processing request:', {
     contentType: req.headers['content-type'],
     hasFile: req.headers['content-type']?.includes('multipart/form-data'),
     body: req.body
@@ -35,14 +35,14 @@ export const uploadMiddleware = (req: Request, res: Response, next: NextFunction
   // If it's not a multipart request or if profileImage is already a URL, skip multer
   if (!req.headers['content-type']?.includes('multipart/form-data') || 
       (req.body && typeof req.body.profileImage === 'string' && req.body.profileImage.startsWith('http'))) {
-    console.log('Skipping multer - not a multipart request or profileImage is already a URL');
+    console.log('[UploadMiddleware] Skipping multer - not a multipart request or profileImage is already a URL');
     return next();
   }
 
   // Use multer for file upload
   multerInstance.single('profileImage')(req, res, (err) => {
     if (err) {
-      console.error('Multer error:', err);
+      console.error('[UploadMiddleware] Multer error:', err);
       if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(413).json({
@@ -51,7 +51,7 @@ export const uploadMiddleware = (req: Request, res: Response, next: NextFunction
           });
         }
         if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-          console.log('Unexpected file field - request body:', req.body);
+          console.log('[UploadMiddleware] Unexpected file field - request body:', req.body);
           // If it's an unexpected field error but we have a URL, continue
           if (req.body && typeof req.body.profileImage === 'string' && req.body.profileImage.startsWith('http')) {
             return next();

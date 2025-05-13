@@ -14,7 +14,7 @@ router.use(authenticate);
 router.get('/me', UserController.getProfile.bind(UserController));
 
 // Profile update routes
-router.put('/me', uploadMiddleware, UserController.updateProfile.bind(UserController));
+router.put('/me', UserController.updateProfile.bind(UserController));
 router.post('/me/avatar', uploadMiddleware, UserController.uploadProfileImage.bind(UserController));
 
 export default router; 
