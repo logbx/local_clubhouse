@@ -28,6 +28,9 @@ import { validationErrorHandler } from './middleware/validation.middleware';
 dotenv.config();
 
 const app = express();
+
+app.set('trust proxy', true); // ✅ Add this line!
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -44,26 +47,15 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/local-
 app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = [
-      'http://localhost:5173',
-      'https://localclubhouse.com',
-      'https://www.localclubhouse.com',
-      'http://localhost:5174',
-      'http://127.0.0.1:5173',
-      'http://127.0.0.1:5174',
-      'http://172.16.226.151:5173',
-      'http://172.16.226.151:5174',
-      process.env.CLIENT_URL || 'http://localhost:5173',
-      origin // Allow the origin that made the request
-    ];
-    
-    if (allowedOrigins.includes(origin)) {
+    if (!origin) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      const allowedOrigins = [ 'http://localhost:5173', 'http://localhost:3000', 'https://localclubhouse.com', 'https://www.localclubhouse.com' ];
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
     }
   },
   credentials: true,
@@ -104,19 +96,19 @@ app.use('/api/event-sub-groups', eventSubGroupRoutes);
 app.use('/api/friend-groups', friendGroupRoutes);
 
 // Basic route for testing
-app.get('/', (req, res) => {
+app.get('/', (_, res) => {
   res.json({ message: 'Local Clubhouse API is running' });
 });
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_, res) => {
   const healthData = {
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
     mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    redis: redisService.isConnected() ? 'connected' : 'disconnected'
+    redis: 'disconnected'
   };
   res.json(healthData);
 });
