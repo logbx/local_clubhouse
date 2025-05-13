@@ -16,7 +16,4 @@ router.get('/me', UserController.getProfile.bind(UserController));
 // Profile update route - no upload middleware needed since we're using S3
 router.put('/me', UserController.updateProfile.bind(UserController));
 
-// Profile image upload route - uses upload middleware
-router.post('/me/avatar', uploadMiddleware, UserController.uploadProfileImage.bind(UserController));
-
 export default router;

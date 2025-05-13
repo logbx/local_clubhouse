@@ -1,5 +1,4 @@
 import express, { Request } from 'express';
-import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticate } from '../middleware/auth.middleware';
 import { S3Service } from '../services/s3.service';
@@ -14,22 +13,6 @@ interface AuthenticatedRequest extends Request {
 
 const router = express.Router();
 const s3Service = new S3Service();
-
-// Configure multer for memory storage
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    // Accept only image files
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed'));
-    }
-  },
-});
 
 // Generate a signed URL for direct upload to S3
 router.post('/signed-url', authenticate, async (req: AuthenticatedRequest, res) => {
@@ -72,7 +55,7 @@ router.post('/signed-url', authenticate, async (req: AuthenticatedRequest, res) 
 });
 
 // Handle file upload through the backend
-router.post('/file', authenticate, upload.single('file'), async (req: AuthenticatedRequest, res) => {
+router.post('/file', authenticate, async (req: AuthenticatedRequest, res) => {
   try {
     console.log('Processing file upload for user:', req.user?.id);
     
