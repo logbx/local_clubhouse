@@ -37,9 +37,11 @@ export const uploadMiddleware = (req: Request, res: Response, next: NextFunction
     console.log('[UploadMiddleware] Skipping multer - not a multipart request');
     return next();
   }
+  
+  console.log('[UploadMiddleware] Fields in request:', req.body);
 
   // Use multer for file upload
-  multerInstance.single('file')(req, res, (err) => {
+  multerInstance.any()(req, res, (err) => {
     if (err) {
       console.error('[UploadMiddleware] Multer error:', err);
       if (err instanceof multer.MulterError) {
