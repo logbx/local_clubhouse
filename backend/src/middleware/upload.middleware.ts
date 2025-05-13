@@ -32,15 +32,14 @@ export const uploadMiddleware = (req: Request, res: Response, next: NextFunction
     body: req.body
   });
 
-  // If it's not a multipart request or if profileImage is already a URL, skip multer
-  if (!req.headers['content-type']?.includes('multipart/form-data') || 
-      (req.body && typeof req.body.profileImage === 'string' && req.body.profileImage.startsWith('http'))) {
-    console.log('[UploadMiddleware] Skipping multer - not a multipart request or profileImage is already a URL');
+  // If it's not a multipart request, skip multer
+  if (!req.headers['content-type']?.includes('multipart/form-data')) {
+    console.log('[UploadMiddleware] Skipping multer - not a multipart request');
     return next();
   }
 
   // Use multer for file upload
-  multerInstance.single('profileImage')(req, res, (err) => {
+  multerInstance.single('file')(req, res, (err) => {
     if (err) {
       console.error('[UploadMiddleware] Multer error:', err);
       if (err instanceof multer.MulterError) {
@@ -52,10 +51,10 @@ export const uploadMiddleware = (req: Request, res: Response, next: NextFunction
         }
         if (err.code === 'LIMIT_UNEXPECTED_FILE') {
           console.log('[UploadMiddleware] Unexpected file field - request body:', req.body);
-          // If it's an unexpected field error but we have a URL, continue
-          if (req.body && typeof req.body.profileImage === 'string' && req.body.profileImage.startsWith('http')) {
-            return next();
-          }
+          return res.status(400).json({
+            error: 'Invalid file field',
+            message: 'Expected field name: file'
+          });
         }
       }
       return res.status(400).json({
