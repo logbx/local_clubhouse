@@ -37,11 +37,9 @@ export const uploadMiddleware = (req: Request, res: Response, next: NextFunction
     console.log('[UploadMiddleware] Skipping multer - not a multipart request');
     return next();
   }
-  
-  console.log('[UploadMiddleware] Fields in request:', req.body);
 
-  // Use multer for file upload
-  multerInstance.any()(req, res, (err) => {
+  // Use multer for file upload - expect a field named 'file'
+  multerInstance.single('file')(req, res, (err) => {
     if (err) {
       console.error('[UploadMiddleware] Multer error:', err);
       if (err instanceof multer.MulterError) {
@@ -64,6 +62,17 @@ export const uploadMiddleware = (req: Request, res: Response, next: NextFunction
         message: err.message
       });
     }
+
+    // Log the uploaded file details
+    if (req.file) {
+      console.log('[UploadMiddleware] File uploaded successfully:', {
+        fieldname: req.file.fieldname,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size
+      });
+    }
+
     next();
   });
 };

@@ -28,15 +28,27 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
     try {
       setIsUploading(true);
+      console.log('Starting file upload process for:', file.name);
       
       // Get signed URL from backend
       const response = await uploadService.getSignedUrl(file.name, file.type);
       console.log('Got signed URL response:', response);
       
       // Upload to S3 using the signed URL
-      await uploadService.uploadToS3(file, response.signedUrl);
+      const uploadResponse = await fetch(response.signedUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type,
+          'x-amz-acl': 'public-read'
+        },
+      });
       
-      // Use the public URL from the response
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed with status: ${uploadResponse.status}`);
+      }
+      
+      console.log('File uploaded successfully to S3');
       onUploadComplete(response.publicUrl);
     } catch (error) {
       console.error('Upload error:', error);

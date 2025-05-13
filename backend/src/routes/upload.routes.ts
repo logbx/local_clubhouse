@@ -47,7 +47,7 @@ router.post('/signed-url', authenticate, async (req: AuthenticatedRequest, res) 
       return res.status(400).json({ error: 'Only image files are allowed' });
     }
 
-    const key = `uploads/${req.user?.id}/${uuidv4()}-${fileName}`;
+    const key = `profile-images/${req.user?.id}/${uuidv4()}-${fileName}`;
     console.log('Generated file key:', key);
 
     const { signedUrl, publicUrl } = await s3Service.generateUploadUrl(key, fileType);

@@ -64,15 +64,33 @@ export class S3Service {
         Key: key,
         ContentType: contentType,
         ACL: 'public-read',
+        CacheControl: 'max-age=31536000',
+        Metadata: {
+          'x-amz-meta-content-type': contentType
+        }
       });
 
-      console.log('Generating signed URL...');
-      const signedUrl = await getSignedUrl(this.s3Client, command, { expiresIn: 3600 });
+      console.log('Generating signed URL with command:', {
+        bucket: command.input.Bucket,
+        key: command.input.Key,
+        contentType: command.input.ContentType,
+        acl: command.input.ACL
+      });
+
+      const signedUrl = await getSignedUrl(this.s3Client, command, { 
+        expiresIn: 3600,
+        signableHeaders: new Set(['host', 'x-amz-acl', 'x-amz-meta-content-type'])
+      });
+      
       console.log('Signed URL generated successfully');
 
       const publicUrl = `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
       
-      console.log('Generated URLs:', { signedUrl, publicUrl });
+      console.log('Generated URLs:', { 
+        signedUrl: signedUrl.substring(0, 100) + '...',
+        publicUrl 
+      });
+      
       return { signedUrl, publicUrl };
     } catch (error) {
       console.error('Error generating signed URL:', error);
