@@ -64,8 +64,10 @@ const ProfileSetupPage: React.FC = () => {
   const [newInterest, setNewInterest] = useState('');
 
   const handleFileUploadComplete = (url: string) => {
+    console.log('File upload complete, received URL:', url);
     setImagePreview(url);
     setFormData(prev => ({ ...prev, profileImage: url }));
+    console.log('formData after upload:', { ...formData, profileImage: url });
   };
 
   const handleFileUploadError = (error: Error) => {
@@ -109,7 +111,12 @@ const ProfileSetupPage: React.FC = () => {
       setError('Please select at least one role');
       return;
     }
-    
+    // Enforce that profileImage is a string URL
+    if (typeof formData.profileImage !== 'string' || !formData.profileImage.startsWith('http')) {
+      setError('Please upload your profile image and wait for it to finish uploading.');
+      console.error('Profile image is not a valid URL:', formData.profileImage);
+      return;
+    }
     setIsSubmitting(true);
     setError(null);
 
