@@ -78,11 +78,11 @@ export const userApi = {
     console.log('API Response for getProfile:', response.data);
     return response.data;
   },
-  updateProfile: async (data: FormData) => {
-    console.log('Sending update profile request with data:', Object.fromEntries(data.entries()));
+  updateProfile: async (data: any) => {
+    console.log('Sending update profile request with data:', data);
     const response = await axiosInstance.put(endpoints.user.updateProfile, data, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': 'application/json',
       },
     });
     console.log('API Response for updateProfile:', response.data);

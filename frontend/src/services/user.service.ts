@@ -17,15 +17,17 @@ export const userService = {
   },
 
   updateProfile: async (data: ProfileFormData) => {
-    const formData = new FormData();
-    formData.append('fullName', data.fullName);
-    formData.append('email', data.email);
-    if (data.bio) formData.append('bio', data.bio);
-    formData.append('interests', JSON.stringify(data.interests));
-    formData.append('roles', JSON.stringify(data.roles));
-    if (data.profileImage) formData.append('profileImage', data.profileImage);
-    if (data.phoneNumber) formData.append('phoneNumber', data.phoneNumber);
-    return userApi.updateProfile(formData);
+    const profileData = {
+      fullName: data.fullName,
+      email: data.email,
+      bio: data.bio,
+      interests: data.interests,
+      roles: data.roles,
+      phoneNumber: data.phoneNumber,
+      profileImage: data.profileImage
+    };
+
+    return userApi.updateProfile(profileData);
   },
 
   getPresignedUrl: async (filename: string, contentType: string) => {
