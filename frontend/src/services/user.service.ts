@@ -20,13 +20,14 @@ export const userService = {
     const profileData = {
       fullName: data.fullName,
       email: data.email,
-      bio: data.bio,
-      interests: data.interests,
-      roles: data.roles,
-      phoneNumber: data.phoneNumber,
-      profileImage: data.profileImage
+      bio: data.bio || '',
+      interests: Array.isArray(data.interests) ? data.interests : [],
+      roles: Array.isArray(data.roles) ? data.roles : [],
+      phoneNumber: data.phoneNumber || '',
+      profileImage: data.profileImage // This should be a URL string
     };
 
+    console.log('[UserService] Sending profile update with data:', profileData);
     return userApi.updateProfile(profileData);
   },
 

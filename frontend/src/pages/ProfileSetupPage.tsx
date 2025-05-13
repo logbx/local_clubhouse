@@ -128,9 +128,14 @@ const ProfileSetupPage: React.FC = () => {
     setError(null);
 
     try {
-      // Create the profile data object with the S3 URL
+      // Create the profile data object with the S3 URL and proper data types
       const profileData = {
-        ...formData,
+        fullName: formData.fullName,
+        email: formData.email,
+        roles: formData.roles, // Send as array, not stringified
+        bio: formData.bio || '',
+        phoneNumber: formData.phoneNumber || '',
+        interests: formData.interests || [], // Send as array, not stringified
         profileImage: profileImage // Use the S3 URL from the upload
       };
 
