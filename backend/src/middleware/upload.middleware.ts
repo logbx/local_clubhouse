@@ -2,18 +2,8 @@ import multer from 'multer';
 import path from 'path';
 import { Request, Response, NextFunction } from 'express';
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
 export const uploadMiddleware = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
@@ -25,7 +15,7 @@ export const uploadMiddleware = multer({
       cb(new Error('Invalid file type. Only JPEG, PNG and GIF are allowed.'));
     }
   }
-});
+}).single('profileImage');
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
 
