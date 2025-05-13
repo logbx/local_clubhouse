@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { UserRole } from '../types/user';
 import { FileUpload } from '../components/FileUpload';
+import { userService, ProfileFormData } from '../services/user.service';
 
 interface User {
   id: string;
@@ -14,14 +15,6 @@ interface User {
   phoneNumber?: string;
   bio?: string;
   profileImage?: string;
-  interests: string[];
-}
-
-interface ProfileSetupData {
-  roles: UserRole[];
-  profileImage?: File;
-  bio?: string;
-  phoneNumber?: string;
   interests: string[];
 }
 
@@ -55,11 +48,14 @@ const roles = [
 const ProfileSetupPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, setUser } = useAuth();
-  const [formData, setFormData] = useState<ProfileSetupData>({
+  const [formData, setFormData] = useState<ProfileFormData>({
+    fullName: user?.fullName || '',
+    email: user?.email || '',
     roles: (user?.roles as UserRole[]) || [],
     bio: user?.bio || '',
     phoneNumber: user?.phoneNumber || '',
-    interests: user?.interests || []
+    interests: user?.interests || [],
+    profileImage: user?.profileImage || ''
   });
   const [imagePreview, setImagePreview] = useState<string | null>(user?.profileImage || null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -118,34 +114,8 @@ const ProfileSetupPage: React.FC = () => {
     setError(null);
 
     try {
-      const formDataToSend = new FormData();
-      
-      // Convert roles array to JSON string
-      const rolesJson = JSON.stringify(formData.roles);
-      formDataToSend.append('roles', rolesJson);
-      
-      // Add interests
-      formDataToSend.append('interests', JSON.stringify(formData.interests));
-      
-      // Add other fields
-      if (formData.bio) {
-        formDataToSend.append('bio', formData.bio);
-      }
-      if (formData.phoneNumber) {
-        formDataToSend.append('phoneNumber', formData.phoneNumber);
-      }
-      if (formData.profileImage) {
-        formDataToSend.append('profileImage', formData.profileImage);
-      }
-
-      console.log('Submitting profile data:', {
-        roles: formData.roles,
-        bio: formData.bio,
-        phoneNumber: formData.phoneNumber,
-        profileImage: formData.profileImage
-      });
-
-      const response = await userApi.updateProfile(formDataToSend);
+      console.log('Submitting profile data:', formData);
+      const response = await userService.updateProfile(formData);
       
       // Accept both response.user and response.data.user for robustness
       const userData = response?.user || response?.data?.user;
