@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { userApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -62,17 +62,20 @@ const ProfileSetupPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const [newInterest, setNewInterest] = useState('');
+  const [profileImage, setProfileImage] = useState<string | null>(user?.profileImage || null);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
-  const handleFileUploadComplete = (url: string) => {
-    console.log('File upload complete, received URL:', url);
-    setImagePreview(url);
-    setFormData(prev => ({ ...prev, profileImage: url }));
-    console.log('formData after upload:', { ...formData, profileImage: url });
-  };
+  const handleFileUploadComplete = useCallback((url: string) => {
+    console.log('[ProfileSetup] Upload complete, received URL:', url);
+    setProfileImage(url);
+    setUploadProgress(0);
+  }, []);
 
-  const handleFileUploadError = (error: Error) => {
-    setError(error.message || 'Failed to upload image');
-  };
+  const handleFileUploadError = useCallback((error: Error) => {
+    console.error('[ProfileSetup] Upload error:', error);
+    setUploadProgress(0);
+    setError('Failed to upload image. Please try again.');
+  }, []);
 
   const handleRoleToggle = (roleId: UserRole) => {
     console.log('Toggling role:', roleId);
@@ -107,21 +110,29 @@ const ProfileSetupPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.roles.length === 0) {
-      setError('Please select at least one role');
+    console.log('[ProfileSetup] Starting form submission');
+    console.log('[ProfileSetup] Current profileImage value:', profileImage);
+    
+    if (!profileImage || !profileImage.startsWith('https://')) {
+      console.error('[ProfileSetup] Invalid profile image URL:', profileImage);
+      setError('Please upload a profile image');
       return;
     }
-    // Enforce that profileImage is a string URL
-    if (typeof formData.profileImage !== 'string' || !formData.profileImage.startsWith('http')) {
-      setError('Please upload your profile image and wait for it to finish uploading.');
-      console.error('Profile image is not a valid URL:', formData.profileImage);
+
+    if (!formData.fullName || !formData.roles.length) {
+      setError('Please fill in all required fields');
       return;
     }
+
     setIsSubmitting(true);
     setError(null);
 
     try {
-      console.log('Submitting profile data:', formData);
+      console.log('[ProfileSetup] Submitting form data:', {
+        ...formData,
+        profileImage
+      });
+      
       const response = await userService.updateProfile(formData);
       
       // Accept both response.user and response.data.user for robustness

@@ -34,119 +34,47 @@ const upload = multer({
 
 export class UserController {
   static async updateProfile(req: AuthRequest, res: Response) {
-    console.log('Received update profile request:', req.body);
-    
     try {
-      const userId = req.user?.id;
-      if (!userId) {
-        return res.status(401).json({ message: 'User not authenticated' });
-      }
+      console.log('[UserController] Updating profile for user:', req.user?.id);
+      console.log('[UserController] Request body:', {
+        ...req.body,
+        profileImage: req.body.profileImage ? 'URL present' : 'No URL'
+      });
 
-      // Get current user to preserve existing data
-      const currentUser = await UserService.getUserProfile(userId);
-      if (!currentUser) {
-        return res.status(404).json({ message: 'User not found' });
-      }
+      const profileData = {
+        ...req.body,
+        profileImage: req.body.profileImage
+      };
 
-      const updateData: any = {};
+      console.log('[UserController] Profile data to update:', {
+        ...profileData,
+        profileImage: profileData.profileImage ? 'URL present' : 'No URL'
+      });
 
-      // Handle text fields
-      if (req.body.fullName !== undefined) updateData.fullName = req.body.fullName;
-      if (req.body.phoneNumber !== undefined) updateData.phoneNumber = req.body.phoneNumber;
-      if (req.body.bio !== undefined) updateData.bio = req.body.bio;
-      if (req.body.profileImage !== undefined) updateData.profileImage = req.body.profileImage;
-
-      // Handle roles
-      if (req.body.roles) {
-        try {
-          const roles = JSON.parse(req.body.roles);
-          if (!Array.isArray(roles)) {
-            return res.status(400).json({ message: 'Roles must be an array' });
-          }
-          // Validate roles against UserRole enum
-          const validRoles = Object.values(UserRole);
-          const invalidRoles = roles.filter(role => !validRoles.includes(role as UserRole));
-          if (invalidRoles.length > 0) {
-            return res.status(400).json({ message: `Invalid roles: ${invalidRoles.join(', ')}` });
-          }
-          updateData.roles = roles;
-        } catch (error) {
-          console.error('Error parsing roles:', error);
-          // If roles parsing fails, keep existing roles
-          updateData.roles = currentUser.roles;
-        }
-      } else {
-        // Preserve existing roles if not provided
-        updateData.roles = currentUser.roles;
-      }
-
-      // Handle interests
-      if (req.body.interests) {
-        try {
-          const interests = JSON.parse(req.body.interests);
-          if (!Array.isArray(interests)) {
-            return res.status(400).json({ message: 'Interests must be an array' });
-          }
-          updateData.interests = interests;
-        } catch (error) {
-          console.error('Error parsing interests:', error);
-          // If interests parsing fails, keep existing interests
-          updateData.interests = currentUser.interests || [];
-        }
-      }
-
-      // Handle profile image if provided
-      if (req.file) {
-        const file = req.file;
-        const fileExtension = path.extname(file.originalname);
-        const key = `profile-images/${userId}/${Date.now()}${fileExtension}`;
-        
-        // Upload to S3
-        await s3Service.uploadFile(file.buffer, key, file.mimetype);
-        
-        // Get the public URL
-        const publicUrl = s3Service.getFileUrl(key);
-        updateData.profileImage = publicUrl;
-        
-        // Delete old profile image from S3 if it exists
-        if (currentUser.profileImage) {
-          try {
-            const oldKey = currentUser.profileImage.split('/').pop();
-            if (oldKey) {
-              await s3Service.deleteFile(oldKey);
-            }
-          } catch (error) {
-            console.error('Error deleting old profile image:', error);
-          }
-        }
-      }
-
-      console.log('Processing update with:', updateData);
-
-      const updatedUser = await UserService.updateProfile(userId, updateData);
-      if (!updatedUser) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-
-      // Create sanitized user object for response
+      const updatedUser = await UserService.updateProfile(req.user!.id, profileData);
+      
+      // Create sanitized response object with only the fields we want to expose
       const userResponse = {
         id: updatedUser._id,
         fullName: updatedUser.fullName,
         email: updatedUser.email,
-        roles: updatedUser.roles || [],
-        phoneNumber: updatedUser.phoneNumber || '',
-        bio: updatedUser.bio || '',
-        interests: updatedUser.interests || [],
-        profileImage: updatedUser.profileImage || null,
-        profileCompleted: updatedUser.profileCompleted || false
+        roles: updatedUser.roles,
+        phoneNumber: updatedUser.phoneNumber,
+        bio: updatedUser.bio,
+        interests: updatedUser.interests,
+        profileImage: updatedUser.profileImage,
+        profileCompleted: updatedUser.profileCompleted
       };
 
-      console.log('Sending response:', userResponse);
-      res.json({ user: userResponse });
+      console.log('[UserController] Profile updated successfully:', {
+        userId: userResponse.id,
+        hasProfileImage: !!userResponse.profileImage
+      });
 
-    } catch (error: any) {
-      console.error('Profile update error:', error);
-      res.status(500).json({ message: error.message || 'Error updating profile' });
+      res.json(userResponse);
+    } catch (error) {
+      console.error('[UserController] Error updating profile:', error);
+      res.status(500).json({ message: 'Failed to update profile' });
     }
   }
 
