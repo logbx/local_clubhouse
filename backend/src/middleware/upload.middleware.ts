@@ -2,12 +2,19 @@ import multer from 'multer';
 import path from 'path';
 import { Request, Response, NextFunction } from 'express';
 
-export const uploadMiddleware = multer({
+// Create multer instance without .single() to make it more flexible
+const multerInstance = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
   fileFilter: (req, file, cb) => {
+    console.log('Multer processing file:', {
+      fieldname: file.fieldname,
+      originalname: file.originalname,
+      mimetype: file.mimetype
+    });
+    
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
@@ -15,7 +22,50 @@ export const uploadMiddleware = multer({
       cb(new Error('Invalid file type. Only JPEG, PNG and GIF are allowed.'));
     }
   }
-}).single('profileImage');
+});
+
+// Export middleware that handles both file upload and URL cases
+export const uploadMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  console.log('Upload middleware processing request:', {
+    contentType: req.headers['content-type'],
+    hasFile: req.headers['content-type']?.includes('multipart/form-data'),
+    body: req.body
+  });
+
+  // If it's not a multipart request or if profileImage is already a URL, skip multer
+  if (!req.headers['content-type']?.includes('multipart/form-data') || 
+      (req.body && typeof req.body.profileImage === 'string' && req.body.profileImage.startsWith('http'))) {
+    console.log('Skipping multer - not a multipart request or profileImage is already a URL');
+    return next();
+  }
+
+  // Use multer for file upload
+  multerInstance.single('profileImage')(req, res, (err) => {
+    if (err) {
+      console.error('Multer error:', err);
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(413).json({
+            error: 'File too large',
+            message: 'Maximum file size allowed is 5MB'
+          });
+        }
+        if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+          console.log('Unexpected file field - request body:', req.body);
+          // If it's an unexpected field error but we have a URL, continue
+          if (req.body && typeof req.body.profileImage === 'string' && req.body.profileImage.startsWith('http')) {
+            return next();
+          }
+        }
+      }
+      return res.status(400).json({
+        error: 'File upload error',
+        message: err.message
+      });
+    }
+    next();
+  });
+};
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
 

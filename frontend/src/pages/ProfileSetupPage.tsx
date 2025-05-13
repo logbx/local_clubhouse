@@ -4,6 +4,7 @@ import { userApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { UserRole } from '../types/user';
+import { FileUpload } from '../components/FileUpload';
 
 interface User {
   id: string;
@@ -64,23 +65,15 @@ const ProfileSetupPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [newInterest, setNewInterest] = useState('');
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        setError('Image size must be less than 5MB');
-        return;
-      }
-      setFormData({ ...formData, profileImage: file });
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
+  const handleFileUploadComplete = (url: string) => {
+    setImagePreview(url);
+    setFormData(prev => ({ ...prev, profileImage: url }));
+  };
+
+  const handleFileUploadError = (error: Error) => {
+    setError(error.message || 'Failed to upload image');
   };
 
   const handleRoleToggle = (roleId: UserRole) => {
@@ -149,7 +142,7 @@ const ProfileSetupPage: React.FC = () => {
         roles: formData.roles,
         bio: formData.bio,
         phoneNumber: formData.phoneNumber,
-        hasProfileImage: !!formData.profileImage
+        profileImage: formData.profileImage
       });
 
       const response = await userApi.updateProfile(formDataToSend);
@@ -244,23 +237,14 @@ const ProfileSetupPage: React.FC = () => {
                     </svg>
                   )}
                 </div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  aria-label="Upload profile image"
-                  ref={fileInputRef}
-                />
               </div>
               <div className="flex flex-col">
-                <button
-                  type="button"
-                  className="text-sm text-primary-600 hover:text-primary-500"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  Change Photo
-                </button>
+                <FileUpload
+                  onUploadComplete={handleFileUploadComplete}
+                  onUploadError={handleFileUploadError}
+                  accept="image/*"
+                  maxSize={5 * 1024 * 1024}
+                />
                 <p className="mt-1 text-xs text-gray-500">PNG, JPG up to 5MB</p>
               </div>
             </div>
