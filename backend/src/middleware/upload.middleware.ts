@@ -1,7 +1,7 @@
 // This middleware is no longer needed since all uploads are handled via S3 signed URLs.
 import { Request, Response, NextFunction } from 'express';
 
-export const uploadMiddleware = (req: Request, res: Response, next: NextFunction) => {
+export const uploadMiddleware = (_req: Request, _res: Response, next: NextFunction) => {
   // No-op middleware
   next();
 };
@@ -17,8 +17,7 @@ export const validateFileSize = (req: Request, res: Response, next: NextFunction
       message: 'Maximum file size allowed is 5MB'
     });
   }
-
-  next();
+  return next();
 };
 
 export const validateFileType = (req: Request, res: Response, next: NextFunction) => {
@@ -31,6 +30,5 @@ export const validateFileType = (req: Request, res: Response, next: NextFunction
       message: 'Only JPEG, PNG, GIF, and WebP images are allowed'
     });
   }
-
-  next();
+  return next();
 }; 

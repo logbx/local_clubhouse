@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { Event } from '../models/event.model';
-import { User } from '../models/user.model';
 import { Types } from 'mongoose';
 
 interface AuthRequest extends Request {
@@ -13,32 +12,33 @@ interface AuthRequest extends Request {
 }
 
 export class EventController {
-  static async getEvents(req: AuthRequest, res: Response) {
+  static async getEvents(_req: Request, res: Response) {
     try {
       const events = await Event.find().populate('organizerId', 'fullName email');
-      res.json({ data: events });
+      return res.json({ data: events });
     } catch (error) {
       console.error('Failed to fetch events:', error);
-      res.status(500).json({ error: 'Failed to fetch events' });
+      return res.status(500).json({ error: 'Failed to fetch events' });
     }
   }
 
-  static async getEvent(req: AuthRequest, res: Response) {
+  static async getEvent(req: Request, res: Response) {
     try {
       const event = await Event.findById(req.params.id);
       if (!event) {
         return res.status(404).json({ error: 'Event not found' });
       }
-      res.json({ data: event });
+      return res.json({ data: event });
     } catch (error) {
-      res.status(500).json({ error: 'Failed to fetch event' });
+      return res.status(500).json({ error: 'Failed to fetch event' });
     }
   }
 
-  static async createEvent(req: AuthRequest, res: Response) {
+  static async createEvent(req: Request, res: Response) {
     try {
+      const user = (req as AuthRequest).user;
       console.log('Creating event with data:', req.body);
-      console.log('User:', req.user);
+      console.log('User:', user);
       
       const { startDate, endDate, tags, ...rest } = req.body;
       
@@ -66,7 +66,7 @@ export class EventController {
         tags: parsedTags,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
-        organizerId: req.user._id,
+        organizerId: user._id,
         imageUrl: req.body.imageUrl,
       };
       
@@ -81,11 +81,12 @@ export class EventController {
     }
   }
 
-  static async updateEvent(req: AuthRequest, res: Response) {
+  static async updateEvent(req: Request, res: Response) {
     try {
+      const user = (req as AuthRequest).user;
       const { id } = req.params;
       const updateData = { ...req.body };
-      const userId = req.user?.id || req.user._id;
+      const userId = user?.id || user._id;
 
       // Remove fields that shouldn't be updated
       delete updateData.organizerId;
@@ -142,36 +143,38 @@ export class EventController {
         { new: true }
       ).populate('organizerId', 'fullName email');
 
-      res.json(updatedEvent);
+      return res.json(updatedEvent);
     } catch (error) {
       console.error('Error updating event:', error);
-      res.status(500).json({ message: 'Error updating event', details: error.message });
+      return res.status(500).json({ message: 'Error updating event', details: error.message });
     }
   }
 
-  static async deleteEvent(req: AuthRequest, res: Response) {
+  static async deleteEvent(req: Request, res: Response) {
     try {
+      const user = (req as AuthRequest).user;
       const event = await Event.findById(req.params.id);
       if (!event) {
         return res.status(404).json({ error: 'Event not found' });
       }
-      if (event.organizerId.toString() !== req.user._id.toString()) {
+      if (event.organizerId.toString() !== user._id.toString()) {
         return res.status(403).json({ error: 'Not authorized to delete this event' });
       }
       await Event.findByIdAndDelete(req.params.id);
-      res.json({ message: 'Event deleted successfully' });
+      return res.json({ message: 'Event deleted successfully' });
     } catch (error) {
-      res.status(500).json({ error: 'Failed to delete event' });
+      return res.status(500).json({ error: 'Failed to delete event' });
     }
   }
 
-  static async publishEvent(req: AuthRequest, res: Response) {
+  static async publishEvent(req: Request, res: Response) {
     try {
+      const user = (req as AuthRequest).user;
       const event = await Event.findById(req.params.id);
       if (!event) {
         return res.status(404).json({ error: 'Event not found' });
       }
-      if (event.organizerId.toString() !== req.user._id.toString()) {
+      if (event.organizerId.toString() !== user._id.toString()) {
         return res.status(403).json({ error: 'Not authorized to publish this event' });
       }
       const updatedEvent = await Event.findByIdAndUpdate(
@@ -179,29 +182,30 @@ export class EventController {
         { status: 'LIVE' },
         { new: true }
       );
-      res.json({ data: updatedEvent });
+      return res.json({ data: updatedEvent });
     } catch (error) {
-      res.status(500).json({ error: 'Failed to publish event' });
+      return res.status(500).json({ error: 'Failed to publish event' });
     }
   }
 
-  static async rsvpEvent(req: AuthRequest, res: Response) {
+  static async rsvpEvent(req: Request, res: Response) {
     try {
+      const user = (req as AuthRequest).user;
       const event = await Event.findById(req.params.id);
       if (!event) {
         return res.status(404).json({ error: 'Event not found' });
       }
-      if (event.rsvps.includes(req.user._id)) {
+      if (event.rsvps.map((id: any) => id.toString()).includes(user._id.toString())) {
         return res.status(400).json({ error: 'Already RSVPed to this event' });
       }
       const updatedEvent = await Event.findByIdAndUpdate(
         req.params.id,
-        { $push: { rsvps: req.user._id } },
+        { $push: { rsvps: user._id } },
         { new: true }
       );
-      res.json({ data: updatedEvent });
+      return res.json({ data: updatedEvent });
     } catch (error) {
-      res.status(500).json({ error: 'Failed to RSVP to event' });
+      return res.status(500).json({ error: 'Failed to RSVP to event' });
     }
   }
 } 

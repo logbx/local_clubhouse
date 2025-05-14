@@ -1,14 +1,10 @@
 import { Response, Request } from 'express';
 import { UserService } from '../services/user.service';
 import { AuthRequest } from '../middleware/auth.middleware';
-import { UserRole } from '../types/user';
-import path from 'path';
 import fs from 'fs';
 import { User } from '../models/user.model';
-import { S3Service } from '../services/s3.service';
 
-// Initialize S3 service
-const s3Service = new S3Service();
+
 
 // Ensure uploads directory exists
 if (!fs.existsSync('uploads')) {
@@ -98,26 +94,21 @@ export class UserController {
         return res.status(404).json({ message: 'User not found' });
       }
 
-      res.json({
+      return res.json({
         data: {
           id: user._id,
-          username: user.username || user.fullName,
           fullName: user.fullName,
           bio: user.bio || '',
-          tags: user.tags || [],
           interests: user.interests || [],
-          avatarUrl: user.avatarUrl,
           profileImage: user.profileImage || null,
           roles: user.roles || [],
           phoneNumber: user.phoneNumber,
-          profileCompleted: user.profileCompleted || false,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt
+          profileCompleted: user.profileCompleted || false
         }
       });
     } catch (error) {
       console.error('Error fetching public profile:', error);
-      res.status(500).json({ message: 'Error fetching user profile' });
+      return res.status(500).json({ message: 'Error fetching user profile' });
     }
   }
 } 

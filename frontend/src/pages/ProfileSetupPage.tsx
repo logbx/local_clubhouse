@@ -1,22 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { userApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { UserRole } from '../types/user';
 import { FileUpload } from '../components/FileUpload';
 import { userService, ProfileFormData } from '../services/user.service';
-
-interface User {
-  id: string;
-  fullName: string;
-  email: string;
-  roles: string[];
-  phoneNumber?: string;
-  bio?: string;
-  profileImage?: string;
-  interests: string[];
-}
 
 const roles = [
   {
@@ -57,23 +45,19 @@ const ProfileSetupPage: React.FC = () => {
     interests: user?.interests || [],
     profileImage: user?.profileImage || ''
   });
-  const [imagePreview, setImagePreview] = useState<string | null>(user?.profileImage || null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const [newInterest, setNewInterest] = useState('');
   const [profileImage, setProfileImage] = useState<string | null>(user?.profileImage || null);
-  const [uploadProgress, setUploadProgress] = useState(0);
 
   const handleFileUploadComplete = useCallback((url: string) => {
     console.log('[ProfileSetup] Upload complete, received URL:', url);
     setProfileImage(url);
-    setUploadProgress(0);
   }, []);
 
   const handleFileUploadError = useCallback((error: Error) => {
     console.error('[ProfileSetup] Upload error:', error);
-    setUploadProgress(0);
     setError('Failed to upload image. Please try again.');
   }, []);
 
@@ -215,9 +199,9 @@ const ProfileSetupPage: React.FC = () => {
             <div className="mt-2 flex items-center space-x-4">
               <div className="relative">
                 <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
-                  {imagePreview ? (
+                  {profileImage ? (
                     <img 
-                      src={imagePreview} 
+                      src={profileImage} 
                       alt="Profile preview" 
                       className="w-full h-full object-cover"
                     />
