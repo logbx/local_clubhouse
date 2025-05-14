@@ -2,7 +2,6 @@ import { Response, Request } from 'express';
 import { UserService } from '../services/user.service';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { UserRole } from '../types/user';
-import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { User } from '../models/user.model';
@@ -15,22 +14,6 @@ const s3Service = new S3Service();
 if (!fs.existsSync('uploads')) {
   fs.mkdirSync('uploads');
 }
-
-// Configure multer for memory storage
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png'];
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only JPEG and PNG are allowed.'));
-    }
-  }
-});
 
 export class UserController {
   static async updateProfile(req: AuthRequest, res: Response) {
@@ -75,58 +58,6 @@ export class UserController {
     } catch (error) {
       console.error('[UserController] Error updating profile:', error);
       res.status(500).json({ message: 'Failed to update profile' });
-    }
-  }
-
-  static async uploadProfileImage(req: AuthRequest, res: Response) {
-    try {
-      const userId = req.user.id;
-      const file = req.file;
-
-      if (!file) {
-        return res.status(400).json({ error: 'No file uploaded' });
-      }
-
-      // Get current user to handle old image deletion
-      const currentUser = await UserService.getUserProfile(userId);
-      if (!currentUser) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-
-      // Generate S3 key
-      const fileExtension = path.extname(file.originalname);
-      const key = `profile-images/${userId}/${Date.now()}${fileExtension}`;
-      
-      // Upload to S3
-      await s3Service.uploadFile(file.buffer, key, file.mimetype);
-      
-      // Get the public URL
-      const publicUrl = s3Service.getFileUrl(key);
-
-      // Delete old profile image from S3 if it exists
-      if (currentUser.profileImage) {
-        try {
-          const oldKey = currentUser.profileImage.split('/').pop();
-          if (oldKey) {
-            await s3Service.deleteFile(oldKey);
-          }
-        } catch (error) {
-          console.error('Error deleting old profile image:', error);
-        }
-      }
-
-      // Update user profile with new image URL
-      const updatedUser = await UserService.updateProfile(userId, {
-        profileImage: publicUrl,
-      });
-
-      res.json({
-        message: 'Profile image uploaded successfully',
-        profileImage: updatedUser.profileImage,
-      });
-    } catch (error: any) {
-      console.error('Profile image upload error:', error);
-      res.status(400).json({ error: error.message });
     }
   }
 
@@ -189,6 +120,4 @@ export class UserController {
       res.status(500).json({ message: 'Error fetching user profile' });
     }
   }
-}
-
-export const uploadMiddleware = upload.single('profileImage'); 
+} 
