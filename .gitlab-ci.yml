@@ -22,11 +22,11 @@ deploy:
     - |
       for i in {1..3}; do
         echo "Attempt $i of 3..."
-        ssh -vvv root@62.72.26.151 "
+        ssh root@62.72.26.151 "
           cd /root/saas-app && \
           git pull origin main && \
-          npm install && \
-          npm run build && \
+          cd backend && npm install --legacy-peer-deps && npm run build && \
+          cd ../frontend && npm install && npm run build && \
           pm2 restart all || pm2 start dist/app.js --name saas-app
         " && break || {
           echo "Deployment attempt $i failed"

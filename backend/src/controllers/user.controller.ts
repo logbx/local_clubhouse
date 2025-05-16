@@ -14,25 +14,24 @@ if (!fs.existsSync('uploads')) {
 export class UserController {
   static async updateProfile(req: AuthRequest, res: Response) {
     try {
-      console.log('[UserController] Updating profile for user:', req.user?.id);
-      console.log('[UserController] Request body:', {
-        ...req.body,
-        profileImage: req.body.profileImage ? 'URL present' : 'No URL'
-      });
+      console.log('[UserController] Raw request body:', JSON.stringify(req.body, null, 2));
+      console.log('[UserController] User from auth:', req.user?.id);
 
+      // Validate and sanitize input
       const profileData = {
         ...req.body,
-        profileImage: req.body.profileImage
+        roles: Array.isArray(req.body.roles) ? req.body.roles : 
+               (typeof req.body.roles === 'string' ? JSON.parse(req.body.roles) : []),
+        interests: Array.isArray(req.body.interests) ? req.body.interests :
+                  (typeof req.body.interests === 'string' ? JSON.parse(req.body.interests) : []),
+        profileImage: typeof req.body.profileImage === 'string' ? req.body.profileImage : null
       };
 
-      console.log('[UserController] Profile data to update:', {
-        ...profileData,
-        profileImage: profileData.profileImage ? 'URL present' : 'No URL'
-      });
+      console.log('[UserController] Sanitized profile data:', JSON.stringify(profileData, null, 2));
 
       const updatedUser = await UserService.updateProfile(req.user!.id, profileData);
       
-      // Create sanitized response object with only the fields we want to expose
+      // Create sanitized response object
       const userResponse = {
         id: updatedUser._id,
         fullName: updatedUser.fullName,
@@ -45,15 +44,30 @@ export class UserController {
         profileCompleted: updatedUser.profileCompleted
       };
 
-      console.log('[UserController] Profile updated successfully:', {
+      console.log('[UserController] Profile update successful:', {
         userId: userResponse.id,
-        hasProfileImage: !!userResponse.profileImage
+        hasProfileImage: !!userResponse.profileImage,
+        roles: userResponse.roles,
+        interests: userResponse.interests
       });
 
       res.json(userResponse);
-    } catch (error) {
-      console.error('[UserController] Error updating profile:', error);
-      res.status(500).json({ message: 'Failed to update profile' });
+    } catch (error: any) {
+      console.error('[UserController] Profile update error:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        code: error.code,
+        details: error.details || 'No additional details'
+      });
+      
+      // Send more detailed error response
+      res.status(500).json({ 
+        message: 'Failed to update profile',
+        error: error.message,
+        details: error.details || 'No additional details',
+        code: error.code || 'UNKNOWN_ERROR'
+      });
     }
   }
 

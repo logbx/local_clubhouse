@@ -94,8 +94,12 @@ const ProfileSetupPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('[ProfileSetup] Starting form submission');
-    console.log('[ProfileSetup] Current profileImage value:', profileImage);
+    console.log('[ProfileSetup] Starting form submission with data:', {
+      formData,
+      profileImage,
+      roles: formData.roles,
+      interests: formData.interests
+    });
     
     if (!profileImage || !profileImage.startsWith('https://')) {
       console.error('[ProfileSetup] Invalid profile image URL:', profileImage);
@@ -112,18 +116,20 @@ const ProfileSetupPage: React.FC = () => {
     setError(null);
 
     try {
-      // Create the profile data object with the S3 URL and proper data types
+      // Ensure data is properly formatted
       const profileData = {
         fullName: formData.fullName,
         email: formData.email,
-        roles: formData.roles, // Send as array, not stringified
+        roles: Array.isArray(formData.roles) ? formData.roles : 
+               (typeof formData.roles === 'string' ? JSON.parse(formData.roles) : []),
         bio: formData.bio || '',
         phoneNumber: formData.phoneNumber || '',
-        interests: formData.interests || [], // Send as array, not stringified
-        profileImage: profileImage // Use the S3 URL from the upload
+        interests: Array.isArray(formData.interests) ? formData.interests :
+                  (typeof formData.interests === 'string' ? JSON.parse(formData.interests) : []),
+        profileImage: profileImage // This should be the S3 URL string
       };
 
-      console.log('[ProfileSetup] Submitting form data:', profileData);
+      console.log('[ProfileSetup] Submitting sanitized profile data:', profileData);
       
       const response = await userService.updateProfile(profileData);
       
@@ -132,7 +138,7 @@ const ProfileSetupPage: React.FC = () => {
         const updatedUser = {
           ...user!,
           ...response.user,
-          roles: formData.roles,
+          roles: profileData.roles,
           bio: response.user.bio || '',
           phoneNumber: response.user.phoneNumber || '',
           profileImage: response.user.profileImage || null,
@@ -147,8 +153,13 @@ const ProfileSetupPage: React.FC = () => {
         throw new Error('No user data returned from server');
       }
     } catch (err: any) {
-      console.error('[ProfileSetup] Profile update error:', err);
-      setError(err.response?.data?.message || 'Failed to update profile. Please try again.');
+      console.error('[ProfileSetup] Profile update error:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        statusText: err.response?.statusText
+      });
+      setError(err.response?.data?.message || err.message || 'Failed to update profile. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
