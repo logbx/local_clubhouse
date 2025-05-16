@@ -52,8 +52,17 @@ const ProfileSetupPage: React.FC = () => {
   const [profileImage, setProfileImage] = useState<string | null>(user?.profileImage || null);
 
   const handleFileUploadComplete = useCallback((url: string) => {
-    console.log('[ProfileSetup] Upload complete, received URL:', url);
-    setProfileImage(url);
+    console.log('[ProfileSetup] File upload complete, received URL:', url);
+    if (typeof url === 'string' && url.startsWith('https://')) {
+      setProfileImage(url);
+      setFormData(prev => ({
+        ...prev,
+        profileImage: url
+      }));
+    } else {
+      console.error('[ProfileSetup] Invalid URL received from file upload:', url);
+      setError('Invalid image URL received. Please try uploading again.');
+    }
   }, []);
 
   const handleFileUploadError = useCallback((error: Error) => {
@@ -101,9 +110,10 @@ const ProfileSetupPage: React.FC = () => {
       interests: formData.interests
     });
     
-    if (!profileImage || !profileImage.startsWith('https://')) {
-      console.error('[ProfileSetup] Invalid profile image URL:', profileImage);
-      setError('Please upload a profile image');
+    // Validate profile image is a URL string
+    if (!profileImage || typeof profileImage !== 'string' || !profileImage.startsWith('https://')) {
+      console.error('[ProfileSetup] Invalid profile image:', profileImage);
+      setError('Please upload a profile image first');
       return;
     }
 
@@ -116,7 +126,7 @@ const ProfileSetupPage: React.FC = () => {
     setError(null);
 
     try {
-      // Ensure data is properly formatted
+      // Ensure data is properly formatted and profileImage is a URL string
       const profileData = {
         fullName: formData.fullName,
         email: formData.email,
@@ -126,15 +136,27 @@ const ProfileSetupPage: React.FC = () => {
         phoneNumber: formData.phoneNumber || '',
         interests: Array.isArray(formData.interests) ? formData.interests :
                   (typeof formData.interests === 'string' ? JSON.parse(formData.interests) : []),
-        profileImage: profileImage // This should be the S3 URL string
+        profileImage: profileImage // Use the S3 URL from state
       };
 
-      console.log('[ProfileSetup] Submitting sanitized profile data:', profileData);
+      // Validate the data before sending
+      if (typeof profileData.profileImage !== 'string') {
+        throw new Error('Profile image must be a URL string');
+      }
+
+      console.log('[ProfileSetup] Submitting sanitized profile data:', {
+        ...profileData,
+        profileImage: profileData.profileImage ? 'URL present' : 'No URL'
+      });
       
       const response = await userService.updateProfile(profileData);
       
       if (response?.user) {
-        console.log('[ProfileSetup] Profile update successful:', response.user);
+        console.log('[ProfileSetup] Profile update successful:', {
+          ...response.user,
+          profileImage: response.user.profileImage ? 'URL present' : 'No URL'
+        });
+        
         const updatedUser = {
           ...user!,
           ...response.user,
@@ -157,9 +179,16 @@ const ProfileSetupPage: React.FC = () => {
         message: err.message,
         response: err.response?.data,
         status: err.response?.status,
-        statusText: err.response?.statusText
+        statusText: err.response?.statusText,
+        data: err.response?.data
       });
-      setError(err.response?.data?.message || err.message || 'Failed to update profile. Please try again.');
+      
+      // Provide more specific error messages
+      if (err.response?.status === 413) {
+        setError('Profile image is too large. Please try a smaller image.');
+      } else {
+        setError(err.response?.data?.message || err.message || 'Failed to update profile. Please try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }
