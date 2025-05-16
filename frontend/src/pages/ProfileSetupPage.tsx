@@ -49,12 +49,10 @@ const ProfileSetupPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const [newInterest, setNewInterest] = useState('');
-  const [profileImage, setProfileImage] = useState<string | null>(user?.profileImage || null);
 
   const handleFileUploadComplete = useCallback((url: string) => {
     console.log('[ProfileSetup] File upload complete, received URL:', url);
     if (typeof url === 'string' && url.startsWith('https://')) {
-      setProfileImage(url);
       setFormData(prev => ({
         ...prev,
         profileImage: url
@@ -105,14 +103,13 @@ const ProfileSetupPage: React.FC = () => {
     e.preventDefault();
     console.log('[ProfileSetup] Starting form submission with data:', {
       formData,
-      profileImage,
       roles: formData.roles,
       interests: formData.interests
     });
     
     // Validate profile image is a URL string
-    if (!profileImage || typeof profileImage !== 'string' || !profileImage.startsWith('https://')) {
-      console.error('[ProfileSetup] Invalid profile image:', profileImage);
+    if (!formData.profileImage || typeof formData.profileImage !== 'string' || !formData.profileImage.startsWith('https://')) {
+      console.error('[ProfileSetup] Invalid profile image:', formData.profileImage);
       setError('Please upload a profile image first');
       return;
     }
@@ -126,7 +123,7 @@ const ProfileSetupPage: React.FC = () => {
     setError(null);
 
     try {
-      // Ensure data is properly formatted and profileImage is a URL string
+      // Ensure data is properly formatted
       const profileData = {
         fullName: formData.fullName,
         email: formData.email,
@@ -136,7 +133,7 @@ const ProfileSetupPage: React.FC = () => {
         phoneNumber: formData.phoneNumber || '',
         interests: Array.isArray(formData.interests) ? formData.interests :
                   (typeof formData.interests === 'string' ? JSON.parse(formData.interests) : []),
-        profileImage: profileImage // Use the S3 URL from state
+        profileImage: formData.profileImage // This should be the S3 URL string
       };
 
       // Validate the data before sending
@@ -214,6 +211,24 @@ const ProfileSetupPage: React.FC = () => {
     setFormData({ ...formData, phoneNumber: formatted });
   };
 
+  const renderProfileImage = () => (
+    <div className="relative">
+      <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
+        {formData.profileImage ? (
+          <img 
+            src={formData.profileImage} 
+            alt="Profile preview" 
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <svg className="h-16 w-16 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
@@ -237,21 +252,7 @@ const ProfileSetupPage: React.FC = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700">Profile Image</label>
             <div className="mt-2 flex items-center space-x-4">
-              <div className="relative">
-                <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
-                  {profileImage ? (
-                    <img 
-                      src={profileImage} 
-                      alt="Profile preview" 
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <svg className="h-16 w-16 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                  )}
-                </div>
-              </div>
+              {renderProfileImage()}
               <div className="flex flex-col">
                 <FileUpload
                   onUploadComplete={handleFileUploadComplete}
