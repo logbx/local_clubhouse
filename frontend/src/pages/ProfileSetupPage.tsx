@@ -51,16 +51,11 @@ const ProfileSetupPage: React.FC = () => {
   const [newInterest, setNewInterest] = useState('');
 
   const handleFileUploadComplete = useCallback((url: string) => {
-    console.log('[ProfileSetup] File upload complete, received URL:', url);
-    if (typeof url === 'string' && url.startsWith('https://')) {
-      setFormData(prev => ({
-        ...prev,
-        profileImage: url
-      }));
-    } else {
-      console.error('[ProfileSetup] Invalid URL received from file upload:', url);
-      setError('Invalid image URL received. Please try uploading again.');
-    }
+    console.log('[handleFileUploadComplete] Got S3 URL:', url);
+    setFormData(prev => ({
+      ...prev,
+      profileImage: url
+    }));
   }, []);
 
   const handleFileUploadError = useCallback((error: Error) => {
@@ -107,6 +102,20 @@ const ProfileSetupPage: React.FC = () => {
       interests: formData.interests
     });
     
+    // Extra debug: log the type and value of profileImage
+    console.log('[handleSubmit] formData.profileImage:', formData.profileImage, 'typeof:', typeof formData.profileImage);
+    // Type-safe check for File object
+    if (
+      typeof formData.profileImage === 'object' &&
+      formData.profileImage !== null &&
+      'name' in formData.profileImage &&
+      'size' in formData.profileImage
+    ) {
+      console.error('[handleSubmit] ERROR: profileImage is a File object! This should never happen. Forcibly setting to empty string. File:', formData.profileImage);
+      setFormData(prev => ({ ...prev, profileImage: '' }));
+      setError('Profile image upload failed. Please try uploading again.');
+      return;
+    }
     // Validate profile image is a URL string
     if (!formData.profileImage || typeof formData.profileImage !== 'string' || !formData.profileImage.startsWith('https://')) {
       console.error('[ProfileSetup] Invalid profile image:', formData.profileImage);
@@ -133,7 +142,7 @@ const ProfileSetupPage: React.FC = () => {
         phoneNumber: formData.phoneNumber || '',
         interests: Array.isArray(formData.interests) ? formData.interests :
                   (typeof formData.interests === 'string' ? JSON.parse(formData.interests) : []),
-        profileImage: formData.profileImage // This should be the S3 URL string
+        profileImage: formData.profileImage // This should be a string URL
       };
 
       // Validate the data before sending
@@ -145,6 +154,8 @@ const ProfileSetupPage: React.FC = () => {
         ...profileData,
         profileImage: profileData.profileImage ? 'URL present' : 'No URL'
       });
+      
+      console.log('[handleSubmit] formData.profileImage:', formData.profileImage, 'typeof:', typeof formData.profileImage);
       
       const response = await userService.updateProfile(profileData);
       
