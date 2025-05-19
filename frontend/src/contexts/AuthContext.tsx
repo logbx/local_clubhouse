@@ -1,18 +1,13 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { authApi } from '../api/authApi';
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-}
+import { User, UserRole } from '../types/user';
 
 interface AuthContextType {
   user: User | null;
   error: string | null;
   login: (email: string, password: string) => Promise<User>;
   logout: () => void;
+  updateUser: (user: User) => void;
   isLoading: boolean;
 }
 
@@ -46,8 +41,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(null);
   };
 
+  const updateUser = (updatedUser: User) => {
+    setUser(updatedUser);
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, error, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, error, login, logout, updateUser, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

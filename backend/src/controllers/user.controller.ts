@@ -19,18 +19,25 @@ export class UserController {
 
       // Validate and sanitize input
       const profileData = {
-        ...req.body,
         roles: Array.isArray(req.body.roles) ? req.body.roles : 
                (typeof req.body.roles === 'string' ? JSON.parse(req.body.roles) : []),
         interests: Array.isArray(req.body.interests) ? req.body.interests :
                   (typeof req.body.interests === 'string' ? JSON.parse(req.body.interests) : []),
-        profileImage: typeof req.body.profileImage === 'string' ? req.body.profileImage : null
+        profileImage: req.body.profileImage || null
       };
 
       console.log('[UserController] Sanitized profile data:', JSON.stringify(profileData, null, 2));
 
-      const updatedUser = await UserService.updateProfile(req.user!.id, profileData);
+      if (!req.user?.id) {
+        throw new Error('User not authenticated');
+      }
+
+      const updatedUser = await UserService.updateProfile(req.user.id, profileData);
       
+      if (!updatedUser) {
+        throw new Error('Failed to update user profile');
+      }
+
       // Create sanitized response object
       const userResponse = {
         id: updatedUser._id,
@@ -61,7 +68,6 @@ export class UserController {
         details: error.details || 'No additional details'
       });
       
-      // Send more detailed error response
       res.status(500).json({ 
         message: 'Failed to update profile',
         error: error.message,
