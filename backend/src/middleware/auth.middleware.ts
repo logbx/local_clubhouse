@@ -3,7 +3,6 @@ import { AuthService } from '../services/auth.service';
 
 export interface AuthRequest extends Request {
   user?: any;
-  file?: Express.Multer.File;
 }
 
 export const authenticate = async (

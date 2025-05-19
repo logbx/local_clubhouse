@@ -8,7 +8,6 @@ interface AuthRequest extends Request {
     id?: string;
     [key: string]: any;
   };
-  file?: Express.Multer.File;
 }
 
 export class EventController {

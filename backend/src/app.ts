@@ -13,7 +13,6 @@ import userRoutes from './routes/user.routes';
 import eventRoutes from './routes/event.routes';
 import searchRoutes from './routes/search.routes';
 import friendRoutes from './routes/friend.routes';
-import uploadRoutes from './routes/upload.routes';
 import messageRoutes from './routes/messages';
 import eventMessageRoutes from './routes/eventMessages';
 import groupMessageRoutes from './routes/groupMessages';
@@ -29,8 +28,8 @@ dotenv.config();
 
 const app = express();
 
-// Trust proxy - this is important for rate limiting behind a proxy (Add back in if using Nginx)
-//app.set('trust proxy', 1);
+// Trust proxy - required for rate limiting behind a proxy
+app.set('trust proxy', 1);
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -70,9 +69,7 @@ const globalLimiter = rateLimit({
   max: 100, // 100 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
-  message: 'Too many requests from this IP, please try again after 15 minutes',
-  // Skip rate limiting for file uploads
-  skip: (req) => req.path.includes('/upload/') || req.path.includes('/me/avatar')
+  message: 'Too many requests from this IP, please try again after 15 minutes'
 });
 
 // Apply global rate limiter to all requests
@@ -91,11 +88,10 @@ app.use('/api/users', userRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/friends', friendRoutes);
-app.use('/api/upload', uploadRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/event-messages', eventMessageRoutes);
 app.use('/api/group-messages', groupMessageRoutes);
-app.use('/api/event-sub-groups', eventSubGroupRoutes);
+app.use('/api/event-subgroups', eventSubGroupRoutes);
 app.use('/api/friend-groups', friendGroupRoutes);
 
 // Basic route for testing

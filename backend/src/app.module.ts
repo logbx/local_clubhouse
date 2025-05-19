@@ -8,7 +8,6 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
-import { UploadModule } from './upload/upload.module';
 import { EventsModule } from './events/events.module';
 
 @Module({
@@ -33,7 +32,6 @@ import { EventsModule } from './events/events.module';
     }),
     AuthModule,
     UsersModule,
-    UploadModule,
     EventsModule,
   ],
   controllers: [AppController],

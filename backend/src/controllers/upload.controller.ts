@@ -1,5 +1,4 @@
-import { Controller, Post, UseInterceptors, UploadedFile, Body } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { Controller, Post, Body } from '@nestjs/common';
 import { S3Service } from '../services/s3.service';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -8,14 +7,14 @@ export class UploadController {
   constructor(private readonly s3Service: S3Service) {}
 
   @Post('file')
-  @UseInterceptors(FileInterceptor('file'))
-  async uploadFile(@UploadedFile() file: Express.Multer.File) {
+  async uploadFile(@Body() body: { file: string; fileName: string; fileType: string }) {
     try {
-      const fileExtension = file.originalname.split('.').pop();
-      const key = `${uuidv4()}-${file.originalname}`;
+      // Convert base64 to buffer if needed
+      const buffer = Buffer.from(body.file.split(',')[1], 'base64');
+      const key = `${uuidv4()}-${body.fileName}`;
       
       // Upload to S3
-      await this.s3Service.uploadFile(file.buffer, key, file.mimetype);
+      await this.s3Service.uploadFile(buffer, key, body.fileType);
       
       // Get the public URL
       const publicUrl = this.s3Service.getFileUrl(key);
