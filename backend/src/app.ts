@@ -29,8 +29,8 @@ dotenv.config();
 
 const app = express();
 
-// Trust proxy - this is important for rate limiting behind a proxy
-app.set('trust proxy', 1);
+// Trust proxy - this is important for rate limiting behind a proxy (Add back in if using Nginx)
+//app.set('trust proxy', 1);
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -115,6 +115,21 @@ app.get('/api/health', (_, res) => {
   };
   res.json(healthData);
 });
+
+// --- ADD BELOW: Serve React static files and SPA fallback ---
+app.use(express.static(path.join(__dirname, '..', '..', 'frontend', 'dist')));
+
+app.get('*', (req, res, next) => {
+  // Only handle non-API and non-upload routes
+  if (
+    req.originalUrl.startsWith('/api') ||
+    req.originalUrl.startsWith('/uploads')
+  ) {
+    return next();
+  }
+  res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'dist', 'index.html'));
+});
+// --- END ADD ---
 
 // Validation error handler
 app.use(validationErrorHandler);

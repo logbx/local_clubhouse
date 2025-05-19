@@ -37,6 +37,7 @@ router.post('/signed-url', authenticate, async (req: AuthenticatedRequest, res) 
     console.log('Generated URLs:', { signedUrl, publicUrl });
 
     res.json({ signedUrl, publicUrl, key });
+    return;
   } catch (error: any) {
     console.error('Error in /signed-url:', {
       error: error.message,
@@ -50,63 +51,7 @@ router.post('/signed-url', authenticate, async (req: AuthenticatedRequest, res) 
       return res.status(500).json({ error: 'S3 configuration error. Please contact support.' });
     }
     
-    res.status(500).json({ error: 'Failed to generate upload URL' });
-  }
-});
-
-// Handle file upload through the backend
-router.post('/file', authenticate, async (req: AuthenticatedRequest, res) => {
-  try {
-    console.log('Processing file upload for user:', req.user?.id);
-    
-    if (!req.file) {
-      console.error('No file provided in request');
-      return res.status(400).json({ error: 'No file provided' });
-    }
-
-    console.log('File details:', {
-      originalname: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size
-    });
-
-    if (!req.file.mimetype.startsWith('image/')) {
-      console.error('Invalid file type:', req.file.mimetype);
-      return res.status(400).json({ error: 'Only image files are allowed' });
-    }
-
-    const key = `uploads/${req.user?.id}/${uuidv4()}-${req.file.originalname}`;
-    console.log('Generated file key:', key);
-
-    await s3Service.uploadFile(req.file.buffer, key, req.file.mimetype);
-    console.log('File uploaded successfully');
-
-    const publicUrl = s3Service.getFileUrl(key);
-    console.log('Generated public URL:', publicUrl);
-
-    res.json({ url: publicUrl });
-  } catch (error: any) {
-    console.error('Error in /file upload:', {
-      error: error.message,
-      stack: error.stack,
-      user: req.user?.id,
-      file: req.file ? {
-        originalname: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size
-      } : null
-    });
-
-    // Handle specific error types
-    if (error.message.includes('Missing required AWS environment variables')) {
-      return res.status(500).json({ error: 'S3 configuration error. Please contact support.' });
-    }
-    
-    if (error.message.includes('Failed to upload file to S3')) {
-      return res.status(500).json({ error: 'Failed to upload file. Please try again.' });
-    }
-    
-    res.status(500).json({ error: 'Failed to process file upload' });
+    return res.status(500).json({ error: 'Failed to generate upload URL' });
   }
 });
 

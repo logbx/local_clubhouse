@@ -79,6 +79,18 @@ const ProfilePage = () => {
 
   const onSubmit = async (data: ProfileFormData) => {
     setIsLoading(true);
+
+    if (
+      typeof data.profileImage === 'object' &&
+      data.profileImage !== null &&
+      'name' in data.profileImage &&
+      'size' in data.profileImage
+    ) {
+      setError('Profile image upload failed. Please try uploading again.');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const response = await userService.updateProfile(data);
       if (user) {
