@@ -1,13 +1,13 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useQueryClient } from '@tanstack/react-query';
 import { UserRole } from '../types/user';
 import { FileUpload } from '../components/FileUpload';
 import { toast } from 'react-hot-toast';
 
 interface ProfileFormData {
   fullName: string;
+  email: string;
   roles: UserRole[];
   interests: string[];
   profileImage: string;
@@ -15,59 +15,37 @@ interface ProfileFormData {
   phoneNumber?: string;
 }
 
-const roles = [
-  {
-    id: 'Club_Founder' as UserRole,
-    title: 'Club Founder',
-    description: 'Passionate individuals who initiate and lead a club. They set direction and inspire others to join.',
-    icon: '👑'
-  },
-  {
-    id: 'Member' as UserRole,
-    title: 'Member',
-    description: 'The heart of the community. Participants who engage, attend events, and invite others.',
-    icon: '👥'
-  },
-  {
-    id: 'Sponsor' as UserRole,
-    title: 'Sponsor',
-    description: 'Local brands or businesses who support the community through funding, resources, or hosting.',
-    icon: '🏢'
-  },
-  {
-    id: 'Creator' as UserRole,
-    title: 'Creator',
-    description: 'Content creators who amplify the community\'s message through media, outreach, and online presence.',
-    icon: '📸'
-  }
-];
+const AVAILABLE_ROLES: UserRole[] = ['Member', 'Sponsor', 'Creator', 'Club_Founder'];
 
 const ProfileSetupPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, updateUser } = useAuth();
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<ProfileFormData>({
     fullName: user?.fullName || '',
+    email: user?.email || '',
     roles: user?.roles || [],
     interests: user?.interests || [],
     profileImage: user?.profileImage || '',
     bio: user?.bio || '',
-    phoneNumber: user?.phoneNumber || '',
+    phoneNumber: user?.phoneNumber || ''
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newInterest, setNewInterest] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+    
     if (!formData.fullName.trim()) {
       newErrors.fullName = 'Full name is required';
     }
-    if (formData.roles.length === 0) {
-      newErrors.roles = 'Please select at least one role';
+    if (!formData.roles.length) {
+      newErrors.roles = 'At least one role is required';
     }
-    if (formData.interests.length === 0) {
-      newErrors.interests = 'Please select at least one interest';
+    if (!formData.interests.length) {
+      newErrors.interests = 'At least one interest is required';
     }
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -80,20 +58,25 @@ const ProfileSetupPage: React.FC = () => {
       setIsSubmitting(true);
       toast('Updating profile...', { icon: '🔄' });
 
+      // Prepare the profile data
+      const profileData = {
+        fullName: formData.fullName.trim(),
+        roles: formData.roles,
+        interests: formData.interests,
+        bio: formData.bio,
+        phoneNumber: formData.phoneNumber,
+        profileImage: formData.profileImage, // This should be a URL string from the FileUpload component
+      };
+
+      console.log('Submitting profile data:', profileData);
+
       const response = await fetch('/api/users/profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
-        body: JSON.stringify({
-          fullName: formData.fullName.trim(),
-          roles: formData.roles,
-          interests: formData.interests,
-          profileImage: formData.profileImage,
-          bio: formData.bio,
-          phoneNumber: formData.phoneNumber,
-        }),
+        body: JSON.stringify(profileData),
       });
 
       if (!response.ok) {
@@ -102,7 +85,18 @@ const ProfileSetupPage: React.FC = () => {
       }
 
       const updatedUser = await response.json();
-      updateUser(updatedUser);
+      if (!updatedUser || !updatedUser.id) {
+        throw new Error('Invalid user data returned from server');
+      }
+
+      // Ensure the roles and interests are arrays
+      const sanitizedUser = {
+        ...updatedUser,
+        roles: Array.isArray(updatedUser.roles) ? updatedUser.roles : [],
+        interests: Array.isArray(updatedUser.interests) ? updatedUser.interests : [],
+      };
+
+      updateUser(sanitizedUser);
       toast.success('Profile updated successfully');
       navigate('/dashboard');
     } catch (error) {
@@ -116,6 +110,7 @@ const ProfileSetupPage: React.FC = () => {
   };
 
   const handleImageUpload = (fileUrl: string) => {
+    console.log('Profile image uploaded:', fileUrl);
     setFormData(prev => ({ ...prev, profileImage: fileUrl }));
     setErrors(prev => ({ ...prev, profileImage: '' }));
   };
@@ -123,258 +118,224 @@ const ProfileSetupPage: React.FC = () => {
   const handleImageUploadError = (error: Error) => {
     console.error('Image upload error:', error);
     setErrors(prev => ({ ...prev, profileImage: error.message }));
+    toast.error('Failed to upload profile image. Please try again.');
   };
 
-  const handleRoleToggle = (roleId: UserRole) => {
-    console.log('Toggling role:', roleId);
+  const handleRoleToggle = (role: UserRole) => {
     setFormData(prev => {
-      const newRoles = prev.roles.includes(roleId)
-        ? prev.roles.filter(r => r !== roleId)
-        : [...prev.roles, roleId];
-      console.log('Updated roles:', newRoles);
-      return { ...prev, roles: newRoles };
+      const roles = prev.roles.includes(role)
+        ? prev.roles.filter(r => r !== role)
+        : [...prev.roles, role];
+      return { ...prev, roles };
     });
+    setErrors(prev => ({ ...prev, roles: '' }));
   };
 
-  const handleInterestKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && newInterest.trim()) {
-      e.preventDefault();
-      if (!formData.interests.includes(newInterest.trim())) {
-        setFormData(prev => ({
-          ...prev,
-          interests: [...prev.interests, newInterest.trim()]
-        }));
-      }
+  const handleAddInterest = () => {
+    if (newInterest.trim() && !formData.interests.includes(newInterest.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        interests: [...prev.interests, newInterest.trim()]
+      }));
       setNewInterest('');
+      setErrors(prev => ({ ...prev, interests: '' }));
     }
   };
 
-  const removeInterest = (interest: string) => {
+  const handleRemoveInterest = (interest: string) => {
     setFormData(prev => ({
       ...prev,
       interests: prev.interests.filter(i => i !== interest)
     }));
   };
 
-  const formatPhoneNumber = (value: string) => {
-    // Remove all non-digits
-    const digits = value.replace(/\D/g, '');
-    
-    // Format the number
-    if (digits.length <= 3) {
-      return digits;
-    } else if (digits.length <= 6) {
-      return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
-    } else if (digits.length <= 10) {
-      return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-    }
-    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
-  };
-
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatPhoneNumber(e.target.value);
-    setFormData({ ...formData, phoneNumber: formatted });
-  };
-
-  const renderProfileImage = () => (
-    <div className="relative">
-      <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
-        {formData.profileImage ? (
-          <img 
-            src={formData.profileImage} 
-            alt="Profile preview" 
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <svg className="h-16 w-16 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" />
-          </svg>
-        )}
-      </div>
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
-        <div className="bg-white rounded-lg shadow px-6 py-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-8">Complete Your Profile</h1>
-          
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Profile Image Upload */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Profile Image
-              </label>
-              <div className="flex items-center space-x-4">
-                {renderProfileImage()}
-                <FileUpload
-                  onUploadComplete={handleImageUpload}
-                  onUploadError={handleImageUploadError}
-                  accept="image/*"
-                  maxSize={5 * 1024 * 1024} // 5MB
-                />
-              </div>
-              {errors.profileImage && (
-                <p className="mt-1 text-sm text-red-600">{errors.profileImage}</p>
-              )}
+        <div className="bg-white shadow sm:rounded-lg">
+          <div className="px-4 py-5 sm:p-6">
+            <h3 className="text-lg leading-6 font-medium text-gray-900">
+              Complete Your Profile
+            </h3>
+            <div className="mt-2 max-w-xl text-sm text-gray-500">
+              <p>Please provide some information about yourself to get started.</p>
             </div>
-
-            {/* Full Name */}
-            <div>
-              <label htmlFor="fullName" className="block text-sm font-medium text-gray-700">
-                Full Name
-              </label>
-              <input
-                type="text"
-                id="fullName"
-                value={formData.fullName}
-                onChange={(e) => {
-                  setFormData(prev => ({ ...prev, fullName: e.target.value }));
-                  setErrors(prev => ({ ...prev, fullName: '' }));
-                }}
-                className={`mt-1 block w-full rounded-md shadow-sm ${
-                  errors.fullName
-                    ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                    : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                }`}
-              />
-              {errors.fullName && (
-                <p className="mt-1 text-sm text-red-600">{errors.fullName}</p>
-              )}
-            </div>
-
-            {/* Role Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-4">
-                Select Your Role(s)
-              </label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {roles.map((role) => (
-                  <div
-                    key={role.id}
-                    className={`p-4 border rounded-lg cursor-pointer transition-colors duration-200 ${
-                      formData.roles.includes(role.id)
-                        ? 'border-primary-500 bg-primary-50'
-                        : 'border-gray-200 hover:border-primary-300'
-                    }`}
-                    onClick={() => handleRoleToggle(role.id)}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <span className="text-2xl">{role.icon}</span>
-                      <div>
-                        <h3 className="font-medium text-gray-900">{role.title}</h3>
-                        <p className="text-sm text-gray-500">{role.description}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Bio */}
-            <div>
-              <label htmlFor="bio" className="block text-sm font-medium text-gray-700">
-                Bio
-              </label>
-              <div className="mt-1">
-                <textarea
-                  id="bio"
-                  name="bio"
-                  rows={4}
-                  className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                  placeholder="Tell us about yourself..."
-                  value={formData.bio}
-                  onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                />
-              </div>
-            </div>
-
-            {/* Phone Number */}
-            <div>
-              <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700">
-                Phone Number (Optional)
-              </label>
-              <div className="mt-1">
-                <input
-                  type="tel"
-                  id="phoneNumber"
-                  name="phoneNumber"
-                  className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                  placeholder="(555) 555-5555"
-                  value={formData.phoneNumber}
-                  onChange={handlePhoneChange}
-                />
-              </div>
-            </div>
-
-            {/* Interests */}
-            <div className="bg-white shadow rounded-lg p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Your Interests</h3>
-              <div className="space-y-4">
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {formData.interests.map((interest) => (
-                    <span
-                      key={interest}
-                      className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm flex items-center"
-                    >
-                      {interest}
-                      <button
-                        type="button"
-                        onClick={() => removeInterest(interest)}
-                        className="ml-2 text-green-800 hover:text-green-900"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
+            <form onSubmit={handleSubmit} className="mt-5 space-y-6">
+              {/* Profile Image Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Profile Image
+                </label>
+                <div className="mt-1">
+                  <FileUpload
+                    onUploadSuccess={handleImageUpload}
+                    onUploadError={handleImageUploadError}
+                    maxSize={5 * 1024 * 1024} // 5MB
+                    accept="image/*"
+                    buttonText="Upload Profile Image"
+                  />
+                  {errors.profileImage && (
+                    <p className="mt-2 text-sm text-red-600">{errors.profileImage}</p>
+                  )}
                 </div>
-                <div>
+              </div>
+
+              {/* Full Name */}
+              <div>
+                <label htmlFor="fullName" className="block text-sm font-medium text-gray-700">
+                  Full Name
+                </label>
+                <div className="mt-1">
                   <input
                     type="text"
-                    value={newInterest}
-                    onChange={(e) => setNewInterest(e.target.value)}
-                    onKeyDown={handleInterestKeyDown}
-                    placeholder="Type an interest and press Enter"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    id="fullName"
+                    value={formData.fullName}
+                    onChange={(e) => {
+                      setFormData(prev => ({ ...prev, fullName: e.target.value }));
+                      setErrors(prev => ({ ...prev, fullName: '' }));
+                    }}
+                    className={`shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md ${
+                      errors.fullName ? 'border-red-300' : ''
+                    }`}
                   />
-                  <p className="mt-1 text-sm text-gray-500">
-                    Press Enter to add an interest
-                  </p>
+                  {errors.fullName && (
+                    <p className="mt-2 text-sm text-red-600">{errors.fullName}</p>
+                  )}
                 </div>
               </div>
-            </div>
 
-            {errors.submit && (
-              <div className="rounded-md bg-red-50 p-4">
-                <p className="text-sm text-red-700">{errors.submit}</p>
+              {/* Roles */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Roles
+                </label>
+                <div className="mt-2 space-y-2">
+                  {AVAILABLE_ROLES.map((role) => (
+                    <label key={role} className="inline-flex items-center mr-4">
+                      <input
+                        type="checkbox"
+                        checked={formData.roles.includes(role)}
+                        onChange={() => handleRoleToggle(role)}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">{role.replace('_', ' ')}</span>
+                    </label>
+                  ))}
+                  {errors.roles && (
+                    <p className="mt-2 text-sm text-red-600">{errors.roles}</p>
+                  )}
+                </div>
               </div>
-            )}
 
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className={`inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white ${
-                  isSubmitting
-                    ? 'bg-blue-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
-                }`}
-              >
-                {isSubmitting ? (
-                  <span className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Updating...
-                  </span>
-                ) : (
-                  'Complete Profile'
+              {/* Interests */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Interests
+                </label>
+                <div className="mt-2">
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      value={newInterest}
+                      onChange={(e) => setNewInterest(e.target.value)}
+                      placeholder="Add an interest"
+                      className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddInterest}
+                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {formData.interests.map((interest) => (
+                      <span
+                        key={interest}
+                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                      >
+                        {interest}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveInterest(interest)}
+                          className="ml-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full hover:bg-blue-200 focus:outline-none focus:bg-blue-200"
+                        >
+                          <span className="sr-only">Remove interest</span>
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  {errors.interests && (
+                    <p className="mt-2 text-sm text-red-600">{errors.interests}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Bio */}
+              <div>
+                <label htmlFor="bio" className="block text-sm font-medium text-gray-700">
+                  Bio
+                </label>
+                <div className="mt-1">
+                  <textarea
+                    id="bio"
+                    rows={3}
+                    value={formData.bio}
+                    onChange={(e) => setFormData(prev => ({ ...prev, bio: e.target.value }))}
+                    className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                    placeholder="Tell us about yourself"
+                  />
+                </div>
+              </div>
+
+              {/* Phone Number */}
+              <div>
+                <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700">
+                  Phone Number
+                </label>
+                <div className="mt-1">
+                  <input
+                    type="tel"
+                    id="phoneNumber"
+                    value={formData.phoneNumber}
+                    onChange={(e) => setFormData(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                    className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                    placeholder="+1 (555) 000-0000"
+                  />
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <div>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white 
+                    ${isSubmitting 
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                    }`}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Updating Profile...
+                    </>
+                  ) : (
+                    'Complete Profile'
+                  )}
+                </button>
+                {errors.submit && (
+                  <p className="mt-2 text-sm text-red-600 text-center">{errors.submit}</p>
                 )}
-              </button>
-            </div>
-          </form>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
     </div>

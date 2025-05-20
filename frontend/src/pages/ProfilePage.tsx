@@ -1,9 +1,7 @@
-import React, { useRef, useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import { userApi } from "../services/api";
 import { toast } from "react-toastify";
-import { UserRole, User } from "../types/user";
+import { UserRole } from "../types/user";
 import TagInput from "../components/TagInput";
 import { commonInterests } from "../data/suggestions";
 import { FileUpload } from "../components/FileUpload";
@@ -12,14 +10,12 @@ import { userService, ProfileFormData } from '../services/user.service';
 
 const ProfilePage = () => {
   const { user, setUser } = useAuth();
-  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [profileImageUrl, setProfileImageUrl] = useState<string>('');
 
-  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<ProfileFormData>({
+  const { register, handleSubmit, setValue, watch } = useForm<ProfileFormData>({
     defaultValues: {
     fullName: user?.fullName || '',
       email: user?.email || '',
@@ -239,7 +235,7 @@ const ProfilePage = () => {
               </div>
             <div className="flex-grow">
               <FileUpload
-                onUploadComplete={handleFileUploadComplete}
+                onUploadSuccess={handleFileUploadComplete}
                 onUploadError={handleFileUploadError}
                 accept="image/*"
                 maxSize={5 * 1024 * 1024}
