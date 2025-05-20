@@ -4,7 +4,7 @@ import { toast } from "react-toastify";
 import { UserRole } from "../types/user";
 import TagInput from "../components/TagInput";
 import { commonInterests } from "../data/suggestions";
-import { FileUpload } from "../components/FileUpload";
+import { ImageUpload } from "../components/ImageUpload";
 import { useForm } from 'react-hook-form';
 import { userService, ProfileFormData } from '../services/user.service';
 
@@ -17,17 +17,16 @@ const ProfilePage = () => {
 
   const { register, handleSubmit, setValue, watch } = useForm<ProfileFormData>({
     defaultValues: {
-    fullName: user?.fullName || '',
+      fullName: user?.fullName || '',
       email: user?.email || '',
-    bio: user?.bio || '',
-    interests: user?.interests || [],
+      bio: user?.bio || '',
+      interests: user?.interests || [],
       phoneNumber: user?.phoneNumber || '',
       profileImage: user?.profileImage || '',
       roles: user?.roles || [],
     }
   });
 
-  // Update form when user data changes
   useEffect(() => {
     if (user) {
       setValue('fullName', user.fullName || '');
@@ -46,7 +45,6 @@ const ProfilePage = () => {
       try {
         setIsLoading(true);
         const response = await userService.getProfile();
-        console.log('Loaded profile data:', response);
         const profile = response.user;
         setValue('fullName', profile.fullName);
         setValue('email', profile.email);
@@ -56,7 +54,6 @@ const ProfilePage = () => {
         setValue('profileImage', profile.profileImage || '');
         setValue('roles', profile.roles || []);
         setProfileImageUrl(profile.profileImage || '');
-        console.log('Profile image URL set to:', profile.profileImage);
       } catch (err) {
         console.error('Error loading profile:', err);
         setError('Failed to load profile');
@@ -68,25 +65,12 @@ const ProfilePage = () => {
     loadProfile();
   }, [setValue]);
 
-  // Add debug logging for image rendering
   useEffect(() => {
     console.log('Current profile image URL:', profileImageUrl);
   }, [profileImageUrl]);
 
   const onSubmit = async (data: ProfileFormData) => {
     setIsLoading(true);
-
-    if (
-      typeof data.profileImage === 'object' &&
-      data.profileImage !== null &&
-      'name' in data.profileImage &&
-      'size' in data.profileImage
-    ) {
-      setError('Profile image upload failed. Please try uploading again.');
-      setIsLoading(false);
-      return;
-    }
-
     try {
       const response = await userService.updateProfile(data);
       if (user) {
@@ -101,15 +85,6 @@ const ProfilePage = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleFileUploadComplete = (fileUrl: string) => {
-    setProfileImageUrl(fileUrl);
-    setValue('profileImage', fileUrl);
-  };
-
-  const handleFileUploadError = (error: Error) => {
-    toast.error(error.message || 'Failed to upload image');
   };
 
   const availableRoles: UserRole[] = ['Member', 'Sponsor', 'Creator', 'Club_Founder'];
@@ -134,17 +109,11 @@ const ProfilePage = () => {
 
           <div className="flex items-center mb-6">
             {profileImageUrl ? (
-              <div>
               <img
-                  src={profileImageUrl}
+                src={profileImageUrl}
                 alt="Profile"
                 className="w-24 h-24 rounded-full object-cover"
-                  onError={(e) => {
-                    console.error('Error loading profile image:', e);
-                    console.log('Failed image URL:', profileImageUrl);
-                  }}
               />
-              </div>
             ) : (
               <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center">
                 <span className="text-gray-500 text-2xl">{user.fullName?.[0]?.toUpperCase()}</span>
@@ -217,120 +186,128 @@ const ProfilePage = () => {
         )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {/* Profile Image Upload using ImageUpload */}
           <div className="flex items-center space-x-6 mb-6">
             <div className="flex-shrink-0">
               {profileImageUrl ? (
-                  <img
+                <img
                   src={profileImageUrl}
                   alt="Profile"
-                    className="w-24 h-24 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center">
-                    <span className="text-gray-500 text-2xl">
+                  className="w-24 h-24 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center">
+                  <span className="text-gray-500 text-2xl">
                     {watch('fullName')?.[0]?.toUpperCase()}
-                    </span>
-                  </div>
-                )}
-              </div>
-            <div className="flex-grow">
-              <FileUpload
-                onUploadSuccess={handleFileUploadComplete}
-                onUploadError={handleFileUploadError}
-                accept="image/*"
-                maxSize={5 * 1024 * 1024}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6">
-          <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Full Name
-              </label>
-            <input
-              type="text"
-                {...register('fullName')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email
-              </label>
-              <input
-                type="email"
-                {...register('email')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Phone Number
-              </label>
-            <input
-              type="tel"
-                {...register('phoneNumber')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Bio
-              </label>
-            <textarea
-                {...register('bio')}
-              rows={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-900"
-            />
-          </div>
-
-          <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-              Interests
-            </label>
-              <TagInput
-                value={watch('interests') || []}
-                suggestions={commonInterests}
-                onChange={(tags) => setValue('interests', tags)}
-                placeholder="Type to add interests"
-              />
-          </div>
-
-          <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Roles
-              </label>
-              <div className="flex flex-wrap gap-4">
-                {availableRoles.map(role => (
-                  <label key={role} className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                      value={role}
-                      checked={(watch('roles') as string[]).includes(role)}
-                      onChange={e => {
-                        const currentRoles = watch('roles') as string[];
-                        if (e.target.checked) {
-                          setValue('roles', [...currentRoles, role]);
-                        } else {
-                          setValue('roles', currentRoles.filter(r => r !== role));
-                        }
-                      }}
-                      className="form-checkbox h-4 w-4 text-blue-600 bg-white border-gray-300 checked:bg-blue-600 focus:ring-blue-500"
-                    />
-                    <span>{role}</span>
-                </label>
-              ))}
-              </div>
-              {(watch('roles') as string[]).length === 0 && (
-                <p className="text-red-500 text-sm mt-2">Please select at least one role.</p>
+                  </span>
+                </div>
               )}
             </div>
+            <div className="flex-grow">
+              <ImageUpload
+                endpoint="profile-image"
+                onUploadSuccess={(url) => {
+                  setProfileImageUrl(url);
+                  setValue('profileImage', url);
+                }}
+                className="w-full"
+              />
+            </div>
           </div>
 
+          {/* Full Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Full Name
+            </label>
+            <input
+              type="text"
+              {...register('fullName')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Email */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
+            <input
+              type="email"
+              {...register('email')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Phone Number */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Phone Number
+            </label>
+            <input
+              type="tel"
+              {...register('phoneNumber')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Bio */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Bio
+            </label>
+            <textarea
+              {...register('bio')}
+              rows={4}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-900"
+            />
+          </div>
+
+          {/* Interests */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Interests
+            </label>
+            <TagInput
+              value={watch('interests') || []}
+              suggestions={commonInterests}
+              onChange={(tags) => setValue('interests', tags)}
+              placeholder="Type to add interests"
+            />
+          </div>
+
+          {/* Roles */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Roles
+            </label>
+            <div className="flex flex-wrap gap-4">
+              {availableRoles.map(role => (
+                <label key={role} className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    value={role}
+                    checked={(watch('roles') as string[]).includes(role)}
+                    onChange={e => {
+                      const currentRoles = watch('roles') as string[];
+                      if (e.target.checked) {
+                        setValue('roles', [...currentRoles, role]);
+                      } else {
+                        setValue('roles', currentRoles.filter(r => r !== role));
+                      }
+                    }}
+                    className="form-checkbox h-4 w-4 text-blue-600 bg-white border-gray-300 checked:bg-blue-600 focus:ring-blue-500"
+                  />
+                  <span>{role}</span>
+                </label>
+              ))}
+            </div>
+            {(watch('roles') as string[]).length === 0 && (
+              <p className="text-red-500 text-sm mt-2">Please select at least one role.</p>
+            )}
+          </div>
+
+          {/* Submit Buttons */}
           <div className="flex justify-end space-x-4">
             <button
               type="button"
@@ -353,4 +330,4 @@ const ProfilePage = () => {
   );
 };
 
-export default ProfilePage; 
+export default ProfilePage;

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/user';
-import { FileUpload } from '../components/FileUpload';
+import { ImageUpload } from '../components/ImageUpload';
 import { toast } from 'react-hot-toast';
 
 interface ProfileFormData {
@@ -45,7 +45,10 @@ const ProfileSetupPage: React.FC = () => {
     if (!formData.interests.length) {
       newErrors.interests = 'At least one interest is required';
     }
-    
+    if (!formData.profileImage || typeof formData.profileImage !== 'string') {
+      newErrors.profileImage = 'Please upload your profile image before submitting.';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -54,28 +57,18 @@ const ProfileSetupPage: React.FC = () => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    // Prevent submission if profileImage is not a string (i.e., not uploaded)
-    if (!formData.profileImage || typeof formData.profileImage !== 'string') {
-      setErrors(prev => ({ ...prev, profileImage: 'Please upload your profile image before submitting.' }));
-      toast.error('Please upload your profile image before submitting.');
-      return;
-    }
-
     try {
       setIsSubmitting(true);
       toast('Updating profile...', { icon: '🔄' });
 
-      // Prepare the profile data
       const profileData = {
         fullName: formData.fullName.trim(),
-        roles: formData.roles,         // array, not stringified
-        interests: formData.interests, // array, not stringified
+        roles: formData.roles,
+        interests: formData.interests,
         bio: formData.bio,
         phoneNumber: formData.phoneNumber,
-        profileImage: formData.profileImage, // URL string
+        profileImage: formData.profileImage,
       };
-
-      console.log('Submitting profile data:', profileData);
 
       const response = await fetch('/api/users/profile', {
         method: 'PUT',
@@ -96,7 +89,6 @@ const ProfileSetupPage: React.FC = () => {
         throw new Error('Invalid user data returned from server');
       }
 
-      // Ensure the roles and interests are arrays
       const sanitizedUser = {
         ...updatedUser,
         roles: Array.isArray(updatedUser.roles) ? updatedUser.roles : [],
@@ -117,15 +109,8 @@ const ProfileSetupPage: React.FC = () => {
   };
 
   const handleImageUpload = (fileUrl: string) => {
-    console.log('Profile image uploaded:', fileUrl);
     setFormData(prev => ({ ...prev, profileImage: fileUrl }));
     setErrors(prev => ({ ...prev, profileImage: '' }));
-  };
-
-  const handleImageUploadError = (error: Error) => {
-    console.error('Image upload error:', error);
-    setErrors(prev => ({ ...prev, profileImage: error.message }));
-    toast.error('Failed to upload profile image. Please try again.');
   };
 
   const handleRoleToggle = (role: UserRole) => {
@@ -174,12 +159,10 @@ const ProfileSetupPage: React.FC = () => {
                   Profile Image
                 </label>
                 <div className="mt-1">
-                  <FileUpload
+                  <ImageUpload
+                    endpoint="profile-image"
                     onUploadSuccess={handleImageUpload}
-                    onUploadError={handleImageUploadError}
-                    maxSize={5 * 1024 * 1024} // 5MB
-                    accept="image/*"
-                    buttonText="Upload Profile Image"
+                    className="w-full"
                   />
                   {errors.profileImage && (
                     <p className="mt-2 text-sm text-red-600">{errors.profileImage}</p>
@@ -349,4 +332,4 @@ const ProfileSetupPage: React.FC = () => {
   );
 };
 
-export default ProfileSetupPage; 
+export default ProfileSetupPage;

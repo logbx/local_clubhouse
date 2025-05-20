@@ -7,11 +7,12 @@ export interface UploadResponse {
 }
 
 export const uploadService = {
-  getSignedUrl: async (fileName: string, fileType: string): Promise<UploadResponse> => {
+  getSignedUrl: async (fileName: string, fileType: string, folder?: string): Promise<UploadResponse> => {
     try {
       const response = await axiosInstance.post<UploadResponse>('/upload/signed-url', {
         fileName,
         fileType,
+        folder,
       });
       console.log('Got signed URL response:', response.data);
       return response.data;
