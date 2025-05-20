@@ -54,6 +54,13 @@ const ProfileSetupPage: React.FC = () => {
     e.preventDefault();
     if (!validateForm()) return;
 
+    // Prevent submission if profileImage is not a string (i.e., not uploaded)
+    if (!formData.profileImage || typeof formData.profileImage !== 'string') {
+      setErrors(prev => ({ ...prev, profileImage: 'Please upload your profile image before submitting.' }));
+      toast.error('Please upload your profile image before submitting.');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       toast('Updating profile...', { icon: '🔄' });
@@ -61,11 +68,11 @@ const ProfileSetupPage: React.FC = () => {
       // Prepare the profile data
       const profileData = {
         fullName: formData.fullName.trim(),
-        roles: formData.roles,
-        interests: formData.interests,
+        roles: formData.roles,         // array, not stringified
+        interests: formData.interests, // array, not stringified
         bio: formData.bio,
         phoneNumber: formData.phoneNumber,
-        profileImage: formData.profileImage, // This should be a URL string from the FileUpload component
+        profileImage: formData.profileImage, // URL string
       };
 
       console.log('Submitting profile data:', profileData);
