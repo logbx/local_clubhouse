@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/user';
 import { ImageUpload } from '../components/ImageUpload';
 import { toast } from 'react-hot-toast';
+import { uploadService } from '../services/upload.service';
 
 interface ProfileFormData {
   fullName: string;
@@ -60,6 +61,8 @@ const ProfileSetupPage: React.FC = () => {
     try {
       setIsSubmitting(true);
       toast('Updating profile...', { icon: '🔄' });
+
+      console.log('profileImage value and type:', formData.profileImage, typeof formData.profileImage);
 
       const profileData = {
         fullName: formData.fullName.trim(),
