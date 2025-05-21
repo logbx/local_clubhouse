@@ -11,8 +11,8 @@ export class UploadController {
     try {
       // Convert base64 to buffer if needed
       const buffer = Buffer.from(body.file.split(',')[1], 'base64');
-      const key = `${uuidv4()}-${body.fileName}`;
-      
+      //const key = `${uuidv4()}-${body.fileName}`;
+      const key = `${body.fileName}`;
       // Upload to S3
       await this.s3Service.uploadFile(buffer, key, body.fileType);
       
@@ -34,6 +34,10 @@ export class UploadController {
   async getSignedUrl(@Body() body: { fileName: string; fileType: string; folder?: string }) {
     try {
       console.log('[UploadController] Generating signed URL:', body);
+
+      if (!body.fileName || !body.fileType) {
+        throw new Error('fileName and fileType are required');
+      }
 
       // Generate a unique filename with UUID
       const uniqueFileName = `${uuidv4()}-${body.fileName}`;

@@ -23,6 +23,8 @@ export class UserController {
                (typeof req.body.roles === 'string' ? JSON.parse(req.body.roles) : []),
         interests: Array.isArray(req.body.interests) ? req.body.interests :
                   (typeof req.body.interests === 'string' ? JSON.parse(req.body.interests) : []),
+        bio: req.body.bio || '',
+        phoneNumber: req.body.phoneNumber || '',
         profileImage: req.body.profileImage || null
       };
 
@@ -43,12 +45,12 @@ export class UserController {
         id: updatedUser._id,
         fullName: updatedUser.fullName,
         email: updatedUser.email,
-        roles: updatedUser.roles,
-        phoneNumber: updatedUser.phoneNumber,
-        bio: updatedUser.bio,
-        interests: updatedUser.interests,
-        profileImage: updatedUser.profileImage,
-        profileCompleted: updatedUser.profileCompleted
+        roles: updatedUser.roles || [],
+        phoneNumber: updatedUser.phoneNumber || '',
+        bio: updatedUser.bio || '',
+        interests: updatedUser.interests || [],
+        profileImage: updatedUser.profileImage || null,
+        profileCompleted: updatedUser.profileCompleted || false
       };
 
       console.log('[UserController] Profile update successful:', {
