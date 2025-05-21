@@ -4,17 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/user';
 import { ImageUpload } from '../components/ImageUpload';
 import { toast } from 'react-hot-toast';
-import { uploadService } from '../services/upload.service';
-
-interface ProfileFormData {
-  fullName: string;
-  email: string;
-  roles: UserRole[];
-  interests: string[];
-  profileImage: string;
-  bio?: string;
-  phoneNumber?: string;
-}
+import { userService, ProfileFormData } from '../services/user.service';
 
 const AVAILABLE_ROLES: UserRole[] = ['Member', 'Sponsor', 'Creator', 'Club_Founder'];
 
@@ -66,8 +56,9 @@ const ProfileSetupPage: React.FC = () => {
         throw new Error('Profile image must be uploaded before submitting');
       }
 
-      const profileData = {
+      const profileData: ProfileFormData = {
         fullName: formData.fullName.trim(),
+        email: formData.email,
         roles: formData.roles,
         interests: formData.interests,
         bio: formData.bio,
@@ -77,36 +68,16 @@ const ProfileSetupPage: React.FC = () => {
 
       console.log('Sending profile update with data:', profileData);
 
-      const response = await fetch('/api/users/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify(profileData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update profile');
-      }
-
-      const updatedUser = await response.json();
-      if (!updatedUser || !updatedUser.id) {
+      const response = await userService.updateProfile(profileData);
+      
+      if (!response || !response.user) {
         throw new Error('Invalid user data returned from server');
       }
 
-      const sanitizedUser = {
-        ...updatedUser,
-        roles: Array.isArray(updatedUser.roles) ? updatedUser.roles : [],
-        interests: Array.isArray(updatedUser.interests) ? updatedUser.interests : [],
-        profileImage: typeof updatedUser.profileImage === 'string' ? updatedUser.profileImage : '',
-      };
-
-      updateUser(sanitizedUser);
+      updateUser(response.user);
       toast.success('Profile updated successfully');
       navigate('/dashboard');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Profile update error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to update profile';
       toast.error(errorMessage);

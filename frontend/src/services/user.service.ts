@@ -6,9 +6,9 @@ export interface ProfileFormData {
   email: string;
   bio?: string;
   interests: string[];
-  profileImage?: string;
+  profileImage?: string | File | null;
   phoneNumber?: string;
-  roles: string[];
+  roles: UserRole[];
 }
 
 export const userService = {
@@ -19,28 +19,46 @@ export const userService = {
   updateProfile: async (data: ProfileFormData) => {
     console.log('[userService] Raw profile data received:', data);
     
-    // Ensure roles and interests are arrays, not strings
+    // Ensure all data is in the correct format
     const sanitizedData = {
       ...data,
-      roles: Array.isArray(data.roles) ? data.roles : JSON.parse(data.roles as unknown as string),
-      interests: Array.isArray(data.interests) ? data.interests : JSON.parse(data.interests as unknown as string),
-      // Ensure profileImage is a URL string, not a File object
-      profileImage: typeof data.profileImage === 'string' ? data.profileImage : null
+      // Ensure roles is an array of UserRole
+      roles: Array.isArray(data.roles) 
+        ? data.roles 
+        : typeof data.roles === 'string' 
+          ? JSON.parse(data.roles) 
+          : [],
+      // Ensure interests is an array of strings
+      interests: Array.isArray(data.interests) 
+        ? data.interests 
+        : typeof data.interests === 'string' 
+          ? JSON.parse(data.interests) 
+          : [],
+      // Ensure profileImage is a string URL
+      profileImage: typeof data.profileImage === 'string' 
+        ? data.profileImage 
+        : data.profileImage instanceof File 
+          ? null 
+          : data.profileImage || null,
+      // Ensure other fields are strings
+      fullName: String(data.fullName || ''),
+      email: String(data.email || ''),
+      bio: data.bio ? String(data.bio) : undefined,
+      phoneNumber: data.phoneNumber ? String(data.phoneNumber) : undefined
     };
     
     console.log('[userService] Sanitized profile data:', sanitizedData);
     
     try {
       const response = await userApi.updateProfile(sanitizedData);
-      console.log('[userService] Profile update response:', response.data);
-      return response.data;
+      console.log('[userService] Profile update response:', response);
+      return response;
     } catch (error: any) {
-      console.error('[userService] Profile update error details:', {
+      console.error('[userService] Profile update error:', {
         status: error.response?.status,
         statusText: error.response?.statusText,
         data: error.response?.data,
-        message: error.message,
-        stack: error.stack
+        message: error.message
       });
       throw error;
     }
