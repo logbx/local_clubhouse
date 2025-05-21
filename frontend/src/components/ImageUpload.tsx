@@ -19,36 +19,54 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
     setError(null);
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      setError('Please select an image file');
-      return;
-    }
-
-    // Validate file size (5MB max)
-    const maxSize = 5 * 1024 * 1024;
-    if (file.size > maxSize) {
-      setError('File size must be less than 5MB');
-      return;
-    }
+    const toastId = 'image-upload';
 
     try {
-      setIsUploading(true);
-      toast.loading('Getting upload URL...');
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        throw new Error('Please select an image file');
+      }
 
-      // Get signed URL and upload to S3
-      const { signedUrl, publicUrl } = await uploadService.getSignedUrl(file.name, file.type, endpoint);
+      // Validate file size (5MB max)
+      const maxSize = 5 * 1024 * 1024;
+      if (file.size > maxSize) {
+        throw new Error('File size must be less than 5MB');
+      }
+
+      setIsUploading(true);
+      toast.loading('Preparing upload...', { id: toastId });
+
+      // Get signed URL for S3 upload
+      console.log('[ImageUpload] Getting signed URL for:', {
+        fileName: file.name,
+        fileType: file.type,
+        endpoint
+      });
+
+      const { signedUrl, publicUrl } = await uploadService.getSignedUrl(
+        file.name,
+        file.type,
+        endpoint
+      );
+
+      toast.loading('Uploading image...', { id: toastId });
+      
+      // Upload to S3
       await uploadService.uploadToS3(file, signedUrl);
 
-      toast.success('Image uploaded successfully');
+      console.log('[ImageUpload] Upload successful, public URL:', publicUrl);
+      
+      // Notify parent component
       onUploadSuccess(publicUrl);
+      
+      toast.success('Image uploaded successfully', { id: toastId });
     } catch (err) {
-      console.error('Image upload error:', err);
+      console.error('[ImageUpload] Error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to upload image';
       setError(errorMessage);
-      toast.error(errorMessage);
+      toast.error(errorMessage, { id: toastId });
     } finally {
       setIsUploading(false);
       e.target.value = ''; // Reset input

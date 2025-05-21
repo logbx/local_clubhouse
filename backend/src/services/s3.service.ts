@@ -57,8 +57,12 @@ export class S3Service {
 
   async generateUploadUrl(key: string, contentType: string): Promise<{ signedUrl: string; publicUrl: string }> {
     try {
-      console.log('Generating upload URL:', { key, contentType, bucket: this.bucket });
+      console.log('[S3Service] Generating upload URL:', { key, contentType, bucket: this.bucket });
       
+      if (!key || !contentType) {
+        throw new Error('Key and contentType are required');
+      }
+
       const command = new PutObjectCommand({
         Bucket: this.bucket,
         Key: key,
@@ -70,7 +74,7 @@ export class S3Service {
         }
       });
 
-      console.log('Generating signed URL with command:', {
+      console.log('[S3Service] Generating signed URL with command:', {
         bucket: command.input.Bucket,
         key: command.input.Key,
         contentType: command.input.ContentType,
@@ -79,28 +83,32 @@ export class S3Service {
 
       const signedUrl = await getSignedUrl(this.s3Client, command, { 
         expiresIn: 3600,
-        signableHeaders: new Set(['host', 'x-amz-acl', 'x-amz-meta-content-type'])
+        signableHeaders: new Set(['host', 'x-amz-acl', 'x-amz-meta-content-type', 'content-type'])
       });
       
-      console.log('Signed URL generated successfully');
+      console.log('[S3Service] Signed URL generated successfully');
 
-      const publicUrl = `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
+      const publicUrl = this.getFileUrl(key);
       
-      console.log('Generated URLs:', { 
+      console.log('[S3Service] Generated URLs:', { 
         signedUrl: signedUrl.substring(0, 100) + '...',
         publicUrl 
       });
       
       return { signedUrl, publicUrl };
     } catch (error) {
-      console.error('Error generating signed URL:', error);
-      throw error;
+      console.error('[S3Service] Error generating signed URL:', error);
+      throw new Error(`Failed to generate upload URL: ${error.message}`);
     }
   }
 
   async uploadFile(fileBuffer: Buffer, key: string, contentType: string): Promise<void> {
     try {
-      console.log('Attempting to upload file:', {
+      if (!fileBuffer || !key || !contentType) {
+        throw new Error('FileBuffer, key, and contentType are required');
+      }
+
+      console.log('[S3Service] Attempting to upload file:', {
         key,
         contentType,
         bufferSize: fileBuffer.length,
@@ -113,13 +121,14 @@ export class S3Service {
         Body: fileBuffer,
         ContentType: contentType,
         ACL: 'public-read',
+        CacheControl: 'max-age=31536000'
       });
 
-      console.log('Sending PutObjectCommand to S3...');
+      console.log('[S3Service] Sending PutObjectCommand to S3...');
       await this.s3Client.send(command);
-      console.log('File uploaded successfully');
+      console.log('[S3Service] File uploaded successfully');
     } catch (error) {
-      console.error('Detailed S3 upload error:', error);
+      console.error('[S3Service] Detailed S3 upload error:', error);
       throw new Error(`Failed to upload file to S3: ${error.message}`);
     }
   }

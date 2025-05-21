@@ -19,32 +19,31 @@ export const userService = {
   updateProfile: async (data: ProfileFormData) => {
     console.log('[userService] Raw profile data received:', data);
     
+    // Validate required fields
+    if (!data.fullName?.trim()) {
+      throw new Error('Full name is required');
+    }
+    if (!Array.isArray(data.roles) || data.roles.length === 0) {
+      throw new Error('At least one role is required');
+    }
+    if (!Array.isArray(data.interests) || data.interests.length === 0) {
+      throw new Error('At least one interest is required');
+    }
+
+    // Validate profile image
+    if (!data.profileImage || typeof data.profileImage !== 'string') {
+      throw new Error('Profile image must be uploaded before updating profile');
+    }
+
     // Ensure all data is in the correct format
     const sanitizedData = {
-      ...data,
-      // Ensure roles is an array of UserRole
-      roles: Array.isArray(data.roles) 
-        ? data.roles 
-        : typeof data.roles === 'string' 
-          ? JSON.parse(data.roles) 
-          : [],
-      // Ensure interests is an array of strings
-      interests: Array.isArray(data.interests) 
-        ? data.interests 
-        : typeof data.interests === 'string' 
-          ? JSON.parse(data.interests) 
-          : [],
-      // Ensure profileImage is a string URL
-      profileImage: typeof data.profileImage === 'string' 
-        ? data.profileImage 
-        : data.profileImage instanceof File 
-          ? null 
-          : data.profileImage || null,
-      // Ensure other fields are strings
-      fullName: String(data.fullName || ''),
-      email: String(data.email || ''),
-      bio: data.bio ? String(data.bio) : undefined,
-      phoneNumber: data.phoneNumber ? String(data.phoneNumber) : undefined
+      fullName: data.fullName.trim(),
+      email: data.email.trim(),
+      roles: data.roles,
+      interests: data.interests,
+      profileImage: data.profileImage,
+      bio: data.bio?.trim() || undefined,
+      phoneNumber: data.phoneNumber?.trim() || undefined
     };
     
     console.log('[userService] Sanitized profile data:', sanitizedData);
@@ -52,6 +51,11 @@ export const userService = {
     try {
       const response = await userApi.updateProfile(sanitizedData);
       console.log('[userService] Profile update response:', response);
+      
+      if (!response?.user) {
+        throw new Error('Invalid response from server');
+      }
+      
       return response;
     } catch (error: any) {
       console.error('[userService] Profile update error:', {

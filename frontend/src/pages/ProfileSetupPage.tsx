@@ -23,6 +23,7 @@ const ProfileSetupPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newInterest, setNewInterest] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [imagePreview, setImagePreview] = useState<string>(user?.profileImage || '');
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -53,6 +54,18 @@ const ProfileSetupPage: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const handleImageUpload = (url: string) => {
+    console.log('[ProfileSetupPage] Image upload success, received URL:', url);
+    setFormData(prev => {
+      const newData = { ...prev, profileImage: url };
+      console.log('[ProfileSetupPage] Updated form data with new image URL:', newData);
+      return newData;
+    });
+    setImagePreview(url);
+    setErrors(prev => ({ ...prev, profileImage: '' }));
+    toast.success('Profile image uploaded successfully');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('[ProfileSetupPage] Form submission started with data:', formData);
@@ -64,54 +77,43 @@ const ProfileSetupPage: React.FC = () => {
 
     try {
       setIsSubmitting(true);
-      toast('Updating profile...', { icon: '🔄' });
+      toast.loading('Updating profile...', { id: 'profile-update' });
 
-      if (typeof formData.profileImage !== 'string') {
-        console.error('[ProfileSetupPage] Profile image is not a string:', formData.profileImage);
-        throw new Error('Profile image must be uploaded before submitting');
+      // Ensure profile image is a string URL
+      if (!formData.profileImage || typeof formData.profileImage !== 'string') {
+        throw new Error('Please upload a profile image before submitting');
       }
 
       const profileData: ProfileFormData = {
         fullName: formData.fullName.trim(),
-        email: formData.email,
+        email: formData.email.trim(),
         roles: formData.roles,
         interests: formData.interests,
-        bio: formData.bio,
-        phoneNumber: formData.phoneNumber,
-        profileImage: formData.profileImage,
+        bio: formData.bio?.trim(),
+        phoneNumber: formData.phoneNumber?.trim(),
+        profileImage: formData.profileImage
       };
 
       console.log('[ProfileSetupPage] Sending profile update with data:', profileData);
 
       const response = await userService.updateProfile(profileData);
       
-      if (!response || !response.user) {
-        console.error('[ProfileSetupPage] Invalid response from server:', response);
-        throw new Error('Invalid user data returned from server');
+      if (!response?.user) {
+        throw new Error('No user data returned from server');
       }
 
       console.log('[ProfileSetupPage] Profile update successful:', response.user);
       updateUser(response.user);
-      toast.success('Profile updated successfully');
+      toast.success('Profile updated successfully', { id: 'profile-update' });
       navigate('/dashboard');
     } catch (error: any) {
       console.error('[ProfileSetupPage] Profile update error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to update profile';
-      toast.error(errorMessage);
+      toast.error(errorMessage, { id: 'profile-update' });
       setErrors(prev => ({ ...prev, submit: errorMessage }));
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleImageUpload = (fileUrl: string) => {
-    console.log('[ProfileSetupPage] Image upload success, received URL:', fileUrl);
-    setFormData(prev => {
-      const newData = { ...prev, profileImage: fileUrl };
-      console.log('[ProfileSetupPage] Updated form data:', newData);
-      return newData;
-    });
-    setErrors(prev => ({ ...prev, profileImage: '' }));
   };
 
   const handleRoleToggle = (role: UserRole) => {
@@ -161,10 +163,31 @@ const ProfileSetupPage: React.FC = () => {
                 </label>
                 <div className="mt-1">
                   <ImageUpload
-                    endpoint="profile-image"
+                    endpoint="profile-images"
                     onUploadSuccess={handleImageUpload}
                     className="w-full"
                   />
+                  {imagePreview && (
+                    <div className="relative mt-2 w-32 h-32">
+                      <img
+                        src={imagePreview}
+                        alt="Profile preview"
+                        className="w-full h-full object-cover rounded-full"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, profileImage: '' }));
+                          setImagePreview('');
+                        }}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                   {errors.profileImage && (
                     <p className="mt-2 text-sm text-red-600">{errors.profileImage}</p>
                   )}

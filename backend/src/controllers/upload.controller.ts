@@ -31,18 +31,33 @@ export class UploadController {
   }
 
   @Post('signed-url')
-  async getSignedUrl(@Body() body: { fileName: string; fileType: string }) {
+  async getSignedUrl(@Body() body: { fileName: string; fileType: string; folder?: string }) {
     try {
-      const key = `${uuidv4()}-${body.fileName}`;
+      console.log('[UploadController] Generating signed URL:', body);
+
+      // Generate a unique filename with UUID
+      const uniqueFileName = `${uuidv4()}-${body.fileName}`;
+      
+      // Construct the key with folder if provided
+      const key = body.folder ? `${body.folder}/${uniqueFileName}` : uniqueFileName;
+      
+      console.log('[UploadController] Generated key:', key);
+
       const { signedUrl, publicUrl } = await this.s3Service.generateUploadUrl(key, body.fileType);
       
+      console.log('[UploadController] Generated URLs:', {
+        signedUrl: signedUrl.substring(0, 100) + '...',
+        publicUrl,
+        key
+      });
+
       return {
         signedUrl,
         publicUrl,
         key
       };
     } catch (error) {
-      console.error('Error generating signed URL:', error);
+      console.error('[UploadController] Error generating signed URL:', error);
       throw new Error('Failed to generate upload URL');
     }
   }

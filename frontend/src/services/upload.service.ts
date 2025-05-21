@@ -9,28 +9,43 @@ export interface UploadResponse {
 export const uploadService = {
   getSignedUrl: async (fileName: string, fileType: string, folder?: string): Promise<UploadResponse> => {
     try {
-      const response = await axiosInstance.post<UploadResponse>('/upload/signed-url', {
+      // Construct the key with the folder if provided
+      const key = folder ? `${folder}/${fileName}` : fileName;
+      
+      console.log('[uploadService] Requesting signed URL:', {
         fileName,
         fileType,
         folder,
+        key
       });
-      console.log('Got signed URL response:', response.data);
+
+      const response = await axiosInstance.post<UploadResponse>('/upload/signed-url', {
+        fileName: key,
+        fileType,
+      });
+
+      console.log('[uploadService] Got signed URL response:', response.data);
       return response.data;
     } catch (error) {
-      console.error('Error getting signed URL:', error);
+      console.error('[uploadService] Error getting signed URL:', error);
       throw new Error('Failed to get upload URL');
     }
   },
 
   uploadToS3: async (file: File, signedUrl: string): Promise<void> => {
     try {
-      console.log('Uploading to S3 with signed URL:', signedUrl);
-      // Upload directly to S3 using the signed URL
+      console.log('[uploadService] Starting S3 upload:', {
+        fileName: file.name,
+        fileType: file.type,
+        signedUrl: signedUrl.substring(0, 100) + '...'
+      });
+
       const response = await fetch(signedUrl, {
         method: 'PUT',
         body: file,
         headers: {
           'Content-Type': file.type,
+          'x-amz-acl': 'public-read'
         },
       });
       
@@ -38,9 +53,9 @@ export const uploadService = {
         throw new Error(`Upload failed with status: ${response.status}`);
       }
       
-      console.log('File uploaded successfully to S3');
+      console.log('[uploadService] File uploaded successfully to S3');
     } catch (error) {
-      console.error('Error uploading file to S3:', error);
+      console.error('[uploadService] Error uploading file to S3:', error);
       throw new Error('Failed to upload file to S3');
     }
   },
