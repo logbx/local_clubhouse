@@ -29,7 +29,8 @@ dotenv.config();
 const app = express();
 
 // Trust proxy - required for rate limiting behind a proxy
-app.set('trust proxy', true);
+app.enable('trust proxy');  // More explicit than app.set()
+app.set('trust proxy', 1);  // Specify number of proxies if known
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -73,7 +74,9 @@ const globalLimiter = rateLimit({
   skip: (req) => {
     // Skip rate limiting for health checks and static files
     return req.path.startsWith('/health') || req.path.startsWith('/uploads');
-  }
+  },
+  // Add trusted proxy configuration
+  trustProxy: true
 });
 
 // Apply global rate limiter to all requests
