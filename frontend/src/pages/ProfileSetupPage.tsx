@@ -27,6 +27,11 @@ const ProfileSetupPage: React.FC = () => {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     
+    console.log('[ProfileSetupPage] Validating form with data:', {
+      profileImage: formData.profileImage,
+      profileImageType: typeof formData.profileImage
+    });
+    
     if (!formData.fullName.trim()) {
       newErrors.fullName = 'Full name is required';
     }
@@ -38,6 +43,10 @@ const ProfileSetupPage: React.FC = () => {
     }
     if (!formData.profileImage || typeof formData.profileImage !== 'string') {
       newErrors.profileImage = 'Please upload your profile image before submitting.';
+      console.log('[ProfileSetupPage] Profile image validation failed:', {
+        hasImage: !!formData.profileImage,
+        imageType: typeof formData.profileImage
+      });
     }
 
     setErrors(newErrors);
@@ -46,13 +55,19 @@ const ProfileSetupPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    console.log('[ProfileSetupPage] Form submission started with data:', formData);
+    
+    if (!validateForm()) {
+      console.log('[ProfileSetupPage] Form validation failed');
+      return;
+    }
 
     try {
       setIsSubmitting(true);
       toast('Updating profile...', { icon: '🔄' });
 
       if (typeof formData.profileImage !== 'string') {
+        console.error('[ProfileSetupPage] Profile image is not a string:', formData.profileImage);
         throw new Error('Profile image must be uploaded before submitting');
       }
 
@@ -66,19 +81,21 @@ const ProfileSetupPage: React.FC = () => {
         profileImage: formData.profileImage,
       };
 
-      console.log('Sending profile update with data:', profileData);
+      console.log('[ProfileSetupPage] Sending profile update with data:', profileData);
 
       const response = await userService.updateProfile(profileData);
       
       if (!response || !response.user) {
+        console.error('[ProfileSetupPage] Invalid response from server:', response);
         throw new Error('Invalid user data returned from server');
       }
 
+      console.log('[ProfileSetupPage] Profile update successful:', response.user);
       updateUser(response.user);
       toast.success('Profile updated successfully');
       navigate('/dashboard');
     } catch (error: any) {
-      console.error('Profile update error:', error);
+      console.error('[ProfileSetupPage] Profile update error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to update profile';
       toast.error(errorMessage);
       setErrors(prev => ({ ...prev, submit: errorMessage }));
@@ -88,7 +105,12 @@ const ProfileSetupPage: React.FC = () => {
   };
 
   const handleImageUpload = (fileUrl: string) => {
-    setFormData(prev => ({ ...prev, profileImage: fileUrl }));
+    console.log('[ProfileSetupPage] Image upload success, received URL:', fileUrl);
+    setFormData(prev => {
+      const newData = { ...prev, profileImage: fileUrl };
+      console.log('[ProfileSetupPage] Updated form data:', newData);
+      return newData;
+    });
     setErrors(prev => ({ ...prev, profileImage: '' }));
   };
 
