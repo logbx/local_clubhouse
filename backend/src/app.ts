@@ -29,7 +29,7 @@ dotenv.config();
 const app = express();
 
 // Trust proxy - required for rate limiting behind a proxy
-app.set('trust proxy', 1);
+app.set('trust proxy', true);
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -69,7 +69,11 @@ const globalLimiter = rateLimit({
   max: 100, // 100 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
-  message: 'Too many requests from this IP, please try again after 15 minutes'
+  message: 'Too many requests from this IP, please try again after 15 minutes',
+  skip: (req) => {
+    // Skip rate limiting for health checks and static files
+    return req.path.startsWith('/health') || req.path.startsWith('/uploads');
+  }
 });
 
 // Apply global rate limiter to all requests

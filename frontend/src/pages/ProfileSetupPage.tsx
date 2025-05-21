@@ -62,7 +62,9 @@ const ProfileSetupPage: React.FC = () => {
       setIsSubmitting(true);
       toast('Updating profile...', { icon: '🔄' });
 
-      console.log('profileImage value and type:', formData.profileImage, typeof formData.profileImage);
+      if (typeof formData.profileImage !== 'string') {
+        throw new Error('Profile image must be uploaded before submitting');
+      }
 
       const profileData = {
         fullName: formData.fullName.trim(),
@@ -72,6 +74,8 @@ const ProfileSetupPage: React.FC = () => {
         phoneNumber: formData.phoneNumber,
         profileImage: formData.profileImage,
       };
+
+      console.log('Sending profile update with data:', profileData);
 
       const response = await fetch('/api/users/profile', {
         method: 'PUT',
@@ -96,6 +100,7 @@ const ProfileSetupPage: React.FC = () => {
         ...updatedUser,
         roles: Array.isArray(updatedUser.roles) ? updatedUser.roles : [],
         interests: Array.isArray(updatedUser.interests) ? updatedUser.interests : [],
+        profileImage: typeof updatedUser.profileImage === 'string' ? updatedUser.profileImage : '',
       };
 
       updateUser(sanitizedUser);
