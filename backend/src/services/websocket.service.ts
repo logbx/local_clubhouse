@@ -1,12 +1,13 @@
 import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { redisService } from './redis.service';
+import { UserRole } from '../users/schemas/user.schema';
 
 // Extended socket interface with authenticated user
 interface AuthSocket extends Socket {
   user?: {
     userId: string;
-    role: string;
+    roles: string[];
   };
 }
 
@@ -25,7 +26,7 @@ export const setupWebsocketHandlers = (io: Server) => {
       }
       
       // Verify the JWT token
-      const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET!) as { userId: string; role: string };
+      const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET!) as { userId: string; roles: string[]; email: string; sub: string };
       
       // Check if user session exists in Redis
       const sessionData = await redisService.getUserSession(decoded.userId);
@@ -36,7 +37,7 @@ export const setupWebsocketHandlers = (io: Server) => {
       // Attach user data to socket
       socket.user = {
         userId: decoded.userId,
-        role: decoded.role
+        roles: decoded.roles
       };
       
       next();
@@ -95,7 +96,7 @@ export const setupWebsocketHandlers = (io: Server) => {
     }
     
     // Admin-only chat room
-    if (socket.user?.role === 'Admin') {
+    if (socket.user?.roles?.includes(UserRole.Creator)) {
       socket.join('admin-channel');
       socket.emit('admin-welcome', { message: 'Welcome to the admin channel' });
     }

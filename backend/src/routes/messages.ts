@@ -75,7 +75,7 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res) => {
       const lastMessage = conversationsMap.get(userId);
       return {
         userId,
-        fullName: user?.fullName || 'Unknown',
+        username: user?.username || 'Unknown',
         profileImage: user?.profileImage,
         lastMessage,
       };

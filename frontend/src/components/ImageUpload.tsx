@@ -6,12 +6,14 @@ interface ImageUploadProps {
   endpoint: string; // e.g., 'profile-image' or 'event-cover'
   onUploadSuccess: (url: string) => void;
   className?: string;
+  currentImage?: string;
 }
 
 export const ImageUpload: React.FC<ImageUploadProps> = ({
   endpoint,
   onUploadSuccess,
-  className = ''
+  className = '',
+  currentImage
 }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,50 +22,65 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     
+    console.log('[ImageUpload] File selected:', {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      lastModified: file.lastModified
+    });
+
     setError(null);
     const toastId = 'image-upload';
 
     try {
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        throw new Error('Please select an image file');
+        console.error('[ImageUpload] Invalid file type:', file.type);
+        setError('Please select an image file');
+        toast.error('Please select an image file', { id: toastId });
+        return;
       }
 
-      // Validate file size (5MB max)
-      const maxSize = 5 * 1024 * 1024;
+      // Validate file size (5MB limit)
+      const maxSize = 5 * 1024 * 1024; // 5MB in bytes
       if (file.size > maxSize) {
-        throw new Error('File size must be less than 5MB');
+        console.error('[ImageUpload] File too large:', {
+          size: file.size,
+          maxSize,
+          sizeInMB: file.size / (1024 * 1024)
+        });
+        setError('Image size should be less than 5MB');
+        toast.error('Image size should be less than 5MB', { id: toastId });
+        return;
       }
 
       setIsUploading(true);
       toast.loading('Preparing upload...', { id: toastId });
 
-      // Get signed URL for S3 upload
-      console.log('[ImageUpload] Getting signed URL for:', {
-        fileName: file.name,
-        fileType: file.type,
-        endpoint
-      });
-
+      console.log('[ImageUpload] Getting signed URL for:', file.name);
       const { signedUrl, publicUrl } = await uploadService.getSignedUrl(
         file.name,
         file.type,
         endpoint
       );
+      console.log('[ImageUpload] Got signed URL:', {
+        signedUrl: signedUrl.substring(0, 50) + '...',
+        publicUrl
+      });
 
       toast.loading('Uploading image...', { id: toastId });
       
       // Upload to S3
       await uploadService.uploadToS3(file, signedUrl);
 
-      console.log('[ImageUpload] Upload successful, public URL:', publicUrl);
+      console.log('[ImageUpload] Upload successful');
       
       // Notify parent component
       onUploadSuccess(publicUrl);
       
       toast.success('Image uploaded successfully', { id: toastId });
     } catch (err) {
-      console.error('[ImageUpload] Error:', err);
+      console.error('[ImageUpload] Upload failed:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to upload image';
       setError(errorMessage);
       toast.error(errorMessage, { id: toastId });

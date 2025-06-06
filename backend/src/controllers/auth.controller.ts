@@ -4,15 +4,15 @@ import { AuthService } from '../services/auth.service';
 export class AuthController {
   static async register(req: Request, res: Response) {
     try {
-      const { fullName, email, password } = req.body;
+      const { username, email, password } = req.body;
 
       // Validate required fields
-      if (!fullName || !email || !password) {
-        return res.status(400).json({ error: 'Full name, email, and password are required' });
+      if (!username || !email || !password) {
+        return res.status(400).json({ error: 'Username, email, and password are required' });
       }
 
       const { user, token } = await AuthService.register({
-        fullName,
+        username,
         email,
         password,
       });
@@ -21,7 +21,7 @@ export class AuthController {
         message: 'Registration successful',
         user: {
           id: user._id,
-          fullName: user.fullName,
+          username: user.username,
           email: user.email,
           roles: user.roles || [],
           profileCompleted: false
@@ -47,7 +47,7 @@ export class AuthController {
 
       // Check if profile is completed based on required fields
       const isProfileCompleted = 
-        user.fullName && 
+        user.username && 
         user.roles && 
         user.roles.length > 0;
 
@@ -55,7 +55,7 @@ export class AuthController {
         message: 'Login successful',
         user: {
           id: user._id,
-          fullName: user.fullName,
+          username: user.username,
           email: user.email,
           roles: user.roles || [],
           phoneNumber: user.phoneNumber || '',

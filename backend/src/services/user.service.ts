@@ -5,7 +5,7 @@ import fs from 'fs';
 import mongoose from 'mongoose';
 
 interface UpdateProfileData {
-  fullName?: string;
+  username?: string;
   roles?: UserRole[];
   phoneNumber?: string;
   bio?: string;
@@ -28,7 +28,7 @@ export class UserService {
     const updateData: UpdateProfileData = {};
 
     // Handle text fields
-    if (data.fullName !== undefined) updateData.fullName = data.fullName;
+    if (data.username !== undefined) updateData.username = data.username;
     if (data.phoneNumber !== undefined) updateData.phoneNumber = data.phoneNumber;
     if (data.bio !== undefined) updateData.bio = data.bio;
 
@@ -78,7 +78,7 @@ export class UserService {
 
     // Set profileCompleted to true if all required fields are present
     const hasRequiredFields = Boolean(
-      (updateData.fullName || currentUser.fullName) && 
+      (updateData.username || currentUser.username) && 
       ((updateData.roles && updateData.roles.length > 0) || (currentUser.roles && currentUser.roles.length > 0))
     );
     
@@ -127,7 +127,7 @@ export class UserService {
       
       // Check if profile is completed based on required fields
       const isProfileCompleted = Boolean(
-        user.fullName && 
+        user.username && 
         user.roles && 
         user.roles.length > 0
       );

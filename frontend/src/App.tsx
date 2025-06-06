@@ -7,6 +7,7 @@ import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import AuthLayout from './components/AuthLayout';
+import PublicLayout from './components/PublicLayout';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -25,6 +26,7 @@ import PublicEventPage from './pages/PublicEventPage';
 import FriendsDashboard from './pages/FriendsDashboard';
 import MessagesPage from './pages/MessagesPage';
 import MessageThreadPage from './pages/MessageThreadPage';
+import NotificationToast from './components/NotificationToast';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -42,6 +44,7 @@ const App: React.FC = () => {
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
+          <NotificationToast />
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<LandingPage />} />
@@ -51,9 +54,9 @@ const App: React.FC = () => {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             
-            {/* Public Profile and Event Routes */}
-            <Route path="/user/:userId" element={<PublicProfilePage />} />
-            <Route path="/event/:eventId" element={<PublicEventPage />} />
+            {/* Public Profile and Event Routes with Layout */}
+            <Route path="/user/:userId" element={<PublicLayout><PublicProfilePage /></PublicLayout>} />
+            <Route path="/event/:eventId" element={<PublicLayout><PublicEventPage /></PublicLayout>} />
 
             {/* Protected Routes */}
             <Route element={<ProtectedRoute />}>

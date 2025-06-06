@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
 import { UserRole } from "../types/user";
@@ -7,17 +7,33 @@ import { commonInterests } from "../data/suggestions";
 import { ImageUpload } from "../components/ImageUpload";
 import { useForm } from 'react-hook-form';
 import { userService, ProfileFormData } from '../services/user.service';
+import { UserCircleIcon } from "@heroicons/react/24/outline";
+import { useNavigate } from "react-router-dom";
+import { User } from '../types/user';
+import api from '../services/api';
 
-const ProfilePage = () => {
+const ProfilePage: React.FC = () => {
   const { user, setUser } = useAuth();
-  const [isEditing, setIsEditing] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [profile, setProfile] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [profileImageUrl, setProfileImageUrl] = useState<string>('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    phoneNumber: '',
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [profileImage, setProfileImage] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
 
   const { register, handleSubmit, setValue, watch } = useForm<ProfileFormData>({
     defaultValues: {
-      fullName: user?.fullName || '',
+      username: user?.username || '',
       email: user?.email || '',
       bio: user?.bio || '',
       interests: user?.interests || [],
@@ -29,48 +45,49 @@ const ProfilePage = () => {
 
   useEffect(() => {
     if (user) {
-      setValue('fullName', user.fullName || '');
+      setValue('username', user.username || '');
       setValue('email', user.email || '');
       setValue('bio', user.bio || '');
       setValue('interests', user.interests || []);
       setValue('phoneNumber', user.phoneNumber || '');
       setValue('profileImage', user.profileImage || '');
       setValue('roles', user.roles || []);
-      setProfileImageUrl(user.profileImage || '');
+      setPreviewUrl(user.profileImage || '');
     }
   }, [user, setValue]);
 
   useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        setIsLoading(true);
-        const response = await userService.getProfile();
-        const profile = response.user;
-        setValue('fullName', profile.fullName);
-        setValue('email', profile.email);
-        setValue('bio', profile.bio || '');
-        setValue('interests', profile.interests || []);
-        setValue('phoneNumber', profile.phoneNumber || '');
-        setValue('profileImage', profile.profileImage || '');
-        setValue('roles', profile.roles || []);
-        setProfileImageUrl(profile.profileImage || '');
-      } catch (err) {
-        console.error('Error loading profile:', err);
-        setError('Failed to load profile');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     loadProfile();
-  }, [setValue]);
+  }, []);
+
+  const loadProfile = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await userService.getProfile();
+      const userData = response.user;
+      setProfile(userData);
+      setFormData(prev => ({
+        ...prev,
+        username: userData.username || '',
+        email: userData.email || '',
+        phoneNumber: userData.phoneNumber || '',
+      }));
+      setPreviewUrl(userData.profileImage || '');
+    } catch (err) {
+      console.error('Error loading profile:', err);
+      setError('Failed to load profile. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    console.log('Current profile image URL:', profileImageUrl);
-  }, [profileImageUrl]);
+    console.log('Current profile image URL:', previewUrl);
+  }, [previewUrl]);
 
   const onSubmit = async (data: ProfileFormData) => {
-    setIsLoading(true);
+    setLoading(true);
     try {
       const response = await userService.updateProfile(data);
       if (user) {
@@ -83,11 +100,11 @@ const ProfilePage = () => {
       console.error('Error updating profile:', error);
       toast.error('Failed to update profile');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const availableRoles: UserRole[] = ['Member', 'Sponsor', 'Creator', 'Club_Founder'];
+  const availableRoles = [UserRole.Member, UserRole.Sponsor, UserRole.Creator, UserRole.Club_Founder];
 
   if (!user) {
     return <div>Loading...</div>;
@@ -95,51 +112,58 @@ const ProfilePage = () => {
 
   if (!isEditing) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold">Profile</h1>
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <div className="flex justify-between items-start mb-8">
+            <div className="flex items-center space-x-6">
+              <div className="relative">
+                <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-200">
+                  {previewUrl ? (
+                    <img
+                      src={previewUrl}
+                      alt={`${profile?.username}'s profile`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <UserCircleIcon className="w-16 h-16" />
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  {profile?.username || 'Loading...'}
+                </h1>
+                <p className="text-gray-600">{profile?.email}</p>
+                {profile?.phoneNumber && (
+                  <p className="text-gray-600 mt-1">{profile.phoneNumber}</p>
+                )}
+              </div>
+            </div>
             <button
               onClick={() => setIsEditing(true)}
-              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
             >
               Edit Profile
             </button>
           </div>
 
-          <div className="flex items-center mb-6">
-            {profileImageUrl ? (
-              <img
-                src={profileImageUrl}
-                alt="Profile"
-                className="w-24 h-24 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center">
-                <span className="text-gray-500 text-2xl">{user.fullName?.[0]?.toUpperCase()}</span>
-              </div>
-            )}
-            <div className="ml-6">
-              <h2 className="text-xl font-semibold">{user.fullName}</h2>
-              <p className="text-gray-600">{user.email}</p>
-            </div>
-          </div>
-
           <div className="space-y-4">
             <div>
               <h3 className="font-semibold">Phone Number</h3>
-              <p>{user.phoneNumber || 'Not provided'}</p>
+              <p>{profile?.phoneNumber || 'Not provided'}</p>
             </div>
 
             <div>
               <h3 className="font-semibold">Bio</h3>
-              <p>{user.bio || 'No bio provided'}</p>
+              <p>{profile?.bio || 'No bio provided'}</p>
             </div>
 
             <div>
               <h3 className="font-semibold">Interests</h3>
               <div className="flex flex-wrap gap-2 mt-1">
-                {user.interests?.map((interest: string) => (
+                {profile?.interests?.map((interest: string) => (
                   <span
                     key={interest}
                     className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm"
@@ -147,7 +171,7 @@ const ProfilePage = () => {
                     {interest}
                   </span>
                 ))}
-                {(!user.interests || user.interests.length === 0) && (
+                {(!profile?.interests || profile?.interests.length === 0) && (
                   <p className="text-gray-500">No interests added</p>
                 )}
               </div>
@@ -156,10 +180,10 @@ const ProfilePage = () => {
             <div>
               <h3 className="font-semibold">Roles</h3>
               <div className="flex flex-wrap gap-2 mt-1">
-                {user.roles?.map((role) => (
+                {profile?.roles?.map((role: UserRole) => (
                   <span
                     key={role}
-                    className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm"
+                    className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
                   >
                     {role}
                   </span>
@@ -189,16 +213,16 @@ const ProfilePage = () => {
           {/* Profile Image Upload using ImageUpload */}
           <div className="flex items-center space-x-6 mb-6">
             <div className="flex-shrink-0">
-              {profileImageUrl ? (
+              {previewUrl ? (
                 <img
-                  src={profileImageUrl}
+                  src={previewUrl}
                   alt="Profile"
                   className="w-24 h-24 rounded-full object-cover"
                 />
               ) : (
                 <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center">
                   <span className="text-gray-500 text-2xl">
-                    {watch('fullName')?.[0]?.toUpperCase()}
+                    {watch('username')?.[0]?.toUpperCase()}
                   </span>
                 </div>
               )}
@@ -207,7 +231,7 @@ const ProfilePage = () => {
               <ImageUpload
                 endpoint="profile-image"
                 onUploadSuccess={(url) => {
-                  setProfileImageUrl(url);
+                  setPreviewUrl(url);
                   setValue('profileImage', url);
                 }}
                 className="w-full"
@@ -215,14 +239,14 @@ const ProfilePage = () => {
             </div>
           </div>
 
-          {/* Full Name */}
+          {/* Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Full Name
+              Name
             </label>
             <input
               type="text"
-              {...register('fullName')}
+              {...register('username')}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
@@ -287,11 +311,11 @@ const ProfilePage = () => {
                   <input
                     type="checkbox"
                     value={role}
-                    checked={(watch('roles') as string[]).includes(role)}
+                    checked={(watch('roles') as UserRole[]).includes(role as UserRole)}
                     onChange={e => {
-                      const currentRoles = watch('roles') as string[];
+                      const currentRoles = watch('roles') as UserRole[];
                       if (e.target.checked) {
-                        setValue('roles', [...currentRoles, role]);
+                        setValue('roles', [...currentRoles, role as UserRole]);
                       } else {
                         setValue('roles', currentRoles.filter(r => r !== role));
                       }
@@ -302,7 +326,7 @@ const ProfilePage = () => {
                 </label>
               ))}
             </div>
-            {(watch('roles') as string[]).length === 0 && (
+            {(watch('roles') as UserRole[]).length === 0 && (
               <p className="text-red-500 text-sm mt-2">Please select at least one role.</p>
             )}
           </div>
@@ -318,10 +342,10 @@ const ProfilePage = () => {
             </button>
             <button
               type="submit"
-              disabled={isLoading || (watch('roles') as string[]).length === 0}
+              disabled={loading || (watch('roles') as UserRole[]).length === 0}
               className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
             >
-              {isLoading ? 'Saving...' : 'Save Changes'}
+              {loading ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>

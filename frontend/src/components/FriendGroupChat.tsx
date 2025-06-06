@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { friendGroupApi } from '../services/api';
 
 interface FriendGroupChatProps {
@@ -11,7 +10,7 @@ interface GroupMessage {
   _id: string;
   sender: {
     _id: string;
-    fullName: string;
+    username: string;
     profileImage?: string;
   };
   content: string;
@@ -19,22 +18,26 @@ interface GroupMessage {
 }
 
 const FriendGroupChat: React.FC<FriendGroupChatProps> = ({ groupId, groupName }) => {
+  const [messages, setMessages] = useState<GroupMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const queryClient = useQueryClient();
 
-  const { data: messages = [], isLoading } = useQuery({
-    queryKey: ['friendGroupMessages', groupId],
-    queryFn: () => friendGroupApi.getFriendGroupMessages(groupId)
-  });
+  useEffect(() => {
+    const fetchMessages = async () => {
+      try {
+        const data = await friendGroupApi.getFriendGroupMessages(groupId);
+        setMessages(data);
+      } catch (error) {
+        console.error('Error fetching messages:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const sendMessageMutation = useMutation({
-    mutationFn: (content: string) => friendGroupApi.sendFriendGroupMessage(groupId, content),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['friendGroupMessages', groupId] });
-      setNewMessage('');
-    }
-  });
+    fetchMessages();
+  }, [groupId]);
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -42,18 +45,24 @@ const FriendGroupChat: React.FC<FriendGroupChatProps> = ({ groupId, groupName })
     }
   }, [messages]);
 
-  const handleSend = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
-    sendMessageMutation.mutate(newMessage.trim());
+    if (!newMessage.trim() || sending) return;
+
+    setSending(true);
+    try {
+      const message = await friendGroupApi.sendFriendGroupMessage(groupId, newMessage);
+      setMessages(prev => [...prev, message]);
+      setNewMessage('');
+    } catch (error) {
+      console.error('Error sending message:', error);
+    } finally {
+      setSending(false);
+    }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-      </div>
-    );
+  if (loading) {
+    return <div className="text-center p-4">Loading messages...</div>;
   }
 
   return (
@@ -65,22 +74,22 @@ const FriendGroupChat: React.FC<FriendGroupChatProps> = ({ groupId, groupName })
       <div className="h-96 overflow-y-auto p-4 space-y-4">
         {messages.map((message: GroupMessage) => (
           <div key={message._id} className="flex items-start space-x-3">
-            {message.sender.profileImage ? (
+            {message.sender?.profileImage ? (
               <img
                 src={message.sender.profileImage}
-                alt={message.sender.fullName}
+                alt={message.sender.username || 'User'}
                 className="w-8 h-8 rounded-full"
               />
             ) : (
               <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
                 <span className="text-sm text-gray-500">
-                  {message.sender.fullName.charAt(0).toUpperCase()}
+                  {message.sender?.username?.charAt(0)?.toUpperCase() || '?'}
                 </span>
               </div>
             )}
             <div>
               <div className="flex items-center space-x-2">
-                <span className="font-medium text-sm">{message.sender.fullName}</span>
+                <span className="font-medium text-sm">{message.sender?.username || 'Unknown User'}</span>
                 <span className="text-xs text-gray-500">
                   {new Date(message.timestamp).toLocaleTimeString()}
                 </span>
@@ -92,21 +101,22 @@ const FriendGroupChat: React.FC<FriendGroupChatProps> = ({ groupId, groupName })
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSend} className="p-4 border-t">
+      <form onSubmit={handleSendMessage} className="p-4 border-t">
         <div className="flex space-x-2">
           <input
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Type a message..."
-            className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={sending}
           />
           <button
             type="submit"
-            disabled={!newMessage.trim() || sendMessageMutation.isPending}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            disabled={!newMessage.trim() || sending}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Send
+            {sending ? 'Sending...' : 'Send'}
           </button>
         </div>
       </form>

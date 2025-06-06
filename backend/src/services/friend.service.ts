@@ -15,8 +15,8 @@ export class FriendService {
       User.findById(receiverId)
     ]);
     console.log('Found users:', {
-      sender: sender ? { id: sender._id, name: sender.fullName } : null,
-      receiver: receiver ? { id: receiver._id, name: receiver.fullName } : null
+      sender: sender ? { id: sender._id, name: sender.username } : null,
+      receiver: receiver ? { id: receiver._id, name: receiver.username } : null
     });
     if (!sender || !receiver) {
       console.error('User not found:', { senderExists: !!sender, receiverExists: !!receiver });
@@ -67,8 +67,8 @@ export class FriendService {
       User.findById(requesterId)
     ]);
     console.log('Found users:', {
-      user: user ? { id: user._id, name: user.fullName } : null,
-      requester: requester ? { id: requester._id, name: requester.fullName } : null
+      user: user ? { id: user._id, name: user.username } : null,
+      requester: requester ? { id: requester._id, name: requester.username } : null
     });
     if (!user || !requester) {
       console.error('User not found:', { userExists: !!user, requesterExists: !!requester });
@@ -163,7 +163,7 @@ export class FriendService {
       throw new Error('Invalid user ID');
     }
 
-    const user = await User.findById(userId).populate('friends', 'fullName email profileImage bio interests');
+    const user = await User.findById(userId).populate('friends', 'username email profileImage bio interests');
     
     if (!user) {
       throw new Error('User not found');
@@ -178,8 +178,8 @@ export class FriendService {
     }
 
     const user = await User.findById(userId)
-      .populate('receivedRequests', 'fullName email profileImage bio interests')
-      .populate('sentRequests', 'fullName email profileImage bio interests');
+      .populate('receivedRequests', 'username email profileImage bio interests')
+      .populate('sentRequests', 'username email profileImage bio interests');
     
     if (!user) {
       throw new Error('User not found');

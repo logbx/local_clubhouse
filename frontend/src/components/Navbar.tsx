@@ -72,22 +72,16 @@ export default function Navbar() {
                 className="flex items-center space-x-2 text-sm font-semibold leading-6 text-gray-900"
               >
                 {user.profileImage ? (
-                  <img src={user.profileImage} alt={user.fullName} className="h-8 w-8 rounded-full object-cover" />
+                  <img src={user.profileImage} alt={user.username || user.fullName || user.email} className="h-8 w-8 rounded-full object-cover" />
                 ) : (
                   <UserCircleIcon className="h-8 w-8 text-gray-400" />
                 )}
-                <span>{user.fullName}</span>
+                <span>{user.username || user.fullName || user.email}</span>
               </button>
 
               {/* Desktop dropdown menu */}
               {userMenuOpen && (
                 <div className="absolute right-0 mt-2 w-48 rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5">
-                  <Link
-                    to="/dashboard"
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  >
-                    Dashboard
-                  </Link>
                   <Link
                     to="/friends"
                     className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -174,22 +168,16 @@ export default function Navbar() {
             <div className="border-t border-gray-200 pb-3 pt-4">
               <div className="flex items-center px-4">
                 {user.profileImage ? (
-                  <img src={user.profileImage} alt={user.fullName} className="h-10 w-10 rounded-full object-cover" />
+                  <img src={user.profileImage} alt={user.username || user.fullName || user.email} className="h-10 w-10 rounded-full object-cover" />
                 ) : (
                   <UserCircleIcon className="h-10 w-10 text-gray-400" />
                 )}
                 <div className="ml-3">
-                  <div className="text-base font-medium text-gray-800">{user.fullName}</div>
+                  <div className="text-base font-medium text-gray-800">{user.username || user.fullName || user.email}</div>
                   <div className="text-sm font-medium text-gray-500">{user.email}</div>
                 </div>
               </div>
               <div className="mt-3 space-y-1 px-2">
-                <Link
-                  to="/dashboard"
-                  className="block rounded-md px-3 py-2 text-base font-medium text-gray-900 hover:bg-gray-50"
-                >
-                  Dashboard
-                </Link>
                 <Link
                   to="/friends"
                   className="block rounded-md px-3 py-2 text-base font-medium text-gray-900 hover:bg-gray-50"

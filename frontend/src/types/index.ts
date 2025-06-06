@@ -1,6 +1,6 @@
 export interface PublicUserProfile {
   id: string;
-  fullName: string;
+  username: string;
   email: string;
   avatar?: string;
   bio?: string;
@@ -18,7 +18,44 @@ export interface PublicEvent {
   tags: string[];
   organizer: {
     id: string;
-    fullName: string;
+    username: string;
     avatar?: string;
   };
+}
+
+// Message-related interfaces
+export interface Message {
+  _id: string;
+  sender: string;
+  receiver: string;
+  content: string;
+  timestamp: string;
+  read?: boolean;
+}
+
+export interface MessageSender {
+  _id: string;
+  username: string;
+  profileImage?: string;
+}
+
+export interface GroupMessage {
+  _id: string;
+  sender: MessageSender;
+  content: string;
+  timestamp: string;
+}
+
+export interface EventMessage {
+  _id: string;
+  sender: MessageSender;
+  content: string;
+  timestamp: string;
+}
+
+export interface Conversation {
+  userId: string;
+  username: string;
+  profileImage?: string;
+  lastMessage?: Message;
 } 

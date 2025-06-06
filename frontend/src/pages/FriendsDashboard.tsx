@@ -8,13 +8,13 @@ import { toast } from 'react-hot-toast';
 
 interface Friend {
   _id: string;
-  fullName: string;
+  username: string;
   profileImage?: string;
 }
 
 interface FriendRequest {
   _id: string;
-  fullName: string;
+  username: string;
   email: string;
   profileImage?: string;
   bio?: string;
@@ -160,17 +160,17 @@ const FriendsDashboard: React.FC = () => {
                   {friend.profileImage ? (
                     <img
                       src={friend.profileImage}
-                      alt={friend.fullName}
+                      alt={friend.username}
                       className="w-10 h-10 rounded-full"
                     />
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
                       <span className="text-gray-500">
-                        {friend.fullName?.charAt(0)?.toUpperCase() || '?'}
+                        {friend.username?.charAt(0)?.toUpperCase() || '?'}
                       </span>
                     </div>
                   )}
-                  <span className="font-medium">{friend.fullName}</span>
+                  <span className="font-medium">{friend.username}</span>
                 </div>
                 <button
                   className="ml-4 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
@@ -190,7 +190,7 @@ const FriendsDashboard: React.FC = () => {
               onClose={() => setChatOpen(false)}
               friend={{
                 id: selectedFriend._id,
-                fullName: selectedFriend.fullName,
+                username: selectedFriend.username,
                 profileImage: selectedFriend.profileImage,
               }}
             />
@@ -212,17 +212,17 @@ const FriendsDashboard: React.FC = () => {
                   {request.profileImage ? (
                     <img
                       src={request.profileImage}
-                      alt={request.fullName}
+                      alt={request.username}
                       className="w-10 h-10 rounded-full"
                     />
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
                       <span className="text-gray-500">
-                        {request.fullName?.charAt(0)?.toUpperCase() || '?'}
+                        {request.username?.charAt(0)?.toUpperCase() || '?'}
                       </span>
                     </div>
                   )}
-                  <span className="font-medium">{request.fullName}</span>
+                  <span className="font-medium">{request.username}</span>
                 </div>
                 <div className="flex space-x-2">
                   <button

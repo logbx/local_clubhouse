@@ -155,13 +155,11 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
 
     try {
       if (event) {
-        // Validate event ID
-        if (!event._id && !event.id) {
+        // Use id consistently
+        if (!event.id) {
           throw new Error('Event ID is missing - cannot update event');
         }
-        // Type assertion here is safe because we've checked both IDs exist
-        const eventId = (event._id || event.id) as string;
-        await updateMutation.mutateAsync({ id: eventId, data: formDataToSend });
+        await updateMutation.mutateAsync({ id: event.id, data: formDataToSend });
       } else {
         await createMutation.mutateAsync(formDataToSend);
       }
@@ -305,33 +303,59 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
             <div className="flex-1 overflow-y-auto">
               <div className="p-6 space-y-6">
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
                   Event Image
+                  <span className="text-xs text-gray-500 ml-2">(Recommended for better visibility)</span>
                 </label>
-                    <FileUpload
-                      maxSize={10 * 1024 * 1024}
-                      onUploadComplete={url => {
-                        setFormData(prev => ({ ...prev, imageUrl: url }));
-                        setImagePreview(url);
-                      }}
-                      onUploadError={err => alert('Image upload failed: ' + err.message)}
-                    />
-                    {imagePreview && (
-                      <div className="relative w-full h-48 mt-2">
-                        <img src={imagePreview} alt="Event preview" className="w-full h-full object-cover rounded-md" />
+                
+                {!imagePreview ? (
+                  <FileUpload
+                    maxSize={10 * 1024 * 1024}
+                    onUploadSuccess={url => {
+                      setFormData(prev => ({ ...prev, imageUrl: url }));
+                      setImagePreview(url);
+                    }}
+                    onUploadError={err => alert('Image upload failed: ' + err.message)}
+                    buttonText="Add Event Image"
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    <div className="relative w-full h-48 rounded-lg overflow-hidden bg-gray-100">
+                      <img 
+                        src={imagePreview} 
+                        alt="Event preview" 
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-10 transition-all duration-200 flex items-center justify-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData(prev => ({ ...prev, imageUrl: '' }));
+                            setImagePreview('');
+                          }}
+                          className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-colors duration-200 shadow-lg"
+                          title="Remove image"
+                        >
+                          <XMarkIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-gray-600">✓ Image uploaded successfully</p>
                       <button
                         type="button"
                         onClick={() => {
-                            setFormData(prev => ({ ...prev, imageUrl: '' }));
+                          setFormData(prev => ({ ...prev, imageUrl: '' }));
                           setImagePreview('');
                         }}
-                        className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                        className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                       >
-                        <XMarkIcon className="h-5 w-5" />
+                        Change Image
                       </button>
                     </div>
-                    )}
+                  </div>
+                )}
               </div>
 
               <div>

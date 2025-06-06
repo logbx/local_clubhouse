@@ -10,6 +10,9 @@ async function bootstrap() {
   // Trust proxy for rate limiting
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
+  // Set global prefix for all routes
+  app.setGlobalPrefix('api');
+
   app.enableCors({
     origin: configService.get('CORS_ORIGIN'),
     credentials: true,

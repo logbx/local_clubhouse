@@ -3,22 +3,21 @@ import { useQuery } from '@tanstack/react-query';
 import { Event, EventStatus } from '../types/event';
 import { eventApi } from '../services/api';
 import { format } from 'date-fns';
-import { PlusIcon, CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, UserIcon } from '@heroicons/react/24/outline';
 import CreateEventModal from '../components/CreateEventModal';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const EventDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<EventStatus>(EventStatus.DRAFT);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
   const { data: events, isLoading } = useQuery<Event[]>({
     queryKey: ['events'],
-    queryFn: async () => {
-      const response = await eventApi.getEvents();
-      return response.data;
-    },
+    queryFn: eventApi.getEvents,
   });
 
   const filteredEvents = events?.filter(event => event.status === activeTab) || [];
@@ -34,6 +33,23 @@ const EventDashboard: React.FC = () => {
       default:
         return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const canEditEvent = (event: Event) => {
+    return user?.id === event.creatorId || user?.id === event.creator?.id;
+  };
+
+  const handleEditClick = (event: Event) => {
+    setSelectedEvent({ 
+      ...event, 
+      id: event.id,
+      status: event.status,
+      creatorId: event.creatorId,
+      rsvps: event.rsvps,
+      createdAt: event.createdAt,
+      updatedAt: event.updatedAt 
+    });
+    setIsCreateModalOpen(true);
   };
 
   return (
@@ -110,7 +126,7 @@ const EventDashboard: React.FC = () => {
                       {event.status}
                     </span>
                     <span className="text-sm text-gray-500">
-                      {format(new Date(event.startDate), 'MMM d, yyyy')}
+                                              {format(new Date(event.startDate), 'MMM d, yyyy')}
                     </span>
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -122,8 +138,8 @@ const EventDashboard: React.FC = () => {
                   <div className="space-y-2">
                     <div className="flex items-center text-sm text-gray-500">
                       <CalendarIcon className="h-4 w-4 mr-2" />
-                      {format(new Date(event.startDate), 'h:mm a')} -{' '}
-                      {format(new Date(event.endDate), 'h:mm a')}
+                          {format(new Date(event.startDate), 'h:mm a')} -{' '}
+                          {format(new Date(event.endDate), 'h:mm a')}
                     </div>
                     <div className="flex items-center text-sm text-gray-500">
                       <MapPinIcon className="h-4 w-4 mr-2" />
@@ -137,20 +153,26 @@ const EventDashboard: React.FC = () => {
                       <UserGroupIcon className="h-4 w-4 mr-2" />
                       {event.rsvps.length} RSVPs
                     </div>
+                    <div className="flex items-center text-sm text-gray-600 bg-blue-50 p-2 rounded-md">
+                      <UserIcon className="h-4 w-4 mr-2 text-blue-600" />
+                      <span className="font-medium text-blue-800">Event Creator:</span>
+                      <span className="ml-1 text-blue-700">
+                        {event.creator?.username || 'Unknown'}
+                      </span>
+                    </div>
                   </div>
                   <div className="mt-6 flex space-x-3">
-                    <button
-                      className="btn btn-secondary flex-1"
-                      onClick={() => {
-                        setSelectedEvent(event);
-                        setIsCreateModalOpen(true);
-                      }}
-                    >
-                      Edit
-                    </button>
+                    {canEditEvent(event) && (
+                      <button
+                        className="btn btn-secondary flex-1"
+                        onClick={() => handleEditClick(event)}
+                      >
+                        Edit
+                      </button>
+                    )}
                     <button 
                       className="btn btn-primary flex-1"
-                      onClick={() => navigate(`/event/${event._id}`)}
+                      onClick={() => navigate(`/event/${event.id}`)}
                     >
                       View Details
                     </button>
@@ -169,19 +191,7 @@ const EventDashboard: React.FC = () => {
           setIsCreateModalOpen(false);
           setSelectedEvent(null);
         }}
-        event={selectedEvent ? {
-          id: selectedEvent.id,
-          title: selectedEvent.title,
-          description: selectedEvent.description,
-          startDate: selectedEvent.startDate.toISOString(),
-          endDate: selectedEvent.endDate.toISOString(),
-          location: selectedEvent.location,
-          cost: selectedEvent.cost,
-          isFree: selectedEvent.isFree,
-          visibility: selectedEvent.visibility,
-          recurrence: selectedEvent.recurrence,
-          tags: selectedEvent.tags,
-        } : undefined}
+        event={selectedEvent}
       />
     </div>
   );

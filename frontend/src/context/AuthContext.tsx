@@ -1,112 +1,192 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { authApi } from '../services/api';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { api } from '../services/api';
+import { useNavigate } from 'react-router-dom';
 import { User } from '../types/user';
+import { webSocketService } from '../services/websocket.service';
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
+  loading: boolean;
+  error: string | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
-  isLoading: boolean;
-  error: string | null;
+  updateUser: (data: Partial<User>) => void;
+  refreshToken: () => Promise<void>;
+  setUser: (user: User | null) => void;
   clearError: () => void;
-  setUser: (user: Partial<User>) => void;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function useAuth(): AuthContextType {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-}
-
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(() => {
-    const storedUser = localStorage.getItem('user');
-    return storedUser ? JSON.parse(storedUser) : null;
-  });
-  const [token, setToken] = useState<string | null>(localStorage.getItem('accessToken'));
-  const [isLoading, setIsLoading] = useState(false);
+export const AuthProvider: React.FC<{ 
+  children: React.ReactNode;
+  initialUser?: User | null;
+}> = ({ children, initialUser }) => {
+  const [user, setUser] = useState<User | null>(initialUser || null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
-  // Update localStorage when user changes
-  useEffect(() => {
-    if (user) {
-      console.log('Updating user in localStorage:', user);
-      localStorage.setItem('user', JSON.stringify(user));
-    }
-  }, [user]);
-
-  // Login user
-  const login = async (email: string, password: string) => {
-    if (isLoading) {
-      throw new Error('Login already in progress');
-    }
-    
-    setIsLoading(true);
-    setError(null);
+  const refreshToken = useCallback(async () => {
     try {
-      const response = await authApi.login({ email, password });
-      
-      if (!response.token || !response.user) {
-        throw new Error('Invalid login response');
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (!refreshToken) {
+        console.log('No refresh token found in localStorage');
+        throw new Error('No refresh token available');
       }
-      
-      const { token, user: userData } = response;
-      
-      setToken(token);
+
+      console.log('Attempting to refresh token...');
+      const response = await api.post('/api/auth/refresh', { refreshToken });
+      console.log('Refresh token response:', response.data);
+      const { accessToken, refreshToken: newRefreshToken, user: userData } = response.data;
+
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('refreshToken', newRefreshToken);
       setUser(userData);
-      localStorage.setItem('accessToken', token);
-      localStorage.setItem('user', JSON.stringify(userData));
+      setError(null);
+      console.log('Token refresh successful');
     } catch (err: any) {
-      const message = err.response?.data?.error || err.message || 'Login failed';
-      setError(message);
-      throw new Error(message);
+      console.error('Token refresh failed:', err.response?.data || err.message);
+      // Clear all tokens when refresh fails
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      setUser(null);
+      throw err;
+    }
+  }, []);
+
+  const login = async (email: string, password: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Clear any existing tokens before login attempt
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      
+      // Use email as identifier (could be email or username)
+      const response = await api.post('/api/auth/login', { 
+        identifier: email.toLowerCase(), // Convert to lowercase for case-insensitive comparison
+        password 
+      });
+      
+      console.log('Login response:', response.data);
+      const { accessToken, refreshToken, user: userData } = response.data;
+
+      console.log('User data from login:', userData);
+      console.log('Profile completed status:', userData.profileCompleted);
+
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('refreshToken', refreshToken);
+      setUser(userData);
+      
+      // Connect to WebSocket after successful login
+      webSocketService.connect(accessToken);
+      
+      navigate('/dashboard');
+    } catch (err: any) {
+      console.error('Login error:', err.response?.data);
+      setError(err.response?.data?.message || 'Login failed');
+      
+      // Clear any tokens on login failure
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      
+      throw err;
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  // Logout user
   const logout = () => {
-    setUser(null);
-    setToken(null);
     localStorage.removeItem('accessToken');
-    localStorage.removeItem('user');
+    localStorage.removeItem('refreshToken');
+    setUser(null);
+    
+    // Disconnect WebSocket on logout
+    webSocketService.disconnect();
+    
+    navigate('/login');
   };
 
-  // Clear error message
-  const clearError = () => setError(null);
-
-  // Update user data
-  const updateUser = (userData: Partial<User> | User) => {
-    setUser(prev => {
-      if (!prev && !('id' in userData)) return null;
-      const updated = {
-        ...(prev || {}),
-        ...userData,
-        roles: Array.isArray(userData.roles) ? userData.roles : (prev?.roles || []),
-        profileCompleted: userData.profileCompleted ?? prev?.profileCompleted ?? false
-      } as User;
-      console.log('Updating user in context:', updated);
-      localStorage.setItem('user', JSON.stringify(updated));
-      return updated;
-    });
+  const updateUser = (data: Partial<User>) => {
+    setUser(prev => prev ? { ...prev, ...data } : null);
   };
+
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  useEffect(() => {
+    const initializeAuth = async () => {
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await api.get('/api/auth/verify');
+        setUser(response.data.user);
+        
+        // Connect to WebSocket if user is verified
+        webSocketService.connect(accessToken);
+      } catch (err: any) {
+        if (err.response?.status === 401) {
+          // Only attempt refresh if we have a refresh token
+          const refreshTokenFromStorage = localStorage.getItem('refreshToken');
+          if (refreshTokenFromStorage) {
+            try {
+              await refreshToken();
+            } catch (refreshErr) {
+              console.error('Token refresh failed during initialization:', refreshErr);
+              // Clear tokens and reset state
+              localStorage.removeItem('accessToken');
+              localStorage.removeItem('refreshToken');
+              setUser(null);
+            }
+          } else {
+            // No refresh token available, just clear the invalid access token
+            console.log('No refresh token available, clearing invalid access token');
+            localStorage.removeItem('accessToken');
+            setUser(null);
+          }
+        } else {
+          console.error('Auth verification failed:', err);
+          // For non-401 errors, clear tokens as they might be corrupted
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          setUser(null);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
+  }, [refreshToken]);
 
   const value = {
     user,
-    token,
+    loading,
+    error,
     login,
     logout,
-    isLoading,
-    error,
+    updateUser,
+    refreshToken,
+    setUser,
     clearError,
-    setUser: updateUser,
+    isLoading: loading,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 }; 

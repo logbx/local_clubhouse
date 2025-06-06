@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { validationResult } from 'express-validator';
+import { Types } from 'mongoose';
+import { BadRequestException } from '@nestjs/common';
 
 export const validate = (validations: any[]) => {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -31,4 +33,14 @@ export const validationErrorHandler = (
   }
 
   next(err);
+};
+
+export const validateObjectId = (paramName: string) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const id = req.params[paramName];
+    if (!id || !Types.ObjectId.isValid(id)) {
+      throw new BadRequestException(`Invalid ${paramName} ID`);
+    }
+    next();
+  };
 }; 

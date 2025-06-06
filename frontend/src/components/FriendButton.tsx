@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import { friendApi } from '../services/api';
 import { toast } from 'react-toastify';
+import { webSocketService } from '../services/websocket.service';
 
 interface FriendButtonProps {
   userId: string;
@@ -23,6 +24,32 @@ const FriendButton: React.FC<FriendButtonProps> = ({ userId }) => {
     retry: 1
   });
 
+  // Listen for real-time friend request updates
+  useEffect(() => {
+    const handleFriendRequest = (request: any) => {
+      if (request.senderId === userId) {
+        toast.info('You received a new friend request!');
+        queryClient.invalidateQueries({ queryKey: ['friendStatus', userId] });
+        queryClient.invalidateQueries({ queryKey: ['friendRequests'] });
+      }
+    };
+
+    const handleFriendRequestUpdate = (update: any) => {
+      if (update.userId === userId) {
+        toast.success(update.message);
+        queryClient.invalidateQueries({ queryKey: ['friendStatus', userId] });
+        queryClient.invalidateQueries({ queryKey: ['friends'] });
+      }
+    };
+
+    webSocketService.onNewFriendRequest(handleFriendRequest);
+    webSocketService.onFriendRequestUpdate(handleFriendRequestUpdate);
+
+    return () => {
+      // Note: We don't remove all listeners here as other components might be using them
+    };
+  }, [userId, queryClient]);
+
   const sendRequest = useMutation({
     mutationFn: async () => {
       const response = await friendApi.sendFriendRequest(userId);
@@ -40,10 +67,16 @@ const FriendButton: React.FC<FriendButtonProps> = ({ userId }) => {
         console.error('Backend response:', error.response.data);
       }
       const message = error.response?.data?.message || 'Failed to send friend request';
-      toast.error(message);
-      // If users are already friends, update the local status
-      if (message.includes('already friends')) {
+      
+      // If request already sent or users are already friends, update the local status
+      if (message.includes('already sent') || message.includes('already friends')) {
         queryClient.invalidateQueries({ queryKey: ['friendStatus', userId] });
+        // Don't show error toast for "already sent" since this indicates success
+        if (!message.includes('already sent')) {
+          toast.error(message);
+        }
+      } else {
+        toast.error(message);
       }
     }
   });
@@ -100,7 +133,7 @@ const FriendButton: React.FC<FriendButtonProps> = ({ userId }) => {
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
             disabled
           >
-            <span>Friends 👥</span>
+            <span>Friends ✓</span>
           </button>
         );
 
@@ -110,7 +143,7 @@ const FriendButton: React.FC<FriendButtonProps> = ({ userId }) => {
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
             disabled
           >
-            <span>Request Sent ⏳</span>
+            <span>Sent ⏳</span>
           </button>
         );
 
@@ -141,7 +174,7 @@ const FriendButton: React.FC<FriendButtonProps> = ({ userId }) => {
             onClick={() => sendRequest.mutate()}
             disabled={sendRequest.isPending}
           >
-            <span>Connect 🔗</span>
+            <span>{sendRequest.isPending ? 'Sending...' : 'Connect'}</span>
           </button>
         );
     }

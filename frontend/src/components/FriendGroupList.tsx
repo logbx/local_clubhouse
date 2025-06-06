@@ -11,7 +11,7 @@ interface FriendGroup {
 }
 
 interface FriendGroupListProps {
-  friends: { _id: string; fullName: string }[];
+  friends: { _id: string; username: string }[];
 }
 
 const FriendGroupList: React.FC<FriendGroupListProps> = ({ friends }) => {
@@ -29,8 +29,8 @@ const FriendGroupList: React.FC<FriendGroupListProps> = ({ friends }) => {
   });
 
   const createGroupMutation = useMutation({
-    mutationFn: (data: { name: string; members: string[] }) =>
-      friendGroupApi.createFriendGroup(data.name, data.members),
+    mutationFn: (data: { username: string; members: string[] }) =>
+      friendGroupApi.createFriendGroup(data.username, data.members),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['friendGroups'] });
       setShowCreate(false);
@@ -54,7 +54,7 @@ const FriendGroupList: React.FC<FriendGroupListProps> = ({ friends }) => {
 
   const handleCreate = () => {
     if (!newName.trim() || selectedMembers.length === 0) return;
-    createGroupMutation.mutate({ name: newName, members: selectedMembers });
+    createGroupMutation.mutate({ username: newName, members: selectedMembers });
   };
 
   const handleAddMembers = (groupId: string) => {
@@ -100,7 +100,7 @@ const FriendGroupList: React.FC<FriendGroupListProps> = ({ friends }) => {
           >
             {friends.map(friend => (
               <option key={friend._id} value={friend._id}>
-                {friend.fullName}
+                {friend.username}
               </option>
             ))}
           </select>
@@ -161,7 +161,7 @@ const FriendGroupList: React.FC<FriendGroupListProps> = ({ friends }) => {
                           <option disabled>No friends to add</option>
                         ) : (
                           availableFriends.map(friend => (
-                            <option key={friend._id} value={friend._id}>{friend.fullName}</option>
+                            <option key={friend._id} value={friend._id}>{friend.username}</option>
                           ))
                         )}
                       </select>

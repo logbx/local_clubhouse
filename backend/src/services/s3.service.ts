@@ -1,49 +1,49 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import dotenv from 'dotenv';
-import path from 'path';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
-// Load environment variables from the correct path
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
-
-const AWS_REGION = process.env.AWS_REGION || 'us-east-2';
-const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
-const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY;
-const AWS_S3_BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME;
-
-// Log all environment variables for debugging
-console.log('Environment variables:', {
-  AWS_REGION,
-  AWS_ACCESS_KEY_ID: AWS_ACCESS_KEY_ID ? '***' : undefined,
-  AWS_SECRET_ACCESS_KEY: AWS_SECRET_ACCESS_KEY ? '***' : undefined,
-  AWS_S3_BUCKET_NAME
-});
-
-// Validate required environment variables
-if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY || !AWS_S3_BUCKET_NAME) {
-  console.error('Missing required AWS environment variables:', {
-    AWS_ACCESS_KEY_ID: !!AWS_ACCESS_KEY_ID,
-    AWS_SECRET_ACCESS_KEY: !!AWS_SECRET_ACCESS_KEY,
-    AWS_S3_BUCKET_NAME: !!AWS_S3_BUCKET_NAME
-  });
-  throw new Error('Missing required AWS environment variables');
-}
-
-export class S3Service {
+@Injectable()
+export class S3Service implements OnModuleInit {
   private s3Client: S3Client;
   private bucket: string;
   private region: string;
 
-  constructor() {
+  constructor(private configService: ConfigService) {}
+
+  onModuleInit() {
+    const AWS_REGION = this.configService.get<string>('AWS_REGION', 'us-east-2');
+    const AWS_ACCESS_KEY_ID = this.configService.get<string>('AWS_ACCESS_KEY_ID');
+    const AWS_SECRET_ACCESS_KEY = this.configService.get<string>('AWS_SECRET_ACCESS_KEY');
+    const AWS_S3_BUCKET_NAME = this.configService.get<string>('AWS_S3_BUCKET_NAME');
+
+    // Log all environment variables for debugging
+    console.log('Environment variables:', {
+      AWS_REGION,
+      AWS_ACCESS_KEY_ID: AWS_ACCESS_KEY_ID ? '***' : undefined,
+      AWS_SECRET_ACCESS_KEY: AWS_SECRET_ACCESS_KEY ? '***' : undefined,
+      AWS_S3_BUCKET_NAME
+    });
+
+    // Validate required environment variables
+    if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY || !AWS_S3_BUCKET_NAME) {
+      console.error('Missing required AWS environment variables:', {
+        AWS_ACCESS_KEY_ID: !!AWS_ACCESS_KEY_ID,
+        AWS_SECRET_ACCESS_KEY: !!AWS_SECRET_ACCESS_KEY,
+        AWS_S3_BUCKET_NAME: !!AWS_S3_BUCKET_NAME
+      });
+      throw new Error('Missing required AWS environment variables');
+    }
+
     this.region = AWS_REGION;
-    this.bucket = AWS_S3_BUCKET_NAME!;
+    this.bucket = AWS_S3_BUCKET_NAME;
 
     // Initialize S3 client
     this.s3Client = new S3Client({
       region: this.region,
       credentials: {
-        accessKeyId: AWS_ACCESS_KEY_ID!,
-        secretAccessKey: AWS_SECRET_ACCESS_KEY!
+        accessKeyId: AWS_ACCESS_KEY_ID,
+        secretAccessKey: AWS_SECRET_ACCESS_KEY
       }
     });
 

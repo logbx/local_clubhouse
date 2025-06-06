@@ -2,21 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { messageService } from '../services/message.service';
 import { useAuth } from '../context/AuthContext';
 import GroupChat from '../components/GroupChat';
-
-interface Message {
-  _id: string;
-  sender: string;
-  receiver: string;
-  content: string;
-  timestamp: string;
-}
-
-interface Conversation {
-  userId: string;
-  fullName: string;
-  profileImage?: string;
-  lastMessage?: Message;
-}
+import { Message, Conversation } from '../types';
+import { webSocketService } from '../services/websocket.service';
 
 const MessagesPage: React.FC = () => {
   const { user } = useAuth();
@@ -38,6 +25,18 @@ const MessagesPage: React.FC = () => {
       }
     };
     fetchConversations();
+
+    // Listen for new messages to update conversation list
+    const handleNewMessage = (message: Message) => {
+      // Refresh conversations when a new message arrives
+      fetchConversations();
+    };
+
+    webSocketService.onNewMessage(handleNewMessage);
+
+    return () => {
+      // Note: We don't remove all listeners here as other components might be using them
+    };
   }, []);
 
   return (
@@ -53,14 +52,14 @@ const MessagesPage: React.FC = () => {
         {conversations.map((conv) => (
           <li key={conv.userId} className="py-4 flex items-center">
             {conv.profileImage ? (
-              <img src={conv.profileImage} alt={conv.fullName} className="h-10 w-10 rounded-full object-cover mr-4" />
+              <img src={conv.profileImage} alt={conv.username} className="h-10 w-10 rounded-full object-cover mr-4" />
             ) : (
               <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold mr-4">
-                {conv.fullName.charAt(0)}
+                {conv.username.charAt(0)}
               </div>
             )}
             <div className="flex-1">
-              <div className="font-semibold">{conv.fullName}</div>
+              <div className="font-semibold">{conv.username}</div>
               <div className="text-gray-500 text-sm truncate">
                 {conv.lastMessage ? conv.lastMessage.content : 'No messages yet.'}
               </div>

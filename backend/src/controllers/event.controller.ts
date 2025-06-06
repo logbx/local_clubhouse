@@ -13,21 +13,78 @@ interface AuthRequest extends Request {
 export class EventController {
   static async getEvents(_req: Request, res: Response) {
     try {
-      const events = await Event.find().populate('organizerId', 'fullName email');
-      return res.json({ data: events });
+      const events = await Event.find({}).populate('organizerId', 'username email');
+      
+      // Transform events to match frontend interface
+      const transformedEvents = events.map(event => ({
+        _id: event._id,
+        id: event._id,
+        title: event.title,
+        description: event.description,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        location: event.location,
+        cost: event.cost,
+        isFree: event.isFree,
+        status: event.status,
+        visibility: event.visibility,
+        recurrence: event.recurrence,
+        tags: event.tags,
+        imageUrl: event.imageUrl,
+        creatorId: event.organizerId,
+        creator: event.organizerId,
+        attendees: event.rsvps.map(rsvp => ({
+          _id: rsvp,
+          username: 'User', // Would need to populate to get actual username
+          email: 'user@example.com'
+        })),
+        attendeeCount: event.rsvps.length,
+        createdAt: event.createdAt,
+        updatedAt: event.updatedAt
+      }));
+      
+      return res.json({ data: transformedEvents });
     } catch (error) {
-      console.error('Failed to fetch events:', error);
       return res.status(500).json({ error: 'Failed to fetch events' });
     }
   }
 
   static async getEvent(req: Request, res: Response) {
     try {
-      const event = await Event.findById(req.params.id);
+      const event = await Event.findById(req.params.id).populate('organizerId', 'username email');
       if (!event) {
         return res.status(404).json({ error: 'Event not found' });
       }
-      return res.json({ data: event });
+      
+      // Transform event to match frontend interface
+      const transformedEvent = {
+        _id: event._id,
+        id: event._id,
+        title: event.title,
+        description: event.description,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        location: event.location,
+        cost: event.cost,
+        isFree: event.isFree,
+        status: event.status,
+        visibility: event.visibility,
+        recurrence: event.recurrence,
+        tags: event.tags,
+        imageUrl: event.imageUrl,
+        creatorId: event.organizerId,
+        creator: event.organizerId,
+        attendees: event.rsvps.map(rsvp => ({
+          _id: rsvp,
+          username: 'User',
+          email: 'user@example.com'
+        })),
+        attendeeCount: event.rsvps.length,
+        createdAt: event.createdAt,
+        updatedAt: event.updatedAt
+      };
+      
+      return res.json({ data: transformedEvent });
     } catch (error) {
       return res.status(500).json({ error: 'Failed to fetch event' });
     }
@@ -36,116 +93,101 @@ export class EventController {
   static async createEvent(req: Request, res: Response) {
     try {
       const user = (req as AuthRequest).user;
-      console.log('Creating event with data:', req.body);
-      console.log('User:', user);
+      const eventData = req.body;
       
-      const { startDate, endDate, tags, ...rest } = req.body;
+      const event = new Event({
+        ...eventData,
+        organizerId: user._id,
+        rsvps: []
+      });
       
-      // Handle tags
-      let parsedTags = [];
-      if (tags) {
-        try {
-          // If tags is a string, try to parse it
-          if (typeof tags === 'string') {
-            const parsed = JSON.parse(tags);
-            parsedTags = Array.isArray(parsed) ? parsed : [parsed];
-          }
-          // If tags is already an array, use it as is
-          else if (Array.isArray(tags)) {
-            parsedTags = tags;
-          }
-        } catch (e) {
-          // If parsing fails, treat it as a single tag
-          parsedTags = [tags];
-        }
+      await event.save();
+      const populatedEvent = await Event.findById(event._id).populate('organizerId', 'username email');
+      
+      if (!populatedEvent) {
+        return res.status(500).json({ error: 'Failed to create event' });
       }
       
-      const eventData = {
-        ...rest,
-        tags: parsedTags,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        organizerId: user._id,
-        imageUrl: req.body.imageUrl,
+      const transformedEvent = {
+        _id: populatedEvent._id,
+        id: populatedEvent._id,
+        title: populatedEvent.title,
+        description: populatedEvent.description,
+        startTime: populatedEvent.startTime,
+        endTime: populatedEvent.endTime,
+        location: populatedEvent.location,
+        cost: populatedEvent.cost,
+        isFree: populatedEvent.isFree,
+        status: populatedEvent.status,
+        visibility: populatedEvent.visibility,
+        recurrence: populatedEvent.recurrence,
+        tags: populatedEvent.tags,
+        imageUrl: populatedEvent.imageUrl,
+        creatorId: populatedEvent.organizerId,
+        creator: populatedEvent.organizerId,
+        attendees: [],
+        attendeeCount: 0,
+        createdAt: populatedEvent.createdAt,
+        updatedAt: populatedEvent.updatedAt
       };
       
-      console.log('Event data to save:', eventData);
-      const event = await Event.create(eventData);
-      console.log('Created event:', event);
-      
-      res.status(201).json({ data: event });
+      return res.status(201).json({ data: transformedEvent });
     } catch (error) {
-      console.error('Failed to create event:', error);
-      res.status(500).json({ error: 'Failed to create event', details: error.message });
+      return res.status(400).json({ error: 'Failed to create event' });
     }
   }
 
   static async updateEvent(req: Request, res: Response) {
     try {
       const user = (req as AuthRequest).user;
-      const { id } = req.params;
-      const updateData = { ...req.body };
-      const userId = user?.id || user._id;
-
-      // Remove fields that shouldn't be updated
-      delete updateData.organizerId;
-      delete updateData.rsvps;
-      delete updateData.createdAt;
-      delete updateData.updatedAt;
-
-      // Handle tags array
-      if (updateData.tags) {
-        try {
-          // If tags is a string, try to parse it
-          if (typeof updateData.tags === 'string') {
-            const parsedTags = JSON.parse(updateData.tags);
-            updateData.tags = Array.isArray(parsedTags) ? parsedTags : [parsedTags];
-          }
-          // If tags is already an array, use it as is
-          else if (Array.isArray(updateData.tags)) {
-            updateData.tags = updateData.tags;
-          }
-          // If neither, make it an empty array
-          else {
-            updateData.tags = [];
-          }
-        } catch (e) {
-          // If parsing fails, treat it as a single tag
-          updateData.tags = [updateData.tags];
-        }
-      }
-
-      // Convert dates if present
-      if (updateData.startDate) {
-        updateData.startDate = new Date(updateData.startDate);
-      }
-      if (updateData.endDate) {
-        updateData.endDate = new Date(updateData.endDate);
-      }
-
-      if (updateData.imageUrl) {
-        updateData.imageUrl = updateData.imageUrl;
-      }
-
-      const event = await Event.findById(id);
+      const event = await Event.findById(req.params.id);
       if (!event) {
-        return res.status(404).json({ message: 'Event not found' });
+        return res.status(404).json({ error: 'Event not found' });
       }
-
-      if (event.organizerId.toString() !== userId) {
-        return res.status(403).json({ message: 'Not authorized to update this event' });
+      
+      if (event.organizerId.toString() !== user._id.toString()) {
+        return res.status(403).json({ error: 'Unauthorized' });
       }
-
-      const updatedEvent = await Event.findByIdAndUpdate(
-        id,
-        { $set: updateData },
-        { new: true }
-      ).populate('organizerId', 'fullName email');
-
-      return res.json(updatedEvent);
+      
+      Object.assign(event, req.body);
+      await event.save();
+      
+      const populatedEvent = await Event.findById(event._id).populate('organizerId', 'username email');
+      
+      if (!populatedEvent) {
+        return res.status(500).json({ error: 'Failed to update event' });
+      }
+      
+      const transformedEvent = {
+        _id: populatedEvent._id,
+        id: populatedEvent._id,
+        title: populatedEvent.title,
+        description: populatedEvent.description,
+        startTime: populatedEvent.startTime,
+        endTime: populatedEvent.endTime,
+        location: populatedEvent.location,
+        cost: populatedEvent.cost,
+        isFree: populatedEvent.isFree,
+        status: populatedEvent.status,
+        visibility: populatedEvent.visibility,
+        recurrence: populatedEvent.recurrence,
+        tags: populatedEvent.tags,
+        imageUrl: populatedEvent.imageUrl,
+        creatorId: populatedEvent.organizerId,
+        creator: populatedEvent.organizerId,
+        attendees: populatedEvent.rsvps.map(rsvp => ({
+          _id: rsvp,
+          username: 'User',
+          email: 'user@example.com'
+        })),
+        attendeeCount: populatedEvent.rsvps.length,
+        createdAt: populatedEvent.createdAt,
+        updatedAt: populatedEvent.updatedAt
+      };
+      
+      return res.json({ data: transformedEvent });
     } catch (error) {
-      console.error('Error updating event:', error);
-      return res.status(500).json({ message: 'Error updating event', details: error.message });
+      return res.status(400).json({ error: 'Failed to update event' });
     }
   }
 
@@ -156,9 +198,11 @@ export class EventController {
       if (!event) {
         return res.status(404).json({ error: 'Event not found' });
       }
+      
       if (event.organizerId.toString() !== user._id.toString()) {
-        return res.status(403).json({ error: 'Not authorized to delete this event' });
+        return res.status(403).json({ error: 'Unauthorized' });
       }
+      
       await Event.findByIdAndDelete(req.params.id);
       return res.json({ message: 'Event deleted successfully' });
     } catch (error) {
@@ -194,15 +238,20 @@ export class EventController {
       if (!event) {
         return res.status(404).json({ error: 'Event not found' });
       }
-      if (event.rsvps.map((id: any) => id.toString()).includes(user._id.toString())) {
-        return res.status(400).json({ error: 'Already RSVPed to this event' });
+      
+      const userId = user._id.toString();
+      const isAlreadyRsvped = event.rsvps.some(rsvp => rsvp.toString() === userId);
+      
+      if (isAlreadyRsvped) {
+        // Remove RSVP
+        event.rsvps = event.rsvps.filter(rsvp => rsvp.toString() !== userId);
+      } else {
+        // Add RSVP
+        event.rsvps.push(new Types.ObjectId(userId));
       }
-      const updatedEvent = await Event.findByIdAndUpdate(
-        req.params.id,
-        { $push: { rsvps: user._id } },
-        { new: true }
-      );
-      return res.json({ data: updatedEvent });
+      
+      await event.save();
+      return res.json({ data: event });
     } catch (error) {
       return res.status(500).json({ error: 'Failed to RSVP to event' });
     }

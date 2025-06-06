@@ -5,7 +5,7 @@ interface GroupMessage {
   _id: string;
   sender: {
     _id: string;
-    fullName: string;
+    username: string;
     profileImage?: string;
   };
   content: string;
@@ -55,15 +55,15 @@ const GroupChat: React.FC = () => {
         ) : (
           messages.map((msg, idx) => (
             <div key={msg._id || idx} className="flex items-start space-x-2">
-              {msg.sender.profileImage ? (
-                <img src={msg.sender.profileImage} alt={msg.sender.fullName} className="h-8 w-8 rounded-full object-cover" />
+              {msg.sender?.profileImage ? (
+                <img src={msg.sender.profileImage} alt={msg.sender.username || 'User'} className="h-8 w-8 rounded-full object-cover" />
               ) : (
                 <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold">
-                  {msg.sender.fullName.charAt(0)}
+                  {msg.sender?.username?.charAt(0)?.toUpperCase() || '?'}
                 </div>
               )}
               <div>
-                <div className="font-semibold text-sm">{msg.sender.fullName}</div>
+                <div className="font-semibold text-sm">{msg.sender?.username || 'Unknown User'}</div>
                 <div className="text-gray-800 text-sm">{msg.content}</div>
                 <div className="text-xs text-gray-400 mt-1">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
               </div>

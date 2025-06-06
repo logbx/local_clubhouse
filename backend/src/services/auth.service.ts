@@ -1,8 +1,10 @@
 import jwt from 'jsonwebtoken';
 import { User, IUser } from '../models/user.model';
 import { Request } from 'express';
+import * as bcrypt from 'bcryptjs';
+import { UserRole } from '../types/user';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT_ACCESS_SECRET || 'your-secret-key';
 const JWT_EXPIRES_IN = '24h';
 
 export class AuthService {
@@ -11,42 +13,70 @@ export class AuthService {
       { 
         id: user._id,
         email: user.email,
-        role: user.role 
+        roles: user.roles 
       },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
   }
 
-  static async register(userData: {
-    fullName: string;
-    email: string;
-    password: string;
-  }): Promise<{ user: IUser; token: string }> {
-    const existingUser = await User.findOne({ email: userData.email });
+  static async register(userData: { username: string; email: string; password: string }): Promise<{ user: IUser; token: string }> {
+    const { username, email, password } = userData;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
     if (existingUser) {
       throw new Error('Email already registered');
     }
 
-    const user = await User.create(userData);
-    const token = this.generateToken(user);
+    // Check if username already exists
+    const existingUsername = await User.findOne({ username });
+    if (existingUsername) {
+      throw new Error('Username already taken');
+    }
 
-    return { user, token };
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create new user
+    const newUser = new User({
+      username,
+      email,
+      password: hashedPassword,
+      roles: [UserRole.Member],
+    });
+
+    await newUser.save();
+
+    // Generate JWT token
+    const token = AuthService.generateToken(newUser);
+
+    return { user: newUser, token };
   }
 
   static async login(email: string, password: string): Promise<{ user: IUser; token: string }> {
-    const user = await User.findOne({ email });
-    if (!user) {
-      throw new Error('Invalid email or password');
-    }
+    try {
+      // Find user by email
+      const user = await User.findOne({ email });
+      if (!user) {
+        throw new Error('Invalid credentials');
+      }
 
-    const isPasswordValid = await user.comparePassword(password);
-    if (!isPasswordValid) {
-      throw new Error('Invalid email or password');
-    }
+      // Verify password
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        throw new Error('Invalid credentials');
+      }
 
-    const token = this.generateToken(user);
-    return { user, token };
+      // Generate JWT token
+      const token = AuthService.generateToken(user);
+
+      return { user, token };
+    } catch (error) {
+      console.error('Login error:', error);
+      throw new Error('Invalid credentials');
+    }
   }
 
   static async verifyToken(token: string): Promise<IUser> {

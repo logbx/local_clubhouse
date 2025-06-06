@@ -16,6 +16,11 @@ export class UserController {
     try {
       console.log('[UserController] Raw request body:', JSON.stringify(req.body, null, 2));
       console.log('[UserController] User from auth:', req.user?.id);
+      console.log('[UserController] Profile image from request:', {
+        hasImage: !!req.body.profileImage,
+        imageType: typeof req.body.profileImage,
+        imageValue: req.body.profileImage
+      });
 
       // Validate and sanitize input
       const profileData = {
@@ -25,10 +30,15 @@ export class UserController {
                   (typeof req.body.interests === 'string' ? JSON.parse(req.body.interests) : []),
         bio: req.body.bio || '',
         phoneNumber: req.body.phoneNumber || '',
-        profileImage: req.body.profileImage || null
+        profileImage: typeof req.body.profileImage === 'string' ? req.body.profileImage : null
       };
 
       console.log('[UserController] Sanitized profile data:', JSON.stringify(profileData, null, 2));
+      console.log('[UserController] Profile image after sanitization:', {
+        hasImage: !!profileData.profileImage,
+        imageType: typeof profileData.profileImage,
+        imageValue: profileData.profileImage
+      });
 
       if (!req.user?.id) {
         throw new Error('User not authenticated');
@@ -43,7 +53,7 @@ export class UserController {
       // Create sanitized response object
       const userResponse = {
         id: updatedUser._id,
-        fullName: updatedUser.fullName,
+        username: updatedUser.username,
         email: updatedUser.email,
         roles: updatedUser.roles || [],
         phoneNumber: updatedUser.phoneNumber || '',
@@ -81,36 +91,54 @@ export class UserController {
 
   static async getProfile(req: AuthRequest, res: Response) {
     try {
-      const userId = req.user.id;
+      const userId = req.user?.id || req.user?._id;
+      console.log('[UserController] Getting profile for user:', userId);
+      
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
+
       const user = await UserService.getUserProfile(userId);
-      console.log('User profile from database:', user);
+      console.log('[UserController] User profile from database:', user);
+
+      if (!user) {
+        throw new Error('User not found');
+      }
 
       const userResponse = {
         id: user._id,
-        fullName: user.fullName,
+        username: user.username,
         email: user.email,
-        roles: user.roles,
-        phoneNumber: user.phoneNumber,
-        bio: user.bio,
+        roles: user.roles || [],
+        phoneNumber: user.phoneNumber || '',
+        bio: user.bio || '',
         interests: user.interests || [],
-        profileImage: user.profileImage,
+        profileImage: user.profileImage || null,
         profileCompleted: user.profileCompleted || false
       };
 
-      console.log('Sending profile response:', userResponse);
-      res.json({
-        user: userResponse,
-      });
+      console.log('[UserController] Sending profile response:', userResponse);
+      res.json(userResponse);
     } catch (error: any) {
-      console.error('Get profile error:', error);
-      res.status(400).json({ error: error.message });
+      console.error('[UserController] Get profile error:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        code: error.code,
+        details: error.details || 'No additional details'
+      });
+      res.status(500).json({ 
+        message: 'Failed to get profile',
+        error: error.message,
+        details: error.details || 'No additional details'
+      });
     }
   }
 
   static async getPublicProfile(req: Request, res: Response) {
     try {
       const userId = req.params.userId;
-      const user = await User.findById(userId).select('username fullName bio tags interests avatarUrl roles phoneNumber createdAt updatedAt profileCompleted profileImage');
+      const user = await User.findById(userId).select('username username bio tags interests avatarUrl roles phoneNumber createdAt updatedAt profileCompleted profileImage');
       
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
@@ -119,7 +147,7 @@ export class UserController {
       return res.json({
         data: {
           id: user._id,
-          fullName: user.fullName,
+          username: user.username,
           bio: user.bio || '',
           interests: user.interests || [],
           profileImage: user.profileImage || null,

@@ -2,57 +2,39 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import axios from 'axios';
 
-interface RegisterFormData {
-  name: string;
+interface FormData {
+  username: string;
   email: string;
-  phone?: string;
-  roles: string[];
+  password: string;
 }
 
-const ROLES = [
-  { id: 'club_founder', label: 'Club Founder' },
-  { id: 'member', label: 'Member' },
-  { id: 'sponsor', label: 'Sponsor' },
-  { id: 'creator', label: 'Creator' },
-];
-
 export default function RegisterForm() {
-  const [formData, setFormData] = useState<RegisterFormData>({
-    name: '',
+  const [formData, setFormData] = useState<FormData>({
+    username: '',
     email: '',
-    phone: '',
-    roles: [],
+    password: '',
   });
 
   const registerMutation = useMutation({
-    mutationFn: (data: RegisterFormData & { password: string }) =>
-      axios.post('http://localhost:3000/auth/register', data),
+    mutationFn: (data: FormData) =>
+      axios.post('http://localhost:3000/auth/register', {
+        ...data,
+        roles: [], // Send empty roles array since roles will be set in profile setup
+      }),
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.email || formData.roles.length === 0) {
+    if (!formData.username || !formData.email) {
       return;
     }
 
     try {
-      await registerMutation.mutateAsync({
-        ...formData,
-        password: 'temporary-password', // In a real app, add password field to form
-      });
+      await registerMutation.mutateAsync(formData);
       // Handle successful registration (e.g., redirect to login)
     } catch (error) {
       console.error('Registration failed:', error);
     }
-  };
-
-  const handleRoleToggle = (roleId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      roles: prev.roles.includes(roleId)
-        ? prev.roles.filter(r => r !== roleId)
-        : [...prev.roles, roleId],
-    }));
   };
 
   return (
@@ -66,18 +48,18 @@ export default function RegisterForm() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm space-y-4">
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                Name <span className="text-red-500">*</span>
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                Username <span className="text-red-500">*</span>
               </label>
               <input
-                id="name"
-                name="name"
                 type="text"
+                id="username"
+                name="username"
                 required
-                className="input"
-                placeholder="Personal or Business name"
-                value={formData.name}
-                onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                value={formData.username}
+                onChange={e => setFormData(prev => ({ ...prev, username: e.target.value }))}
+                placeholder="Enter your username"
               />
             </div>
 
@@ -95,43 +77,6 @@ export default function RegisterForm() {
                 value={formData.email}
                 onChange={e => setFormData(prev => ({ ...prev, email: e.target.value }))}
               />
-            </div>
-
-            <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-                Phone
-              </label>
-              <input
-                id="phone"
-                name="phone"
-                type="tel"
-                className="input"
-                placeholder="Ex. +1 408 234 6594"
-                value={formData.phone}
-                onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-              />
-              <p className="mt-1 text-sm text-gray-500">
-                Be the first to connect with new opportunities
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                I Am or Interested in Becoming a: <span className="text-red-500">*</span>
-              </label>
-              <div className="mt-2 space-y-2">
-                {ROLES.map(role => (
-                  <label key={role.id} className="inline-flex items-center mr-6">
-                    <input
-                      type="checkbox"
-                      className="form-checkbox h-4 w-4 text-primary-600 rounded border-gray-300"
-                      checked={formData.roles.includes(role.id)}
-                      onChange={() => handleRoleToggle(role.id)}
-                    />
-                    <span className="ml-2 text-gray-700">{role.label}</span>
-                  </label>
-                ))}
-              </div>
             </div>
           </div>
 

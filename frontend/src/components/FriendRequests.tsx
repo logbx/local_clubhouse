@@ -7,7 +7,7 @@ import { UserCircleIcon } from '@heroicons/react/24/outline';
 
 interface FriendRequest {
   _id: string;
-  fullName: string;
+  username: string;
   email: string;
   profileImage?: string;
   bio?: string;
@@ -26,7 +26,7 @@ const FriendRequests: React.FC = () => {
 
   const acceptRequest = useMutation({
     mutationFn: async (requesterId: string) => {
-      const response = await friendApi.acceptRequest(requesterId);
+      const response = await friendApi.acceptFriendRequest(requesterId);
       return response;
     },
     onSuccess: (_, requesterId) => {
@@ -42,7 +42,7 @@ const FriendRequests: React.FC = () => {
 
   const declineRequest = useMutation({
     mutationFn: async (requesterId: string) => {
-      const response = await friendApi.declineRequest(requesterId);
+      const response = await friendApi.declineFriendRequest(requesterId);
       return response;
     },
     onSuccess: (_, requesterId) => {
@@ -82,7 +82,7 @@ const FriendRequests: React.FC = () => {
             {request.profileImage ? (
               <img
                 src={request.profileImage}
-                alt={request.fullName}
+                alt={request.username}
                 className="h-12 w-12 rounded-full object-cover"
               />
             ) : (
@@ -93,7 +93,7 @@ const FriendRequests: React.FC = () => {
                 to={`/user/${request._id}`}
                 className="font-medium text-gray-900 hover:text-primary-600"
               >
-                {request.fullName}
+                {request.username}
               </Link>
               {request.bio && (
                 <p className="text-sm text-gray-500 truncate max-w-xs">{request.bio}</p>

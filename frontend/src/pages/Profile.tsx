@@ -3,7 +3,7 @@ import { ImageUpload } from '../components/ImageUpload';
 import axios from 'axios';
 
 interface User {
-  name: string;
+  username: string;
   email: string;
   avatarUrl?: string;
 }

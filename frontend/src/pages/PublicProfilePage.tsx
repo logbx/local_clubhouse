@@ -68,9 +68,9 @@ const PublicProfilePage: React.FC = () => {
   }
 
   const isOwnProfile = currentUser?.id === profile.id;
-  const displayName = profile.username || profile.fullName || 'Anonymous User';
+  const displayName = profile.username || 'Anonymous User';
   const userInitial = displayName.charAt(0).toUpperCase();
-  const joinedDate = format(new Date(profile.createdAt), 'MMMM yyyy');
+  const joinedDate = profile.createdAt ? format(new Date(profile.createdAt), 'MMMM yyyy') : 'Recently';
 
   const getRoleBadgeColor = (role: UserRole) => {
     switch (role) {
@@ -113,8 +113,8 @@ const PublicProfilePage: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-3xl font-bold">{displayName}</h1>
-                {profile.fullName && profile.username && profile.fullName !== profile.username && (
-                  <p className="text-sm text-gray-500">{profile.fullName}</p>
+                {profile.username && (
+                  <p className="text-sm text-gray-500">{profile.username}</p>
                 )}
               </div>
               <div className="text-right">
@@ -139,9 +139,9 @@ const PublicProfilePage: React.FC = () => {
           <div className="mb-6">
             <h2 className="text-xl font-semibold mb-2">Roles</h2>
             <div className="flex flex-wrap gap-2">
-              {profile.roles.map((role) => (
+              {[...new Set(profile.roles)].map((role, index) => (
                 <span
-                  key={role}
+                  key={`${role}-${index}`}
                   className={`px-3 py-1 rounded-full text-sm ${getRoleBadgeColor(role)}`}
                 >
                   {role.replace('_', ' ')}

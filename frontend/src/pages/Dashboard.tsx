@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Event, EventStatus } from '../types/event';
 import { eventApi } from '../services/api';
 import { format } from 'date-fns';
-import { PlusIcon, CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, TrashIcon, UserIcon } from '@heroicons/react/24/outline';
 import CreateEventModal from '../components/CreateEventModal';
 import { useAuth } from '../context/AuthContext';
 import SearchBar from '../components/SearchBar';
@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
+
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<EventStatus>(EventStatus.DRAFT);
@@ -19,20 +20,73 @@ const Dashboard: React.FC = () => {
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const { data: events, isLoading } = useQuery<Event[]>({
+  const { data: events, isLoading, error } = useQuery<Event[]>({
     queryKey: ['events'],
     queryFn: async () => {
-      const response = await eventApi.getEvents();
-      return response.data;
+      const result = await eventApi.getEvents();
+      console.log('Events loaded:', result?.length, 'events');
+      if (result?.[0]) {
+        console.log('First event structure:', {
+          id: result[0].id,
+          title: result[0].title,
+          creator: result[0].creator,
+          creatorId: result[0].creatorId,
+          startDate: result[0].startDate,
+          endDate: result[0].endDate
+        });
+      }
+      return result;
     },
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
+
+  // Auto-update past events
+  useEffect(() => {
+    if (events) {
+      const now = new Date();
+      console.log('Checking events for auto-update to PAST status:', { now, eventCount: events.length });
+      
+      const eventsToUpdate = events.filter((event: Event) => {
+        if (event.status === EventStatus.PAST) return false;
+        
+        // Use endDate for checking if event is past
+        if (!event.endDate) return false;
+        
+        const endDate = new Date(event.endDate);
+        const isPast = endDate < now;
+        
+        console.log('Event check:', {
+          eventId: event.id,
+          title: event.title,
+          status: event.status,
+          endDate: event.endDate,
+          isPast
+        });
+        
+        return isPast;
+      });
+      
+      console.log('Events to update to PAST:', eventsToUpdate.length);
+      
+      eventsToUpdate.forEach((event: Event) => {
+        console.log(`Updating event ${event.id} (${event.title}) to PAST status`);
+        eventApi.updateEvent(event.id, { status: EventStatus.PAST })
+          .then(() => {
+            console.log(`Successfully updated event ${event.id} to PAST`);
+            // Invalidate queries to refresh the data
+            queryClient.invalidateQueries({ queryKey: ['events'] });
+          })
+          .catch((error: any) => {
+            console.error(`Failed to update event ${event.id} status to PAST:`, error);
+          });
+      });
+    }
+  }, [events, queryClient]);
 
   const deleteMutation = useMutation({
     mutationFn: async (eventId: string) => {
       try {
-        console.log('Deleting event with ID:', eventId);
         const response = await eventApi.deleteEvent(eventId);
-        console.log('Delete response:', response);
         return eventId;
       } catch (error) {
         console.error('Failed to delete event:', error);
@@ -54,7 +108,7 @@ const Dashboard: React.FC = () => {
       // Return a context object with the snapshotted value
       return { previousEvents };
     },
-    onError: (err, eventId, context) => {
+    onError: (err, _, context) => {
       console.error('Failed to delete event:', err);
       // Rollback to the previous value
       if (context?.previousEvents) {
@@ -63,10 +117,9 @@ const Dashboard: React.FC = () => {
       alert('Failed to delete event. Please try again.');
     },
     onSuccess: (eventId) => {
-      console.log('Successfully deleted event:', eventId);
       // Update the cache to remove the deleted event
       queryClient.setQueryData<Event[]>(['events'], old => 
-        old ? old.filter(event => event._id !== eventId) : []
+        old ? old.filter(event => event.id !== eventId) : []
       );
       setShowDeleteConfirm(false);
       setEventToDelete(null);
@@ -78,19 +131,17 @@ const Dashboard: React.FC = () => {
   });
 
   const handleDeleteClick = (event: Event) => {
-    console.log('Handling delete click for event:', event);
     setEventToDelete(event);
     setShowDeleteConfirm(true);
   };
 
   const handleConfirmDelete = async () => {
-    if (eventToDelete?._id) {
-      console.log('Confirming delete for event:', eventToDelete);
-      deleteMutation.mutate(eventToDelete._id);
+    if (eventToDelete?.id) {
+      deleteMutation.mutate(eventToDelete.id);
     }
   };
 
-  const filteredEvents = events?.filter(event => event.status === activeTab) || [];
+  const filteredEvents = events?.filter((event: Event) => event.status === activeTab) || [];
 
   const getEventStatusColor = (status: EventStatus) => {
     switch (status) {
@@ -105,11 +156,34 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const canEditEvent = (event: Event) => {
+    // Check if the current user is the creator of the event
+    if (!user || !event) return false;
+    
+    // Debug logging (keep for now to monitor the fix)
+    console.log('canEditEvent check:', {
+      userId: user.id,
+      eventId: event.id,
+      creatorId: event.creator?.id,
+      creatorIdField: event.creatorId,
+      hasCreator: !!event.creator
+    });
+    
+    // Check multiple possible creator field combinations
+    const userIsCreator = 
+      (event.creator && user.id === event.creator.id) ||
+      (event.creatorId && user.id === event.creatorId) ||
+      (typeof event.creator === 'string' && user.id === event.creator);
+    
+    console.log('User is creator:', userIsCreator);
+    return userIsCreator;
+  };
+
   return (
     <div className="space-y-8">
       {/* Welcome Section */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h1 className="text-2xl font-bold text-gray-900">Welcome back, {user?.fullName}!</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Welcome back, {user?.username}!</h1>
         <p className="mt-2 text-gray-600">Manage your events and stay connected with your community.</p>
       </div>
 
@@ -133,19 +207,19 @@ const Dashboard: React.FC = () => {
           {
             id: 'draft',
             title: 'Draft Events',
-            count: events?.filter(e => e.status === EventStatus.DRAFT).length || 0,
+            count: events?.filter((e: Event) => e.status === EventStatus.DRAFT).length || 0,
             color: 'text-primary-600'
           },
           {
             id: 'live',
             title: 'Live Events',
-            count: events?.filter(e => e.status === EventStatus.LIVE).length || 0,
+            count: events?.filter((e: Event) => e.status === EventStatus.LIVE).length || 0,
             color: 'text-green-600'
           },
           {
             id: 'past',
             title: 'Past Events',
-            count: events?.filter(e => e.status === EventStatus.PAST).length || 0,
+            count: events?.filter((e: Event) => e.status === EventStatus.PAST).length || 0,
             color: 'text-gray-600'
           }
         ].map(stat => (
@@ -214,7 +288,7 @@ const Dashboard: React.FC = () => {
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {filteredEvents.map((event) => (
                 <div
-                  key={event._id}
+                  key={event.id}
                   className="bg-white overflow-hidden shadow rounded-lg hover:shadow-lg transition-shadow duration-200"
                 >
                   {event.imageUrl && (
@@ -236,7 +310,10 @@ const Dashboard: React.FC = () => {
                         {event.status}
                       </span>
                       <span className="text-sm text-gray-500">
-                        {format(new Date(event.startDate), 'MMM d, yyyy')}
+                        {event.startDate && !isNaN(new Date(event.startDate).getTime()) 
+                          ? format(new Date(event.startDate), 'MMM d, yyyy')
+                          : 'Invalid date'
+                        }
                       </span>
                     </div>
                     <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -246,53 +323,81 @@ const Dashboard: React.FC = () => {
                       {event.description}
                     </p>
                     <div className="space-y-2">
-                      <div key={`calendar-${event._id}`} className="flex items-center text-sm text-gray-500">
+                      <div className="flex items-center text-sm text-gray-500">
                         <CalendarIcon className="h-4 w-4 mr-2" />
-                        {format(new Date(event.startDate), 'h:mm a')} -{' '}
-                        {format(new Date(event.endDate), 'h:mm a')}
+                        {event.startDate && event.endDate && 
+                        !isNaN(new Date(event.startDate).getTime()) && 
+                        !isNaN(new Date(event.endDate).getTime()) ? (
+                          <>
+                            {format(new Date(event.startDate), 'h:mm a')} -{' '}
+                            {format(new Date(event.endDate), 'h:mm a')}
+                          </>
+                        ) : (
+                          'Invalid time'
+                        )}
                       </div>
-                      <div key={`location-${event._id}`} className="flex items-center text-sm text-gray-500">
+                      <div className="flex items-center text-sm text-gray-500">
                         <MapPinIcon className="h-4 w-4 mr-2" />
                         {event.location}
                       </div>
-                      <div key={`tags-${event._id}`} className="flex items-center text-sm text-gray-500">
+                      <div className="flex items-center text-sm text-gray-500">
                         <TagIcon className="h-4 w-4 mr-2" />
                         {event.tags.join(', ')}
                       </div>
-                      <div key={`rsvps-${event._id}`} className="flex items-center text-sm text-gray-500">
+                      <div className="flex items-center text-sm text-gray-500">
                         <UserGroupIcon className="h-4 w-4 mr-2" />
                         {event.rsvps.length} RSVPs
                       </div>
+                      <div className="flex items-center text-sm text-gray-600 bg-blue-50 p-2 rounded-md">
+                        <UserIcon className="h-4 w-4 mr-2 text-blue-600" />
+                        <span className="font-medium text-blue-800">Event Creator:</span>
+                        <span className="ml-1 text-blue-700">
+                          {event.creator?.username || 'Unknown'}
+                        </span>
+                      </div>
                     </div>
                     <div className="mt-6 flex space-x-3">
-                      <button
-                        key={`edit-${event._id}`}
-                        type="button"
-                        className="btn btn-secondary flex-1"
-                        onClick={() => {
-                          setSelectedEvent({ ...event, id: event._id });
-                          setIsCreateModalOpen(true);
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button 
-                        key={`view-${event._id}`}
-                        type="button"
-                        className="btn btn-primary flex-1"
-                        onClick={() => navigate(`/event/${event._id}`)}
-                      >
-                        View Details
-                      </button>
-                      <button
-                        key={`delete-${event._id}`}
-                        type="button"
-                        className="btn btn-danger p-2"
-                        onClick={() => handleDeleteClick(event)}
-                        title="Delete Event"
-                      >
-                        <TrashIcon className="h-5 w-5" />
-                      </button>
+                      {canEditEvent(event) ? (
+                        <>
+                          <button
+                            key={`edit-${event.id}`}
+                            type="button"
+                            className="btn btn-secondary flex-1"
+                            onClick={() => {
+                              setSelectedEvent({ ...event, id: event.id });
+                              setIsCreateModalOpen(true);
+                            }}
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            key={`view-${event.id}`}
+                            type="button"
+                            className="btn btn-primary flex-1"
+                            onClick={() => navigate(`/event/${event.id}`)}
+                          >
+                            View Details
+                          </button>
+                          <button
+                            key={`delete-${event.id}`}
+                            type="button"
+                            className="btn btn-danger p-2"
+                            onClick={() => handleDeleteClick(event)}
+                            title="Delete Event"
+                          >
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
+                        </>
+                      ) : (
+                        <button 
+                          key={`view-${event.id}`}
+                          type="button"
+                          className="btn btn-primary flex-1"
+                          onClick={() => navigate(`/event/${event.id}`)}
+                        >
+                          View Details
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

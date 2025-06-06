@@ -2,14 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { messageService } from '../services/message.service';
 import { useAuth } from '../context/AuthContext';
-
-interface Message {
-  _id: string;
-  sender: string;
-  receiver: string;
-  content: string;
-  timestamp: string;
-}
+import { Message } from '../types';
+import { webSocketService } from '../services/websocket.service';
 
 const MessageThreadPage: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
@@ -26,8 +20,32 @@ const MessageThreadPage: React.FC = () => {
       messageService.getConversation(userId)
         .then(setMessages)
         .finally(() => setLoading(false));
+      
+      // Join conversation room for real-time updates
+      const conversationId = [user?.id, userId].sort().join('_');
+      webSocketService.joinConversation(conversationId);
+      
+      // Listen for new messages
+      const handleNewMessage = (message: Message) => {
+        setMessages(prev => {
+          // Check if message already exists to prevent duplicates
+          const exists = prev.some(existingMsg => existingMsg._id === message._id);
+          if (exists) {
+            return prev;
+          }
+          return [...prev, message];
+        });
+      };
+      
+      webSocketService.onNewMessage(handleNewMessage);
+      
+      // Cleanup on unmount
+      return () => {
+        webSocketService.leaveConversation(conversationId);
+        webSocketService.removeAllListeners();
+      };
     }
-  }, [userId]);
+  }, [userId, user?.id]);
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -57,14 +75,29 @@ const MessageThreadPage: React.FC = () => {
         ) : messages.length === 0 ? (
           <div className="text-center text-gray-400">No messages yet.</div>
         ) : (
-          messages.map((msg) => (
-            <div key={msg._id} className={`flex ${msg.sender === userId ? 'justify-start' : 'justify-end'}`}>
-              <div className={`px-3 py-2 rounded-lg text-sm ${msg.sender === userId ? 'bg-gray-200 text-gray-800' : 'bg-blue-500 text-white'}`}>
-                {msg.content}
-                <div className="text-xs text-gray-400 mt-1 text-right">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+          messages.map((msg) => {
+            // Check if the message is from the current user
+            const currentUserId = user?.id;
+            const senderId = typeof msg.sender === 'string' ? msg.sender : String(msg.sender);
+            const isCurrentUser = senderId === currentUserId;
+            
+            return (
+              <div key={msg._id} className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                <div className={`px-3 py-2 rounded-lg text-sm max-w-xs lg:max-w-md ${
+                  isCurrentUser 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-200 text-gray-800'
+                }`}>
+                  {msg.content}
+                  <div className={`text-xs mt-1 text-right ${
+                    isCurrentUser ? 'text-blue-100' : 'text-gray-400'
+                  }`}>
+                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
         <div ref={messagesEndRef} />
       </div>

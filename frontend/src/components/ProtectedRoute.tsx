@@ -1,34 +1,36 @@
-import React from 'react';
-import { Navigate, useLocation, Outlet } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Navigate, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import { UserRole } from '../types/user';
 import { useAuth } from '../context/AuthContext';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface ProtectedRouteProps {
   requiredRoles?: UserRole[];
   children?: React.ReactNode;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ requiredRoles = [], children }) => {
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ requiredRoles = [], children }) => {
+  const { user, loading } = useAuth();
   const location = useLocation();
-  const { user, isLoading } = useAuth();
-  const token = localStorage.getItem('accessToken');
+  const navigate = useNavigate();
 
-  // Show loading state
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
+  useEffect(() => {
+    if (!loading && !user) {
+      console.log('No user found, redirecting to login');
+      navigate('/login', { state: { from: location }, replace: true });
+    }
+  }, [user, loading, navigate, location]);
+
+  if (loading) {
+    return <LoadingSpinner />;
   }
 
-  // If not authenticated, redirect to login
-  if (!token || !user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+  if (!user) {
+    return null;
   }
 
-  // Check if user needs to complete profile setup
-  if (location.pathname !== '/profile-setup' && !user.profileCompleted) {
+  // Update this condition to check for profileCompleted === false
+  if (location.pathname !== '/profile-setup' && user.profileCompleted === false) {
     console.log('Redirecting to profile setup. Current user:', user);
     return <Navigate to="/profile-setup" state={{ from: location }} replace />;
   }

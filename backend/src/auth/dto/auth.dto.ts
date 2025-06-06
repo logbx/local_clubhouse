@@ -1,36 +1,63 @@
-import { IsEmail, IsString, MinLength, IsArray, IsEnum, IsOptional } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsArray, IsEnum, IsOptional, IsNotEmpty } from 'class-validator';
 import { UserRole } from '../../users/schemas/user.schema';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class RegisterDto {
-  @IsString()
-  @MinLength(2)
-  name: string;
-
   @IsEmail()
+  @IsNotEmpty()
   email: string;
 
   @IsString()
   @MinLength(8)
+  @IsNotEmpty()
   password: string;
+
+  @IsOptional()
+  @IsString()
+  username?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  fullName: string;
 
   @IsOptional()
   @IsString()
   phone?: string;
 
+  @IsOptional()
   @IsArray()
   @IsEnum(UserRole, { each: true })
-  roles: UserRole[];
+  roles?: UserRole[];
 }
 
 export class LoginDto {
-  @IsEmail()
-  email: string;
+  @IsString()
+  @IsNotEmpty()
+  identifier: string;
 
   @IsString()
+  @MinLength(8)
+  @IsNotEmpty()
   password: string;
 }
 
-export class TokenDto {
+export class RefreshTokenDto {
+  @IsString()
+  @IsNotEmpty()
+  refreshToken: string;
+}
+
+export class TokenResponseDto {
+  @IsString()
+  accessToken: string;
+
   @IsString()
   refreshToken: string;
+
+  user: {
+    id: string;
+    email: string;
+    username: string;
+    roles: UserRole[];
+  };
 } 

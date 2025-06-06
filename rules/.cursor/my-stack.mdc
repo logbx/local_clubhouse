@@ -1,0 +1,39 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Technical Stack
+
+Frontend:
+
+ - React (TypeScript) + Vite 
+ - Tailwind CSS for styling
+ - WebSocket client (like Socket.io-client) for real-time chat
+ - React Query/SWR for data fetching and caching
+
+Backend:
+
+ - Node.js with Express/NestJS for API server
+ - WebSocket server (Socket.io) for real-time chat
+
+ - MongoDB for primary database
+  - Store user accounts, events, chat messages
+  - Better for relational data like event attendees, group memberships
+
+ - Redis for:
+  - Session management
+  - Real-time chat message caching
+  - Pub/Sub for WebSocket scaling
+
+ - Infrastructure:
+  - Docker for containerization
+  - Hostinger for hosting
+  - Nginx as reverse proxy
+  - CI/CD pipeline (GitHub Actions/GitLab CI)
+ 
+ - Security:
+  - JWT for authentication
+  - HTTPS for all connections
+  - Rate limiting for API endpoints
+  - Input validation and sanitization

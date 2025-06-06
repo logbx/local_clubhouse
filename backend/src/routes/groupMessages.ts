@@ -11,7 +11,7 @@ const router = express.Router();
 // GET all group messages
 router.get('/', authenticate, async (req: AuthenticatedRequest, res) => {
   const messages = await GroupMessage.find()
-    .populate('sender', 'fullName profileImage')
+    .populate('sender', 'username profileImage')
     .sort({ timestamp: 1 });
   res.json(messages);
 });
@@ -24,7 +24,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res) => {
     content,
   });
   await message.save();
-  const populated = await message.populate('sender', 'fullName profileImage');
+  const populated = await message.populate('sender', 'username profileImage');
   res.status(201).json(populated);
 });
 

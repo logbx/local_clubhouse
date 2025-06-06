@@ -18,12 +18,11 @@ export enum RecurrenceType {
 }
 
 export interface Event {
-  _id: string;
-  id?: string;
+  id: string;
   title: string;
   description: string;
-  startDate: string;
-  endDate: string;
+  startDate: string | Date;
+  endDate: string | Date;
   location: string;
   cost: number;
   isFree: boolean;
@@ -32,8 +31,17 @@ export interface Event {
   recurrence: RecurrenceType;
   tags: string[];
   imageUrl?: string;
-  organizerId: string;
-  rsvps: string[];
+  creator: {
+    id: string;
+    username: string;
+    profileImage?: string;
+  };
+  creatorId?: string;
+  rsvps: Array<{
+    id: string;
+    username: string;
+    status: string;
+  }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,11 +57,12 @@ export interface EventFormData {
   visibility: EventVisibility;
   recurrence: RecurrenceType;
   tags: string[];
-  status?: EventStatus;
+  status: EventStatus;
+  imageUrl?: string;
 }
 
 export interface PublicEvent {
-  _id: string;
+  id: string;
   title: string;
   description: string;
   startDate: string;
@@ -64,6 +73,33 @@ export interface PublicEvent {
   visibility: EventVisibility;
   tags: string[];
   imageUrl?: string;
+  creator?: {
+    id: string;
+    username: string;
+    profileImage?: string;
+  };
   creatorId: string;
   rsvps: string[];
+}
+
+export interface SubGroup {
+  id: string;
+  name: string;
+  eventId: string;
+  members: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateEventDto {
+  title: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  location: string;
+}
+
+export interface UpdateEventDto extends Partial<CreateEventDto> {
+  attendees?: string[];
+  subGroups?: string[];
 } 

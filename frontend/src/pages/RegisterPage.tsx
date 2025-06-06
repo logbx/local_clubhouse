@@ -4,14 +4,14 @@ import { useMutation } from '@tanstack/react-query';
 import { authApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-interface RegisterFormData {
+interface FormData {
   fullName: string;
   email: string;
   password: string;
 }
 
 const RegisterPage: React.FC = () => {
-  const [formData, setFormData] = useState<RegisterFormData>({
+  const [formData, setFormData] = useState<FormData>({
     fullName: '',
     email: '',
     password: '',
@@ -23,23 +23,35 @@ const RegisterPage: React.FC = () => {
   const { setUser } = useAuth();
 
   const registerMutation = useMutation({
-    mutationFn: async (data: RegisterFormData) => {
-      // Only send the required fields
+    mutationFn: async (data: FormData) => {
+      // Send exactly the fields required by backend DTO - no roles during registration
       return await authApi.register({
         fullName: data.fullName,
         email: data.email,
         password: data.password,
+        // Remove roles from registration - they'll be set during profile setup
       });
     },
     onSuccess: (data) => {
-      // Store token in localStorage
-      localStorage.setItem('accessToken', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      setUser(data.user);
+      console.log('Registration response:', data);
+      
+      // Store both tokens properly
+      if (data.accessToken && data.refreshToken) {
+        localStorage.setItem('accessToken', data.accessToken);
+        localStorage.setItem('refreshToken', data.refreshToken);
+      } else {
+        console.error('Missing tokens in registration response:', data);
+      }
+      
+      // Set user data
+      if (data.user) {
+        setUser(data.user);
+      }
+      
       navigate('/profile-setup');
     },
     onError: (error: any) => {
-      setError(error.response?.data?.error || 'Registration failed');
+      setError(error.response?.data?.error || error.response?.data?.message || 'Registration failed');
       setIsSubmitting(false);
       console.error('Registration error:', error.response?.data);
     },
@@ -105,20 +117,22 @@ const RegisterPage: React.FC = () => {
           <form className="mt-8 space-y-6 bg-white p-8 rounded-lg shadow-sm" onSubmit={handleSubmit}>
             <div className="rounded-md shadow-sm -space-y-px">
               <div>
-                <label htmlFor="name" className="sr-only">Full Name</label>
+                <label htmlFor="fullName" className="sr-only">Full Name</label>
                 <input
-                  id="name"
+                  id="fullName"
                   name="fullName"
                   type="text"
-                  autoComplete="name"
+                  autoComplete="fullName"
                   required
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 bg-white rounded-t-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
-                  placeholder="Full Name"
+                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                  placeholder="Personal or Business Name"
                   value={formData.fullName}
                   onChange={handleChange}
                   disabled={isSubmitting}
                 />
-                <p className="mt-1 text-xs text-gray-500 px-1">Personal or Business Name</p>
+                <p className="mt-1 text-xs text-gray-400 px-1">
+                  Examples: "Logan May" or "Traveling Chess Club"
+                </p>
               </div>
               <div className="mt-3">
                 <label htmlFor="email" className="sr-only">Email address</label>

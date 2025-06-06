@@ -57,7 +57,7 @@ router.get('/:groupId/messages', authenticate, async (req: AuthenticatedRequest,
     return res.status(403).json({ error: 'Not a member of this group' });
   }
   const messages = await FriendGroupMessage.find({ groupId: req.params.groupId })
-    .populate('sender', 'fullName profileImage')
+    .populate('sender', 'username profileImage')
     .sort({ timestamp: 1 });
   res.json(messages);
 });
@@ -76,7 +76,7 @@ router.post('/:groupId/messages', authenticate, async (req: AuthenticatedRequest
     content,
   });
   await message.save();
-  const populated = await message.populate('sender', 'fullName profileImage');
+  const populated = await message.populate('sender', 'username profileImage');
   res.status(201).json(populated);
 });
 

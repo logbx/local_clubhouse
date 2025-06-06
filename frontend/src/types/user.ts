@@ -1,23 +1,27 @@
-export type UserRole = 'Member' | 'Sponsor' | 'Creator' | 'Club_Founder';
+export enum UserRole {
+  Member = 'Member',
+  Sponsor = 'Sponsor',
+  Creator = 'Creator',
+  Club_Founder = 'Club_Founder'
+}
 
 export interface User {
   id: string;
+  username?: string;
   fullName: string;
   email: string;
   roles: UserRole[];
   phoneNumber?: string;
   bio?: string;
+  interests?: string[];
   profileImage?: string;
-  interests: string[];
-  profileCompleted?: boolean;
-  avatarUrl?: string;
   createdAt?: string;
   updatedAt?: string;
-  location?: string;
+  profileCompleted?: boolean;
 }
 
 export interface ActivityLogType {
-  _id: string;
+  id: string;
   userId: string;
   action: string;
   timestamp: string;
@@ -29,7 +33,6 @@ export interface ActivityLogType {
 export interface PublicUserProfile {
   id: string;
   username: string;
-  fullName?: string;
   bio: string;
   tags: string[];
   interests?: string[];
@@ -40,4 +43,23 @@ export interface PublicUserProfile {
   createdAt: string;
   updatedAt: string;
   profileImage?: string;
+}
+
+export interface AuthResponse {
+  accessToken: string;
+  refreshToken: string;
+  user: User;
+}
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface RegisterCredentials {
+  email: string;
+  password: string;
+  username?: string;
+  fullName: string;
+  phoneNumber?: string;
 } 

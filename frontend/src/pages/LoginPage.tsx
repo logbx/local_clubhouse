@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 
 const LoginPage: React.FC = () => {
   const [formData, setFormData] = useState({
-    email: '',
+    identifier: '',
     password: '',
   });
   const [formError, setFormError] = useState('');
@@ -17,7 +17,7 @@ const LoginPage: React.FC = () => {
     clearError();
 
     try {
-      await login(formData.email, formData.password);
+      await login(formData.identifier, formData.password);
       navigate('/dashboard');
     } catch (err: any) {
       setFormError(err.message);
@@ -67,16 +67,16 @@ const LoginPage: React.FC = () => {
           <form className="mt-8 space-y-6 bg-white p-8 rounded-lg shadow-sm" onSubmit={handleSubmit}>
             <div className="rounded-md shadow-sm -space-y-px">
               <div>
-                <label htmlFor="email" className="sr-only">Email address</label>
+                <label htmlFor="identifier" className="sr-only">Email address or username</label>
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
+                  id="identifier"
+                  name="identifier"
+                  type="text"
+                  autoComplete="username"
                   required
                   className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 bg-white rounded-t-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
-                  placeholder="Email address"
-                  value={formData.email}
+                  placeholder="Email address or username"
+                  value={formData.identifier}
                   onChange={handleChange}
                   disabled={isLoading}
                 />

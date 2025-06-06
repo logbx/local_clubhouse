@@ -1,10 +1,26 @@
-import mongoose from 'mongoose';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Schema as MongooseSchema, model } from 'mongoose';
 
-const eventMessageSchema = new mongoose.Schema({
-  eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Event', required: true },
-  sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  content: { type: String, required: true },
-  timestamp: { type: Date, default: Date.now },
-});
+@Schema({ timestamps: true })
+export class EventMessage extends Document {
+  @Prop({ required: true, type: MongooseSchema.Types.ObjectId, ref: 'Event' })
+  eventId: string;
 
-export default mongoose.model('EventMessage', eventMessageSchema); 
+  @Prop({ required: true, type: MongooseSchema.Types.ObjectId, ref: 'User' })
+  userId: string;
+
+  @Prop({ required: true })
+  content: string;
+
+  @Prop({ default: 'text' })
+  type: string;
+
+  @Prop()
+  createdAt: Date;
+
+  @Prop()
+  updatedAt: Date;
+}
+
+export const EventMessageSchema = SchemaFactory.createForClass(EventMessage);
+export const EventMessageModel = model<EventMessage>('EventMessage', EventMessageSchema); 
