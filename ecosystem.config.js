@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'saas-backend',
-      script: './backend/dist/app.js',
+      script: './backend/dist/main.js',
       cwd: '/root/saas-app',
       instances: 1,
       exec_mode: 'fork',
