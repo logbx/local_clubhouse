@@ -2,20 +2,33 @@
 
 This application supports both development and production environments with separate configuration files.
 
+## Framework Architecture
+
+### Backend: **NestJS** (Fully NestJS Architecture)
+- TypeScript-first framework with excellent decorators support
+- Built-in dependency injection and modular architecture
+- Integrated WebSocket support for real-time features
+- Production-ready with built-in logging, validation, and error handling
+
+### Frontend: **React + Vite**
+- Modern React with TypeScript
+- Vite for fast development and optimized production builds
+- Real-time WebSocket integration with backend
+
 ## Environment Files
 
-### Backend
+### Backend (NestJS)
 - `.env.development` - Development environment variables
 - `.env.production` - Production environment variables
 
-### Frontend
+### Frontend (Vite)
 - `.env.development` - Development environment variables (Vite)
 - `.env.production` - Production environment variables (Vite)
 
 ## How It Works
 
 ### Backend (NestJS)
-The backend automatically loads the correct environment file based on the `NODE_ENV` variable:
+The NestJS backend automatically loads the correct environment file based on the `NODE_ENV` variable:
 - `NODE_ENV=development` → loads `.env.development`
 - `NODE_ENV=production` → loads `.env.production`
 - Falls back to `.env` if specific environment file doesn't exist
