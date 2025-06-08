@@ -11,7 +11,7 @@ module.exports = {
       },
       env_production: {
         NODE_ENV: 'production',
-        PORT: 3001
+        PORT: 3000
       },
       log_file: '/root/saas-app/logs/backend.log',
       error_file: '/root/saas-app/logs/backend-error.log',
@@ -24,7 +24,7 @@ module.exports = {
     {
       name: 'saas-frontend',
       script: 'serve',
-      args: '-s dist -l 3000',
+      args: '-s dist -l 3001',
       cwd: '/root/saas-app/frontend',
       instances: 1,
       exec_mode: 'fork',
