@@ -52,6 +52,53 @@ export class EventsController {
         transformed.rsvps = [];
       }
       
+      // Ensure tags are properly formatted as an array
+      if (transformed.tags) {
+        if (typeof transformed.tags === 'string') {
+          // If tags are stored as a string, try to parse as JSON or split by comma
+          try {
+            transformed.tags = JSON.parse(transformed.tags);
+          } catch {
+            transformed.tags = transformed.tags.split(',').map((tag: string) => tag.trim()).filter(Boolean);
+          }
+        } else if (!Array.isArray(transformed.tags)) {
+          transformed.tags = [];
+        }
+
+        // Handle nested stringified arrays (like ["[\"chess\",\"Social\"]"])
+        let attempts = 0;
+        while (Array.isArray(transformed.tags) && attempts < 5) {
+          attempts++;
+          let needsProcessing = false;
+          
+          for (let i = 0; i < transformed.tags.length; i++) {
+            if (typeof transformed.tags[i] === 'string') {
+              try {
+                const parsed = JSON.parse(transformed.tags[i]);
+                if (Array.isArray(parsed)) {
+                  // Replace the stringified array with the actual array
+                  transformed.tags.splice(i, 1, ...parsed);
+                  needsProcessing = true;
+                  break;
+                }
+              } catch {
+                // Not a valid JSON string, keep as is
+              }
+            }
+          }
+          
+          if (!needsProcessing) break;
+        }
+
+        // Ensure all tags are strings and filter out empty values
+        transformed.tags = transformed.tags
+          .flat() // Flatten any remaining nested arrays
+          .filter((tag: any) => tag && typeof tag === 'string' && tag.trim().length > 0)
+          .map((tag: string) => tag.trim());
+      } else {
+        transformed.tags = [];
+      }
+      
       return transformed;
     });
     
@@ -90,6 +137,51 @@ export class EventsController {
     } else {
       transformed.rsvps = [];
     }
+
+    // Ensure tags are properly formatted as an array
+    if (transformed.tags) {
+      if (typeof transformed.tags === 'string') {
+        try {
+          transformed.tags = JSON.parse(transformed.tags);
+        } catch {
+          transformed.tags = transformed.tags.split(',').map((tag: string) => tag.trim()).filter(Boolean);
+        }
+      } else if (!Array.isArray(transformed.tags)) {
+        transformed.tags = [];
+      }
+
+      // Handle nested stringified arrays (like ["[\"chess\",\"Social\"]"])
+      let attempts = 0;
+      while (Array.isArray(transformed.tags) && attempts < 5) {
+        attempts++;
+        let needsProcessing = false;
+        
+        for (let i = 0; i < transformed.tags.length; i++) {
+          if (typeof transformed.tags[i] === 'string') {
+            try {
+              const parsed = JSON.parse(transformed.tags[i]);
+              if (Array.isArray(parsed)) {
+                // Replace the stringified array with the actual array
+                transformed.tags.splice(i, 1, ...parsed);
+                needsProcessing = true;
+                break;
+              }
+            } catch {
+              // Not a valid JSON string, keep as is
+            }
+          }
+        }
+        
+        if (!needsProcessing) break;
+      }
+
+      transformed.tags = transformed.tags
+        .flat() // Flatten any remaining nested arrays
+        .filter((tag: any) => tag && typeof tag === 'string' && tag.trim().length > 0)
+        .map((tag: string) => tag.trim());
+    } else {
+      transformed.tags = [];
+    }
     
     return { event: transformed };
   }
@@ -118,6 +210,51 @@ export class EventsController {
     // Add frontend-expected field mappings
     transformedEvent.creatorId = transformedEvent.organizerId || transformedEvent.creator?._id || transformedEvent.creator?.id;
     
+    // Ensure tags are properly formatted as an array
+    if (transformedEvent.tags) {
+      if (typeof transformedEvent.tags === 'string') {
+        try {
+          transformedEvent.tags = JSON.parse(transformedEvent.tags);
+        } catch {
+          transformedEvent.tags = transformedEvent.tags.split(',').map((tag: string) => tag.trim()).filter(Boolean);
+        }
+      } else if (!Array.isArray(transformedEvent.tags)) {
+        transformedEvent.tags = [];
+      }
+
+      // Handle nested stringified arrays (like ["[\"chess\",\"Social\"]"])
+      let attempts = 0;
+      while (Array.isArray(transformedEvent.tags) && attempts < 5) {
+        attempts++;
+        let needsProcessing = false;
+        
+        for (let i = 0; i < transformedEvent.tags.length; i++) {
+          if (typeof transformedEvent.tags[i] === 'string') {
+            try {
+              const parsed = JSON.parse(transformedEvent.tags[i]);
+              if (Array.isArray(parsed)) {
+                // Replace the stringified array with the actual array
+                transformedEvent.tags.splice(i, 1, ...parsed);
+                needsProcessing = true;
+                break;
+              }
+            } catch {
+              // Not a valid JSON string, keep as is
+            }
+          }
+        }
+        
+        if (!needsProcessing) break;
+      }
+
+      transformedEvent.tags = transformedEvent.tags
+        .flat() // Flatten any remaining nested arrays
+        .filter((tag: any) => tag && typeof tag === 'string' && tag.trim().length > 0)
+        .map((tag: string) => tag.trim());
+    } else {
+      transformedEvent.tags = [];
+    }
+    
     return { data: transformedEvent };
   }
 
@@ -126,6 +263,28 @@ export class EventsController {
     const userId = req.user.sub || req.user.id;
     if (!userId) {
       throw new UnauthorizedException('User ID not found in token');
+    }
+
+    // Ensure tags are properly formatted before saving
+    if (createEventDto.tags) {
+      if (typeof createEventDto.tags === 'string') {
+        try {
+          createEventDto.tags = JSON.parse(createEventDto.tags);
+        } catch {
+          createEventDto.tags = createEventDto.tags.split(',').map((tag: string) => tag.trim()).filter(Boolean);
+        }
+      }
+      if (!Array.isArray(createEventDto.tags)) {
+        createEventDto.tags = [];
+      }
+      // Ensure all tags are strings and remove duplicates
+      createEventDto.tags = [...new Set(
+        createEventDto.tags
+          .filter((tag: any) => tag && typeof tag === 'string' && tag.trim().length > 0)
+          .map((tag: string) => tag.trim())
+      )];
+    } else {
+      createEventDto.tags = [];
     }
 
     const createdEvent = await this.eventModel.create({
@@ -141,6 +300,26 @@ export class EventsController {
 
   @Put(':id')
   async update(@Param('id') id: string, @Body() updateEventDto: any) {
+    // Ensure tags are properly formatted before updating
+    if (updateEventDto.tags !== undefined) {
+      if (typeof updateEventDto.tags === 'string') {
+        try {
+          updateEventDto.tags = JSON.parse(updateEventDto.tags);
+        } catch {
+          updateEventDto.tags = updateEventDto.tags.split(',').map((tag: string) => tag.trim()).filter(Boolean);
+        }
+      }
+      if (!Array.isArray(updateEventDto.tags)) {
+        updateEventDto.tags = [];
+      }
+      // Ensure all tags are strings and remove duplicates
+      updateEventDto.tags = [...new Set(
+        updateEventDto.tags
+          .filter((tag: any) => tag && typeof tag === 'string' && tag.trim().length > 0)
+          .map((tag: string) => tag.trim())
+      )];
+    }
+
     const updatedEvent = await this.eventModel
       .findByIdAndUpdate(id, updateEventDto, { new: true })
       .populate('creator', 'username email profileImage')
