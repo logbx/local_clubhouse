@@ -20,7 +20,7 @@ ps aux | grep -E "(npm run dev|ts-node-dev|vite --host)" | grep -v grep || echo 
 
 echo ""
 echo "Production processes:"
-ps aux | grep -E "(node.*dist/app.js|pm2)" | grep -v grep || echo "❌ No production processes found"
+ps aux | grep -E "(node.*dist/main.js|pm2)" | grep -v grep || echo "❌ No production processes found"
 
 # Check PM2 status if installed
 echo ""
@@ -34,7 +34,7 @@ fi
 # Check environment variables in running processes
 echo ""
 echo "🌐 Environment Check for Running Node Processes:"
-for pid in $(pgrep -f "node.*dist/app.js"); do
+for pid in $(pgrep -f "node.*dist/main.js"); do
     echo "Process $pid environment:"
     cat /proc/$pid/environ | tr '\0' '\n' | grep -E "(NODE_ENV|DATABASE_URL|JWT_SECRET)" || echo "No relevant env vars found"
 done 

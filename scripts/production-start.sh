@@ -24,7 +24,7 @@ pkill -f "@esbuild" || true
 
 # Kill existing production processes (to restart fresh)
 echo "🔄 Stopping existing production processes..."
-pkill -f "node.*dist/app.js" || true
+pkill -f "node.*dist/main.js" || true
 pm2 stop all || true
 pm2 delete all || true
 
@@ -49,7 +49,7 @@ echo "🚀 Starting production servers..."
 
 # Start backend with PM2 (production process manager)
 cd backend
-pm2 start dist/app.js --name "saas-backend" --env production
+pm2 start dist/main.js --name "saas-backend" --env production
 
 # Start frontend (if using PM2 to serve static files, or use nginx)
 cd ../frontend

@@ -27,7 +27,7 @@ deploy:
           git pull origin main && \
           cd backend && npm install --legacy-peer-deps && npm run build && \
           cd ../frontend && npm install && npm run build && \
-          pm2 restart all || pm2 start dist/app.js --name saas-app
+          pm2 restart all || pm2 start dist/main.js --name saas-backend
         " && break || {
           echo "Deployment attempt $i failed"
           sleep 5
