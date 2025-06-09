@@ -24,7 +24,7 @@ module.exports = {
     {
       name: 'saas-frontend',
       script: 'serve',
-      args: '-s dist -l 3001',
+      args: '-s dist -p 3002',
       cwd: '/root/saas-app/frontend',
       instances: 1,
       exec_mode: 'fork',
