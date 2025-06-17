@@ -9,6 +9,7 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
+import { EmailService } from '../services/email.service';
 import { Logger } from '@nestjs/common';
 
 @Module({
@@ -44,6 +45,7 @@ import { Logger } from '@nestjs/common';
   controllers: [AuthController],
   providers: [
     AuthService,
+    EmailService,
     JwtStrategy,
     {
       provide: 'JWT_REFRESH_SECRET',

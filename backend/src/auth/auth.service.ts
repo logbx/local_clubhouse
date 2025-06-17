@@ -8,6 +8,7 @@ import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { RegisterDto } from './dto/auth.dto';
 import { UserService } from '../services/user.service';
+import { EmailService } from '../services/email.service';
 
 @Injectable()
 export class AuthService {
@@ -15,6 +16,7 @@ export class AuthService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private emailService: EmailService,
   ) {}
 
   private async generateTokens(user: UserDocument) {
@@ -177,7 +179,7 @@ export class AuthService {
     await user.save();
 
     // Send email with reset link
-    await this.sendPasswordResetEmail(user.email, resetToken);
+    await this.emailService.sendPasswordResetEmail(user.email, resetToken);
   }
 
   async resetPasswordWithToken(token: string, newPassword: string): Promise<void> {
@@ -199,102 +201,12 @@ export class AuthService {
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     await user.save();
+
+    // Send confirmation email
+    await this.emailService.sendPasswordChangeConfirmation(user.email);
   }
 
-  private async sendPasswordResetEmail(email: string, token: string): Promise<void> {
-    // For now, we'll log the reset link instead of sending an actual email
-    // In production, you would use a service like SendGrid, Mailgun, or AWS SES
-    
-    const clientUrl = this.configService.get<string>('CLIENT_URL', 'http://localhost:5173');
-    const resetLink = `${clientUrl}/reset-password?token=${token}`;
-    
-    console.log('='.repeat(80));
-    console.log('📧 PASSWORD RESET EMAIL');
-    console.log('='.repeat(80));
-    console.log(`To: ${email}`);
-    console.log(`Subject: Reset Your Password - Local Clubhouse`);
-    console.log('');
-    console.log('Hello,');
-    console.log('');
-    console.log('You have requested to reset your password. Please click the link below to reset your password:');
-    console.log('');
-    console.log(`${resetLink}`);
-    console.log('');
-    console.log('This link will expire in 1 hour.');
-    console.log('');
-    console.log('If you did not request this password reset, please ignore this email.');
-    console.log('');
-    console.log('Best regards,');
-    console.log('Local Clubhouse Team');
-    console.log('='.repeat(80));
-    
-    // TODO: Replace with actual email sending implementation
-    // Example with SendGrid:
-    /*
-    // First, install: npm install @sendgrid/mail
-    // Then import: import * as sgMail from '@sendgrid/mail';
-    // 
-    // Set API key in your .env file:
-    // SENDGRID_API_KEY=your_sendgrid_api_key_here
-    // 
-    // In constructor, initialize:
-    // sgMail.setApiKey(this.configService.get<string>('SENDGRID_API_KEY'));
-    // 
-    // Replace the console.log above with:
-    const msg = {
-      to: email,
-      from: 'noreply@localclubhouse.com',
-      subject: 'Reset Your Password - Local Clubhouse',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #4F46E5;">Reset Your Password</h2>
-          <p>You have requested to reset your password. Please click the button below to reset your password:</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetLink}" 
-               style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-              Reset Password
-            </a>
-          </div>
-          <p>Or copy and paste this link in your browser:</p>
-          <p style="word-break: break-all; color: #6B7280;">${resetLink}</p>
-          <p><strong>This link will expire in 1 hour.</strong></p>
-          <p>If you did not request this password reset, please ignore this email.</p>
-          <hr style="margin: 30px 0; border: none; border-top: 1px solid #E5E7EB;">
-          <p style="color: #6B7280; font-size: 12px;">
-            Best regards,<br>
-            Local Clubhouse Team
-          </p>
-        </div>
-      `,
-    };
-    await sgMail.send(msg);
-    */
-    
-    // Example with Nodemailer (SMTP):
-    /*
-    // First, install: npm install nodemailer @types/nodemailer
-    // Then import: import * as nodemailer from 'nodemailer';
-    // 
-    // Create transporter in constructor:
-    // const transporter = nodemailer.createTransporter({
-    //   host: 'smtp.gmail.com', // or your SMTP host
-    //   port: 587,
-    //   secure: false,
-    //   auth: {
-    //     user: this.configService.get<string>('EMAIL_USER'),
-    //     pass: this.configService.get<string>('EMAIL_PASS'),
-    //   },
-    // });
-    // 
-    // Send email:
-    // await transporter.sendMail({
-    //   from: '"Local Clubhouse" <noreply@localclubhouse.com>',
-    //   to: email,
-    //   subject: 'Reset Your Password - Local Clubhouse',
-    //   html: `... same HTML as SendGrid example above ...`,
-    // });
-    */
-  }
+
 
   async resetPassword(email: string, newPassword: string) {
     console.log('resetPassword called with email:', email);
