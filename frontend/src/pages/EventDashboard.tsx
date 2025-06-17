@@ -25,13 +25,13 @@ const EventDashboard: React.FC = () => {
   const getEventStatusColor = (status: EventStatus) => {
     switch (status) {
       case EventStatus.DRAFT:
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300';
       case EventStatus.LIVE:
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300';
       case EventStatus.PAST:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-800/50 dark:text-gray-300';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-800/50 dark:text-gray-300';
     }
   };
 
@@ -53,10 +53,10 @@ const EventDashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Event Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Event Dashboard</h1>
           <button
             className="btn btn-primary flex items-center"
             onClick={() => {
@@ -70,7 +70,7 @@ const EventDashboard: React.FC = () => {
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-gray-200 mb-8">
+        <div className="border-b border-gray-200 dark:border-gray-700 mb-8">
           <nav className="-mb-px flex space-x-8">
             {Object.values(EventStatus).map((status) => (
               <button
@@ -78,9 +78,9 @@ const EventDashboard: React.FC = () => {
                 onClick={() => setActiveTab(status)}
                 className={`${
                   activeTab === status
-                    ? 'border-primary-500 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}
+                    ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize transition-colors`}
               >
                 {status}
               </button>
@@ -95,8 +95,8 @@ const EventDashboard: React.FC = () => {
           </div>
         ) : filteredEvents.length === 0 ? (
           <div className="text-center py-12">
-            <h3 className="text-lg font-medium text-gray-900">No events found</h3>
-            <p className="mt-2 text-sm text-gray-500">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">No events found</h3>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
               Get started by creating a new event.
             </p>
           </div>
@@ -105,7 +105,7 @@ const EventDashboard: React.FC = () => {
             {filteredEvents.map((event) => (
               <div
                 key={event.id}
-                className="bg-white overflow-hidden shadow rounded-lg hover:shadow-lg transition-shadow duration-200"
+                className="bg-white/40 dark:bg-gray-800/40 backdrop-blur-sm overflow-hidden shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 rounded-lg hover:shadow-xl dark:hover:shadow-gray-900/30 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200"
               >
                 {event.imageUrl && (
                   <div className="h-48 w-full overflow-hidden">
@@ -125,38 +125,38 @@ const EventDashboard: React.FC = () => {
                     >
                       {event.status}
                     </span>
-                    <span className="text-sm text-gray-500">
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
                                               {format(new Date(event.startDate), 'MMM d, yyyy')}
                     </span>
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                     {event.title}
                   </h3>
-                  <p className="text-sm text-gray-500 mb-4 line-clamp-2">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 line-clamp-2">
                     {event.description}
                   </p>
                   <div className="space-y-2">
-                    <div className="flex items-center text-sm text-gray-500">
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                       <CalendarIcon className="h-4 w-4 mr-2" />
                           {format(new Date(event.startDate), 'h:mm a')} -{' '}
                           {format(new Date(event.endDate), 'h:mm a')}
                     </div>
-                    <div className="flex items-center text-sm text-gray-500">
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                       <MapPinIcon className="h-4 w-4 mr-2" />
                       {event.location}
                     </div>
-                    <div className="flex items-center text-sm text-gray-500">
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                       <TagIcon className="h-4 w-4 mr-2" />
                       {event.tags.join(', ')}
                     </div>
-                    <div className="flex items-center text-sm text-gray-500">
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                       <UserGroupIcon className="h-4 w-4 mr-2" />
                       {event.rsvps.length} RSVPs
                     </div>
-                    <div className="flex items-center text-sm text-gray-600 bg-blue-50 p-2 rounded-md">
-                      <UserIcon className="h-4 w-4 mr-2 text-blue-600" />
-                      <span className="font-medium text-blue-800">Event Creator:</span>
-                      <span className="ml-1 text-blue-700">
+                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-300 bg-blue-50/80 dark:bg-blue-900/20 p-2 rounded-md border border-blue-200/50 dark:border-blue-800/50">
+                      <UserIcon className="h-4 w-4 mr-2 text-blue-600 dark:text-blue-400" />
+                      <span className="font-medium text-blue-800 dark:text-blue-300">Event Creator:</span>
+                      <span className="ml-1 text-blue-700 dark:text-blue-300">
                         {event.creator?.username || 'Unknown'}
                       </span>
                     </div>

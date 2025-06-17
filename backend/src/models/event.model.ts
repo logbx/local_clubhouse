@@ -15,6 +15,7 @@ export interface IEvent extends Document {
   visibility: string;
   recurrence: string;
   tags: string[];
+  features?: string[];
   imageUrl?: string;
   creator: Types.ObjectId;
   rsvps: Types.ObjectId[];
@@ -34,6 +35,7 @@ export const EventSchema = new Schema<IEvent>({
   visibility: { type: String, default: 'public' },
   recurrence: { type: String, default: 'none' },
   tags: [{ type: String }],
+  features: [{ type: String }],
   imageUrl: { type: String },
   creator: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   rsvps: [{ type: Schema.Types.ObjectId, ref: 'User' }],

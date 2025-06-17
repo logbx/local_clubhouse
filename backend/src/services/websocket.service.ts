@@ -106,11 +106,8 @@ export const setupWebsocketHandlers = (io: Server) => {
   const setupRedisSubscription = async () => {
     const pubSubClient = redisService.getRedisClient();
     
-    await pubSubClient.subscribe('notifications');
-    await pubSubClient.subscribe('system-events');
-    
     // Listen for messages on the notification channel
-    pubSubClient.on('message', (channel, message) => {
+    const messageHandler = (channel: string, message: string) => {
       try {
         const data = JSON.parse(message);
         
@@ -129,7 +126,10 @@ export const setupWebsocketHandlers = (io: Server) => {
       } catch (error) {
         console.error('Error processing Redis message:', error);
       }
-    });
+    };
+
+    await pubSubClient.subscribe('notifications', messageHandler);
+    await pubSubClient.subscribe('system-events', messageHandler);
   };
   
   // Initialize Redis pub/sub

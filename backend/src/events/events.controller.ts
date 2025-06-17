@@ -39,6 +39,10 @@ export class EventsController {
         transformed.creator.id = transformed.creator._id.toString();
       } else if (transformed.creator && transformed.creator.id) {
         transformed.creatorId = transformed.creator.id;
+      } else {
+        // Fallback for missing creator info
+        transformed.creator = { username: 'Unknown', email: '', id: '' };
+        transformed.creatorId = '';
       }
       
       // Transform rsvps to match frontend expectations
@@ -125,6 +129,10 @@ export class EventsController {
       transformed.creator.id = transformed.creator._id.toString();
     } else if (transformed.creator && transformed.creator.id) {
       transformed.creatorId = transformed.creator.id;
+    } else {
+      // Fallback for missing creator info
+      transformed.creator = { username: 'Unknown', email: '', id: '' };
+      transformed.creatorId = '';
     }
     
     // Transform rsvps to match frontend expectations
@@ -208,7 +216,7 @@ export class EventsController {
     const transformedEvent: any = transformId(event);
     
     // Add frontend-expected field mappings
-    transformedEvent.creatorId = transformedEvent.organizerId || transformedEvent.creator?._id || transformedEvent.creator?.id;
+    transformedEvent.creatorId = transformedEvent.creator?._id || transformedEvent.creator?.id;
     
     // Ensure tags are properly formatted as an array
     if (transformedEvent.tags) {
@@ -287,6 +295,28 @@ export class EventsController {
       createEventDto.tags = [];
     }
 
+    // Ensure features are properly formatted before saving
+    if (createEventDto.features) {
+      if (typeof createEventDto.features === 'string') {
+        try {
+          createEventDto.features = JSON.parse(createEventDto.features);
+        } catch {
+          createEventDto.features = createEventDto.features.split(',').map((feature: string) => feature.trim()).filter(Boolean);
+        }
+      }
+      if (!Array.isArray(createEventDto.features)) {
+        createEventDto.features = [];
+      }
+      // Ensure all features are strings and remove duplicates
+      createEventDto.features = [...new Set(
+        createEventDto.features
+          .filter((feature: any) => feature && typeof feature === 'string' && feature.trim().length > 0)
+          .map((feature: string) => feature.trim())
+      )];
+    } else {
+      createEventDto.features = [];
+    }
+
     const createdEvent = await this.eventModel.create({
       ...createEventDto,
       creator: new Types.ObjectId(userId)
@@ -317,6 +347,26 @@ export class EventsController {
         updateEventDto.tags
           .filter((tag: any) => tag && typeof tag === 'string' && tag.trim().length > 0)
           .map((tag: string) => tag.trim())
+      )];
+    }
+
+    // Ensure features are properly formatted before updating
+    if (updateEventDto.features !== undefined) {
+      if (typeof updateEventDto.features === 'string') {
+        try {
+          updateEventDto.features = JSON.parse(updateEventDto.features);
+        } catch {
+          updateEventDto.features = updateEventDto.features.split(',').map((feature: string) => feature.trim()).filter(Boolean);
+        }
+      }
+      if (!Array.isArray(updateEventDto.features)) {
+        updateEventDto.features = [];
+      }
+      // Ensure all features are strings and remove duplicates
+      updateEventDto.features = [...new Set(
+        updateEventDto.features
+          .filter((feature: any) => feature && typeof feature === 'string' && feature.trim().length > 0)
+          .map((feature: string) => feature.trim())
       )];
     }
 

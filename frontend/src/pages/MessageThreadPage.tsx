@@ -4,6 +4,8 @@ import { messageService } from '../services/message.service';
 import { useAuth } from '../context/AuthContext';
 import { Message } from '../types';
 import { webSocketService } from '../services/websocket.service';
+import { formatMessageTimestamp } from '../utils/formatTimestamp';
+import { notificationService } from '../services/notification.service';
 
 const MessageThreadPage: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
@@ -20,6 +22,9 @@ const MessageThreadPage: React.FC = () => {
       messageService.getConversation(userId)
         .then(setMessages)
         .finally(() => setLoading(false));
+      
+      // Mark messages as read when viewing this conversation
+      notificationService.markChatAsRead('direct', userId);
       
       // Join conversation room for real-time updates
       const conversationId = [user?.id, userId].sort().join('_');
@@ -68,12 +73,12 @@ const MessageThreadPage: React.FC = () => {
 
   return (
     <div className="max-w-2xl mx-auto py-8 flex flex-col h-[80vh]">
-      <h1 className="text-2xl font-bold mb-6">Conversation</h1>
-      <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-white rounded shadow">
+      <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Conversation</h1>
+      <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 transition-colors duration-200">
         {loading ? (
-          <div className="text-center text-gray-500">Loading...</div>
+          <div className="text-center text-gray-500 dark:text-gray-400">Loading...</div>
         ) : messages.length === 0 ? (
-          <div className="text-center text-gray-400">No messages yet.</div>
+          <div className="text-center text-gray-400 dark:text-gray-500">No messages yet.</div>
         ) : (
           messages.map((msg) => {
             // Check if the message is from the current user
@@ -85,14 +90,14 @@ const MessageThreadPage: React.FC = () => {
               <div key={msg._id} className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
                 <div className={`px-3 py-2 rounded-lg text-sm max-w-xs lg:max-w-md ${
                   isCurrentUser 
-                    ? 'bg-blue-500 text-white' 
-                    : 'bg-gray-200 text-gray-800'
+                    ? 'bg-blue-500 dark:bg-blue-600 text-white' 
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
                 }`}>
                   {msg.content}
                   <div className={`text-xs mt-1 text-right ${
-                    isCurrentUser ? 'text-blue-100' : 'text-gray-400'
+                    isCurrentUser ? 'text-blue-100 dark:text-blue-200' : 'text-gray-400 dark:text-gray-500'
                   }`}>
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {formatMessageTimestamp(msg.timestamp)}
                   </div>
                 </div>
               </div>
@@ -101,19 +106,19 @@ const MessageThreadPage: React.FC = () => {
         )}
         <div ref={messagesEndRef} />
       </div>
-      <form onSubmit={handleSend} className="flex items-center p-4 border-t space-x-2 bg-white rounded-b shadow">
+      <form onSubmit={handleSend} className="flex items-center p-4 border-t border-gray-200 dark:border-gray-700 space-x-2 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-b shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 transition-colors duration-200">
         <input
           type="text"
           value={newMessage}
           onChange={e => setNewMessage(e.target.value)}
-          className="flex-1 border rounded px-3 py-2 focus:outline-none focus:ring"
+          className="flex-1 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 transition-colors"
           placeholder="Type a message..."
           disabled={sending}
           autoFocus
         />
         <button
           type="submit"
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
+          className="bg-blue-500 dark:bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-600 dark:hover:bg-blue-700 disabled:opacity-50 transition-colors"
           disabled={sending || !newMessage.trim()}
         >
           Send

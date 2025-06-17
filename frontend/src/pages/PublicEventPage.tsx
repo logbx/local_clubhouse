@@ -145,22 +145,22 @@ const PublicEventPage: React.FC = () => {
             className="w-full h-full object-cover rounded-t-lg"
           />
         ) : (
-          <div className="w-full h-full bg-gray-200 flex items-center justify-center rounded-t-lg">
-            <span className="text-4xl text-gray-500">No Image</span>
+          <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center rounded-t-lg">
+            <span className="text-4xl text-gray-500 dark:text-gray-400">No Image</span>
           </div>
         )}
       </div>
 
       <div className="px-4 pb-8">
-        <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200">
           {isPastEvent && (
-            <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+            <div className="mb-6 bg-yellow-50/80 dark:bg-yellow-900/20 border-l-4 border-yellow-400 dark:border-yellow-500 p-4">
               <div className="flex">
                 <div className="flex-shrink-0">
-                  <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400" />
+                  <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400 dark:text-yellow-500" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm text-yellow-700">
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300">
                     This event has already taken place.
                   </p>
                 </div>
@@ -168,14 +168,14 @@ const PublicEventPage: React.FC = () => {
             </div>
           )}
 
-          <h1 className="text-3xl font-bold mb-4">{event.title}</h1>
+          <h1 className="text-3xl font-bold mb-4 text-gray-900 dark:text-white">{event.title}</h1>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div className="flex items-center">
-              <CalendarIcon className="h-5 w-5 text-gray-400 mr-2" />
+              <CalendarIcon className="h-5 w-5 text-gray-400 dark:text-gray-500 mr-2" />
               <div>
-                <h2 className="text-lg font-semibold text-gray-700">Date & Time</h2>
-                <p className="text-gray-600">
+                <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Date & Time</h2>
+                <p className="text-gray-600 dark:text-gray-400">
                   {formatDate(startDate, 'EEEE, MMMM d, yyyy')}
                   <br />
                   {formatDate(startDate, 'h:mm a')} - {formatDate(endDate, 'h:mm a')}
@@ -183,28 +183,28 @@ const PublicEventPage: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center">
-              <MapPinIcon className="h-5 w-5 text-gray-400 mr-2" />
+              <MapPinIcon className="h-5 w-5 text-gray-400 dark:text-gray-500 mr-2" />
               <div>
-                <h2 className="text-lg font-semibold text-gray-700">Location</h2>
-                <p className="text-gray-600">{event.location}</p>
+                <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Location</h2>
+                <p className="text-gray-600 dark:text-gray-400">{event.location}</p>
               </div>
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-700">Cost</h2>
-              <p className="text-gray-600">{event.isFree ? 'Free' : `$${event.cost}`}</p>
+              <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Cost</h2>
+              <p className="text-gray-600 dark:text-gray-400">{event.isFree ? 'Free' : `$${event.cost}`}</p>
             </div>
             <div className="flex items-center">
-              <UserGroupIcon className="h-5 w-5 text-gray-400 mr-2" />
+              <UserGroupIcon className="h-5 w-5 text-gray-400 dark:text-gray-500 mr-2" />
               <div>
-                <h2 className="text-lg font-semibold text-gray-700">Attendees</h2>
-                <p className="text-gray-600">{event.rsvps.length} people attending</p>
+                <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Attendees</h2>
+                <p className="text-gray-600 dark:text-gray-400">{event.rsvps.length} people attending</p>
               </div>
             </div>
             <div className="flex items-center">
-              <UserIcon className="h-5 w-5 text-blue-600 mr-2" />
+              <UserIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 mr-2" />
               <div>
-                <h2 className="text-lg font-semibold text-blue-800">Event Creator</h2>
-                <p className="text-blue-700 font-medium">
+                <h2 className="text-lg font-semibold text-blue-800 dark:text-blue-300">Event Creator</h2>
+                <p className="text-blue-700 dark:text-blue-300 font-medium">
                   {event.creator?.username || 'Unknown'}
                 </p>
               </div>
@@ -212,12 +212,12 @@ const PublicEventPage: React.FC = () => {
           </div>
 
           <div className="mb-6">
-            <h2 className="text-xl font-semibold mb-2">Tags</h2>
+            <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Tags</h2>
             <div className="flex flex-wrap gap-2">
               {event.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                  className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-sm"
                 >
                   {tag}
                 </span>
@@ -226,19 +226,19 @@ const PublicEventPage: React.FC = () => {
           </div>
 
           <div className="mb-6">
-            <h2 className="text-xl font-semibold mb-2">About</h2>
-            <p className="text-gray-700 whitespace-pre-wrap">{event.description}</p>
+            <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">About</h2>
+            <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{event.description}</p>
           </div>
 
           {/* Action buttons section */}
           <div className="space-y-4">
             {/* Show different actions based on creator status */}
             {isOwnEvent && !isPastEvent ? (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="bg-blue-50/80 dark:bg-blue-900/20 border border-blue-200/50 dark:border-blue-800/50 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <UserIcon className="h-5 w-5 text-blue-600 mr-2" />
-                    <span className="text-blue-800 font-medium">You are the creator of this event</span>
+                    <UserIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 mr-2" />
+                    <span className="text-blue-800 dark:text-blue-300 font-medium">You are the creator of this event</span>
                   </div>
                   <button
                     onClick={() => navigate(`/dashboard`)}
@@ -249,15 +249,15 @@ const PublicEventPage: React.FC = () => {
                 </div>
               </div>
             ) : !isPastEvent ? (
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <div className="bg-gray-50/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 rounded-lg p-4">
                 <div className="flex items-center justify-center">
-                  <span className="text-gray-600">You can view event details and participate in messages below</span>
+                  <span className="text-gray-600 dark:text-gray-300">You can view event details and participate in messages below</span>
                 </div>
               </div>
             ) : (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="bg-yellow-50/80 dark:bg-yellow-900/20 border border-yellow-200/50 dark:border-yellow-800/50 rounded-lg p-4">
                 <div className="flex items-center justify-center">
-                  <span className="text-yellow-700">This event has ended. You can still view details and previous messages.</span>
+                  <span className="text-yellow-700 dark:text-yellow-300">This event has ended. You can still view details and previous messages.</span>
                 </div>
               </div>
             )}
@@ -274,14 +274,14 @@ const PublicEventPage: React.FC = () => {
         )}
       </div>
       <div className="mt-6">
-        <h3 className="text-lg font-semibold mb-2">Attendees</h3>
+        <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Attendees</h3>
         <div className="flex flex-wrap gap-2">
           {Array.isArray(event.rsvps) && event.rsvps.map((attendeeId) => {
             const attendeeUser = allUsers.find(user => user.id === attendeeId);
             return (
               <span
                 key={attendeeId}
-                className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-sm"
               >
                 {attendeeUser?.username || 'Unknown User'}
               </span>

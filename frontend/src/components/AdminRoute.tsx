@@ -1,5 +1,7 @@
+import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import type { UserRole } from '../types/user';
 
 const AdminRoute = () => {
   const { user } = useAuth();
@@ -9,7 +11,9 @@ const AdminRoute = () => {
   }
 
   // Check if user has admin role
-  if (!user.roles.includes('ADMIN')) {
+  const isAdmin = user?.roles?.includes('admin' as UserRole);
+
+  if (!isAdmin) {
     return <Navigate to="/unauthorized" replace />;
   }
 

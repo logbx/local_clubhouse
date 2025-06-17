@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Event, EventStatus } from '../types/event';
+import { Event, EventStatus, EventFeatures } from '../types/event';
 import { eventApi } from '../services/api';
+import { tournamentService, Tournament } from '../services/tournament.service';
 import { format } from 'date-fns';
-import { PlusIcon, CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, TrashIcon, UserIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, TrashIcon, UserIcon, TrophyIcon } from '@heroicons/react/24/outline';
 import CreateEventModal from '../components/CreateEventModal';
 import { useAuth } from '../context/AuthContext';
 import SearchBar from '../components/SearchBar';
 import { useNavigate } from 'react-router-dom';
+import { log, LogCategory } from '../utils/logger';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -19,32 +21,125 @@ const Dashboard: React.FC = () => {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [eventTournaments, setEventTournaments] = useState<Record<string, Tournament[]>>({});
+  const [frontendTournaments, setFrontendTournaments] = useState<Record<string, any>>({});
+  const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
 
-  const { data: events, isLoading, error } = useQuery<Event[]>({
-    queryKey: ['events'],
-    queryFn: async () => {
-      const result = await eventApi.getEvents();
-      console.log('Events loaded:', result?.length, 'events');
-      if (result?.[0]) {
-        console.log('First event structure:', {
-          id: result[0].id,
-          title: result[0].title,
-          creator: result[0].creator,
-          creatorId: result[0].creatorId,
-          startDate: result[0].startDate,
-          endDate: result[0].endDate
-        });
+  // Load frontend tournaments from localStorage
+  useEffect(() => {
+    const loadFrontendTournaments = () => {
+      const savedTournaments = localStorage.getItem('frontend_tournaments');
+      if (savedTournaments) {
+        try {
+          const tournaments = JSON.parse(savedTournaments);
+          log.debug(LogCategory.TOURNAMENT, 'Loading tournaments from localStorage', { count: Object.keys(tournaments).length });
+          setFrontendTournaments(tournaments);
+        } catch (error) {
+          log.error(LogCategory.TOURNAMENT, 'Failed to load frontend tournaments', error);
+        }
       }
-      return result;
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    };
+
+    // Initial load
+    loadFrontendTournaments();
+
+    // Refresh when window comes into focus (e.g., when navigating back from tournament page)
+    const handleFocus = () => {
+      log.debug(LogCategory.TOURNAMENT, 'Window focus - reloading tournaments');
+      loadFrontendTournaments();
+    };
+
+    // Listen for storage events (when localStorage changes)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'frontend_tournaments') {
+        log.debug(LogCategory.TOURNAMENT, 'Storage event - reloading tournaments');
+        loadFrontendTournaments();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
+  // Check if an event has a frontend tournament
+  const hasFrontendTournament = (eventId: string) => {
+    const tournaments = eventTournaments[eventId];
+    return tournaments && tournaments.length > 0;
+  };
+
+  // Get tournament info from backend data
+  const getFrontendTournament = (eventId: string) => {
+    const tournaments = eventTournaments[eventId];
+    if (!tournaments || tournaments.length === 0) return null;
+    
+    // Get the first tournament for this event
+    const tournament = tournaments[0];
+    
+    // Convert backend tournament to frontend format for compatibility
+    return {
+      id: tournament.id,
+      name: tournament.name,
+      status: tournament.isFinished 
+        ? 'completed' 
+        : tournament.isStarted 
+          ? 'active' 
+          : 'registration_open',
+      players: tournament.players,
+      playerCount: tournament.players.length,
+      registeredUserCount: tournament.players.filter(p => !p.isGuest).length,
+      registeredUsers: tournament.players.filter(p => !p.isGuest),
+      winner: tournament.winnerId ? tournament.players.find(p => p.id === tournament.winnerId) : null,
+      createdAt: new Date(tournament.createdAt).getTime(),
+      startedAt: tournament.isStarted ? new Date(tournament.createdAt).getTime() : undefined,
+      createdBy: tournament.organizerId
+    };
+  };
+
+  // Load events and tournaments
+  const { 
+    data: events, 
+    isLoading, 
+    refetch: refetchEvents 
+  } = useQuery({
+    queryKey: ['events'],
+    queryFn: eventApi.getEvents,
   });
+
+  // Load tournament data for each event
+  useEffect(() => {
+    const loadTournamentData = async () => {
+      if (!events || events.length === 0) return;
+      
+      const tournamentPromises = events.map(async (event: any) => {
+        try {
+          const tournaments = await tournamentService.getTournamentsByEvent(event.id);
+          return { eventId: event.id, tournaments };
+        } catch {
+          return { eventId: event.id, tournaments: [] };
+        }
+      });
+
+      const results = await Promise.all(tournamentPromises);
+      const tournamentMap: Record<string, Tournament[]> = {};
+      results.forEach(result => {
+        tournamentMap[result.eventId] = result.tournaments;
+      });
+      
+      setEventTournaments(tournamentMap);
+    };
+
+    loadTournamentData();
+  }, [events]);
 
   // Auto-update past events
   useEffect(() => {
     if (events) {
       const now = new Date();
-      console.log('Checking events for auto-update to PAST status:', { now, eventCount: events.length });
       
       const eventsToUpdate = events.filter((event: Event) => {
         if (event.status === EventStatus.PAST) return false;
@@ -55,31 +150,24 @@ const Dashboard: React.FC = () => {
         const endDate = new Date(event.endDate);
         const isPast = endDate < now;
         
-        console.log('Event check:', {
-          eventId: event.id,
-          title: event.title,
-          status: event.status,
-          endDate: event.endDate,
-          isPast
-        });
-        
         return isPast;
       });
       
-      console.log('Events to update to PAST:', eventsToUpdate.length);
-      
-      eventsToUpdate.forEach((event: Event) => {
-        console.log(`Updating event ${event.id} (${event.title}) to PAST status`);
-        eventApi.updateEvent(event.id, { status: EventStatus.PAST })
-          .then(() => {
-            console.log(`Successfully updated event ${event.id} to PAST`);
-            // Invalidate queries to refresh the data
-            queryClient.invalidateQueries({ queryKey: ['events'] });
-          })
-          .catch((error: any) => {
-            console.error(`Failed to update event ${event.id} status to PAST:`, error);
-          });
-      });
+      if (eventsToUpdate.length > 0) {
+        log.info(LogCategory.EVENT, `Auto-updating ${eventsToUpdate.length} events to PAST status`);
+        
+        eventsToUpdate.forEach((event: Event) => {
+          eventApi.updateEvent(event.id, { status: EventStatus.PAST })
+            .then(() => {
+              log.debug(LogCategory.EVENT, `Updated event ${event.title} to PAST status`);
+              // Invalidate queries to refresh the data
+              queryClient.invalidateQueries({ queryKey: ['events'] });
+            })
+            .catch((error: any) => {
+              log.error(LogCategory.EVENT, `Failed to update event ${event.title} status to PAST`, error);
+            });
+        });
+      }
     }
   }, [events, queryClient]);
 
@@ -89,7 +177,7 @@ const Dashboard: React.FC = () => {
         const response = await eventApi.deleteEvent(eventId);
         return eventId;
       } catch (error) {
-        console.error('Failed to delete event:', error);
+        log.error(LogCategory.EVENT, 'Failed to delete event', error);
         throw error;
       }
     },
@@ -109,7 +197,7 @@ const Dashboard: React.FC = () => {
       return { previousEvents };
     },
     onError: (err, _, context) => {
-      console.error('Failed to delete event:', err);
+      log.error(LogCategory.EVENT, 'Failed to delete event', err);
       // Rollback to the previous value
       if (context?.previousEvents) {
         queryClient.setQueryData(['events'], context.previousEvents);
@@ -141,18 +229,95 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleCreateTournament = async (eventId: string) => {
+    log.info(LogCategory.TOURNAMENT, 'Creating tournament for event', { eventId });
+    
+    try {
+      const event = events?.find((e: Event) => e.id === eventId);
+      log.debug(LogCategory.TOURNAMENT, 'Found event for tournament', { eventTitle: event?.title });
+      
+      const eventTitle = event?.title || 'Event';
+      const creatorId = event?.creator?.id || event?.creatorId || '';
+      
+      // Navigate to the new SingleEliminationTournament page with creatorId
+      navigate(`/tournament/single-elimination?eventId=${eventId}&eventTitle=${encodeURIComponent(eventTitle)}&creatorId=${creatorId}`);
+    } catch (error) {
+      log.error(LogCategory.TOURNAMENT, 'Failed to navigate to tournament creation', error);
+      alert('Failed to navigate to tournament creation. Please try again.');
+    }
+  };
+
+  // Get tournament button text and action based on state and user permissions
+  const getTournamentButtonInfo = (event: Event) => {
+    const tournament = getFrontendTournament(event.id);
+    const isCreator = canEditEvent(event);
+    
+    if (!tournament) {
+      return isCreator 
+        ? { text: 'Create Tournament', action: () => navigate(`/tournament/manage?eventId=${event.id}&eventTitle=${encodeURIComponent(event.title)}`), disabled: false }
+        : { text: 'No Tournament', action: () => {}, disabled: true };
+    }
+
+    switch (tournament.status) {
+      case 'not_created':
+        return isCreator 
+          ? { text: 'Create Tournament', action: () => navigate(`/tournament/manage?eventId=${event.id}&eventTitle=${encodeURIComponent(event.title)}`), disabled: false }
+          : { text: 'No Tournament', action: () => {}, disabled: true };
+      
+      case 'registration_open':
+        if (isCreator) {
+          return { text: 'Manage Tournament', action: () => navigate(`/tournament/${tournament.id}/manage`), disabled: false };
+        } else {
+          const isParticipant = user && tournament.players?.some((p: any) => p.userId === user.id);
+          return isParticipant
+            ? { text: 'Tournament Ready', action: () => navigate(`/tournament/${tournament.id}`), disabled: false }
+            : { text: 'Join Tournament', action: () => navigate(`/tournament/${tournament.id}`), disabled: false };
+        }
+      
+      case 'registration_closed':
+        if (isCreator) {
+          return { text: 'Start Tournament', action: () => navigate(`/tournament/${tournament.id}/manage`), disabled: false };
+        } else {
+          const isParticipant = user && tournament.players?.some((p: any) => p.userId === user.id);
+          return isParticipant
+            ? { text: 'Tournament Ready', action: () => navigate(`/tournament/${tournament.id}`), disabled: false }
+            : { text: 'Registration Closed', action: () => navigate(`/tournament/${tournament.id}`), disabled: false };
+        }
+      
+      case 'active':
+        if (isCreator) {
+          return { text: 'Manage Tournament', action: () => navigate(`/tournament/${tournament.id}/manage`), disabled: false };
+        } else {
+          const isParticipant = user && tournament.players?.some((p: any) => p.userId === user.id);
+          return isParticipant
+            ? { text: 'Tournament Live', action: () => navigate(`/tournament/${tournament.id}/results`), disabled: false }
+            : { text: 'View Tournament', action: () => navigate(`/tournament/${tournament.id}/results`), disabled: false };
+        }
+      
+      case 'completed':
+        if (isCreator) {
+          return { text: 'Manage Tournament', action: () => navigate(`/tournament/${tournament.id}/manage`), disabled: false };
+        } else {
+          return { text: 'View Results', action: () => navigate(`/tournament/${tournament.id}/results`), disabled: false };
+        }
+      
+      default:
+        return { text: 'View Tournament', action: () => navigate(`/tournament/${tournament.id}`), disabled: false };
+    }
+  };
+
   const filteredEvents = events?.filter((event: Event) => event.status === activeTab) || [];
 
   const getEventStatusColor = (status: EventStatus) => {
     switch (status) {
       case EventStatus.DRAFT:
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300';
       case EventStatus.LIVE:
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300';
       case EventStatus.PAST:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-800/50 dark:text-gray-300';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-800/50 dark:text-gray-300';
     }
   };
 
@@ -160,13 +325,13 @@ const Dashboard: React.FC = () => {
     // Check if the current user is the creator of the event
     if (!user || !event) return false;
     
-    // Debug logging (keep for now to monitor the fix)
-    console.log('canEditEvent check:', {
+    // Only log permission checks in debug mode to reduce spam
+    log.debug(LogCategory.AUTH, 'Checking edit permissions', {
       userId: user.id,
+      userName: user.username,
       eventId: event.id,
-      creatorId: event.creator?.id,
-      creatorIdField: event.creatorId,
-      hasCreator: !!event.creator
+      eventTitle: event.title,
+      creatorId: event.creator?.id || event.creatorId
     });
     
     // Check multiple possible creator field combinations
@@ -175,30 +340,66 @@ const Dashboard: React.FC = () => {
       (event.creatorId && user.id === event.creatorId) ||
       (typeof event.creator === 'string' && user.id === event.creator);
     
-    console.log('User is creator:', userIsCreator);
     return userIsCreator;
+  };
+
+  const checkFrontendTournament = (eventId: string) => {
+    // Implementation for checking frontend tournament data
+    return false;
+  };
+
+  const deleteEvent = async (eventId: string) => {
+    if (!window.confirm('Are you sure you want to delete this event?')) {
+      return;
+    }
+
+    setDeletingEventId(eventId);
+    try {
+      await eventApi.deleteEvent(eventId);
+      await refetchEvents();
+      log.info(LogCategory.EVENT, 'Event deleted successfully');
+    } catch (error) {
+      log.error(LogCategory.EVENT, 'Failed to delete event', error);
+      alert('Failed to delete event. Please try again.');
+    } finally {
+      setDeletingEventId(null);
+    }
+  };
+
+  const handleCreateEvent = async (eventData: any) => {
+    try {
+      const result = await eventApi.createEvent(eventData);
+      console.log('Event created successfully:', result);
+      setIsCreateModalOpen(false);
+      setSelectedEvent(null);
+      // Refetch events to update the list
+      await refetchEvents();
+    } catch (e: any) {
+      console.error('Failed to create event:', e);
+      alert('Failed to create event. Please try again.');
+    }
   };
 
   return (
     <div className="space-y-8">
       {/* Welcome Section */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h1 className="text-2xl font-bold text-gray-900">Welcome back, {user?.username}!</h1>
-        <p className="mt-2 text-gray-600">Manage your events and stay connected with your community.</p>
-      </div>
-
-      {/* Friend Requests Section */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-4">Friend Requests</h2>
-        <p className="text-gray-600">
-          You have pending friend requests. Please manage them on your{' '}
-          <a href="/friends" className="text-primary-600 underline hover:text-primary-800">Friends page</a>.
-        </p>
+      <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200 relative" style={{ zIndex: 1 }}>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome back, {user?.username}!</h1>
+        <p className="mt-2 text-gray-600 dark:text-gray-300">Manage your events and stay connected with your community.</p>
       </div>
 
       {/* Search Bar Section */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200 relative" style={{ zIndex: 10 }}>
         <SearchBar />
+      </div>
+
+      {/* Friend Requests Section */}
+      <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200 relative" style={{ zIndex: 1 }}>
+        <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Friend Requests</h2>
+        <p className="text-gray-600 dark:text-gray-300">
+          You have pending friend requests. Please manage them on your{' '}
+          <a href="/friends" className="text-primary-600 dark:text-primary-400 underline hover:text-primary-800 dark:hover:text-primary-300 transition-colors">Friends page</a>.
+        </p>
       </div>
 
       {/* Quick Stats */}
@@ -208,23 +409,23 @@ const Dashboard: React.FC = () => {
             id: 'draft',
             title: 'Draft Events',
             count: events?.filter((e: Event) => e.status === EventStatus.DRAFT).length || 0,
-            color: 'text-primary-600'
+            color: 'text-primary-600 dark:text-primary-400'
           },
           {
             id: 'live',
             title: 'Live Events',
             count: events?.filter((e: Event) => e.status === EventStatus.LIVE).length || 0,
-            color: 'text-green-600'
+            color: 'text-green-600 dark:text-green-400'
           },
           {
             id: 'past',
             title: 'Past Events',
             count: events?.filter((e: Event) => e.status === EventStatus.PAST).length || 0,
-            color: 'text-gray-600'
+            color: 'text-gray-600 dark:text-gray-400'
           }
         ].map(stat => (
-          <div key={stat.id} className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900">{stat.title}</h3>
+          <div key={stat.id} className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200 relative" style={{ zIndex: 1 }}>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{stat.title}</h3>
             <p className={`text-3xl font-bold ${stat.color} mt-2`}>
               {stat.count}
             </p>
@@ -233,10 +434,10 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Event Management Section */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200">
+      <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 transition-colors duration-200 relative" style={{ zIndex: 1 }}>
+        <div className="p-6 border-b border-gray-200/50 dark:border-gray-700/50">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold text-gray-900">Event Management</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Events</h2>
             <button
               type="button"
               className="btn btn-primary flex items-center"
@@ -251,7 +452,7 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Tabs */}
-          <div className="mt-4 border-b border-gray-200">
+          <div className="mt-4 border-b border-gray-200/50 dark:border-gray-700/50">
             <nav className="-mb-px flex space-x-8">
               {Object.values(EventStatus).map((status) => (
                 <button
@@ -260,9 +461,9 @@ const Dashboard: React.FC = () => {
                   onClick={() => setActiveTab(status)}
                   className={`${
                     activeTab === status
-                      ? 'border-primary-500 text-primary-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}
+                      ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize transition-colors`}
                 >
                   {status}
                 </button>
@@ -279,17 +480,18 @@ const Dashboard: React.FC = () => {
             </div>
           ) : filteredEvents.length === 0 ? (
             <div className="text-center py-12">
-              <h3 className="text-lg font-medium text-gray-900">No events found</h3>
-              <p className="mt-2 text-sm text-gray-500">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">No events found</h3>
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                 Get started by creating a new event.
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredEvents.map((event) => (
+              {filteredEvents.map((event: Event) => (
                 <div
                   key={event.id}
-                  className="bg-white overflow-hidden shadow rounded-lg hover:shadow-lg transition-shadow duration-200"
+                  className="bg-white/40 dark:bg-gray-800/40 backdrop-blur-sm overflow-hidden shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 rounded-lg hover:shadow-xl dark:hover:shadow-gray-900/30 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 relative"
+                  style={{ zIndex: 1 }}
                 >
                   {event.imageUrl && (
                     <div className="h-48 w-full overflow-hidden">
@@ -309,21 +511,22 @@ const Dashboard: React.FC = () => {
                       >
                         {event.status}
                       </span>
-                      <span className="text-sm text-gray-500">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
                         {event.startDate && !isNaN(new Date(event.startDate).getTime()) 
                           ? format(new Date(event.startDate), 'MMM d, yyyy')
                           : 'Invalid date'
                         }
                       </span>
                     </div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                       {event.title}
                     </h3>
-                    <p className="text-sm text-gray-500 mb-4 line-clamp-2">
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 line-clamp-2">
                       {event.description}
                     </p>
                     <div className="space-y-2">
-                      <div className="flex items-center text-sm text-gray-500">
+                      {/* 1. Time & Date */}
+                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                         <CalendarIcon className="h-4 w-4 mr-2" />
                         {event.startDate && event.endDate && 
                         !isNaN(new Date(event.startDate).getTime()) && 
@@ -336,27 +539,45 @@ const Dashboard: React.FC = () => {
                           'Invalid time'
                         )}
                       </div>
-                      <div className="flex items-center text-sm text-gray-500">
+                      
+                      {/* 2. Location */}
+                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                         <MapPinIcon className="h-4 w-4 mr-2" />
                         {event.location}
                       </div>
-                      <div className="flex items-center text-sm text-gray-500">
+                      
+                      {/* 3. Tags (only actual event tags) */}
+                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                         <TagIcon className="h-4 w-4 mr-2" />
                         {event.tags.join(', ')}
                       </div>
-                      <div className="flex items-center text-sm text-gray-500">
+                      
+                      {/* 4. Tournament: Single Elimination (only if tournament enabled) */}
+                      {(event.features && event.features.includes(EventFeatures.SINGLE_ELIMINATION_TOURNAMENT)) && (
+                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                          <TrophyIcon className="h-4 w-4 mr-2" />
+                          Tournament: Single Elimination
+                        </div>
+                      )}
+                      
+                      {/* 5. RSVPs */}
+                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                         <UserGroupIcon className="h-4 w-4 mr-2" />
                         {event.rsvps.length} RSVPs
                       </div>
-                      <div className="flex items-center text-sm text-gray-600 bg-blue-50 p-2 rounded-md">
-                        <UserIcon className="h-4 w-4 mr-2 text-blue-600" />
-                        <span className="font-medium text-blue-800">Event Creator:</span>
-                        <span className="ml-1 text-blue-700">
+                      
+                      {/* 6. Event Creator (blue box) */}
+                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300 bg-blue-50/80 dark:bg-blue-900/20 p-2 rounded-md border border-blue-200/50 dark:border-blue-800/50">
+                        <UserIcon className="h-4 w-4 mr-2 text-blue-600 dark:text-blue-400" />
+                        <span className="font-medium text-blue-800 dark:text-blue-300">Event Creator:</span>
+                        <span className="ml-1 text-blue-700 dark:text-blue-300">
                           {event.creator?.username || 'Unknown'}
                         </span>
                       </div>
                     </div>
-                    <div className="mt-6 flex space-x-3">
+                    
+                    <div className="mt-6 space-y-3">
+                      <div className="flex space-x-3">
                       {canEditEvent(event) ? (
                         <>
                           <button
@@ -396,7 +617,30 @@ const Dashboard: React.FC = () => {
                           onClick={() => navigate(`/event/${event.id}`)}
                         >
                           View Details
-                        </button>
+                          </button>
+                        )}
+                      </div>
+                      
+                      {/* Tournament Actions */}
+                      {(event.features && event.features.includes(EventFeatures.SINGLE_ELIMINATION_TOURNAMENT)) && (
+                        (() => {
+                          const buttonInfo = getTournamentButtonInfo(event);
+                          return (
+                            <button
+                              type="button"
+                              className={`w-full px-4 py-2 font-medium rounded-md transition-all duration-200 flex items-center justify-center ${
+                                buttonInfo.disabled 
+                                  ? 'bg-gray-400 text-gray-700 cursor-not-allowed dark:bg-gray-600 dark:text-gray-400'
+                                  : 'bg-blue-800 text-white hover:bg-blue-900 dark:bg-blue-700 dark:hover:bg-blue-800'
+                              }`}
+                              onClick={buttonInfo.action}
+                              disabled={buttonInfo.disabled}
+                            >
+                              <TrophyIcon className="h-4 w-4 mr-2" />
+                              {buttonInfo.text}
+                            </button>
+                          );
+                        })()
                       )}
                     </div>
                   </div>
@@ -409,10 +653,10 @@ const Dashboard: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Delete Event</h3>
-            <p className="text-gray-600 mb-6">
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg p-6 max-w-md w-full mx-4 shadow-xl dark:shadow-gray-900/50 border border-gray-200/50 dark:border-gray-700/50">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Delete Event</h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
               Are you sure you want to delete "{eventToDelete?.title}"? This action cannot be undone.
             </p>
             <div className="flex justify-end space-x-3">

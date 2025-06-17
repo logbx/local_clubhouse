@@ -3,6 +3,7 @@ import { api } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { User } from '../types/user';
 import { webSocketService } from '../services/websocket.service';
+import { notificationService } from '../services/notification.service';
 
 interface AuthContextType {
   user: User | null;

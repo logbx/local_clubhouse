@@ -33,7 +33,7 @@ const PublicProfilePage: React.FC = () => {
         setLoading(true);
         const response = await publicApi.getUserProfile(userId);
         if (response?.data) {
-          setProfile(response.data);
+          setProfile(response.data as unknown as PublicUserProfile);
         } else {
           setError('Profile data not found');
         }
@@ -50,18 +50,18 @@ const PublicProfilePage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      <div className="flex justify-center items-center min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 dark:border-primary-400"></div>
       </div>
     );
   }
 
   if (error || !profile) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
+      <div className="flex justify-center items-center min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <p className="text-red-500 text-lg">{error || 'Profile not found'}</p>
-          <p className="text-gray-600 mt-2">The requested profile could not be loaded.</p>
+          <p className="text-red-500 dark:text-red-400 text-lg">{error || 'Profile not found'}</p>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">The requested profile could not be loaded.</p>
         </div>
       </div>
     );
@@ -75,57 +75,58 @@ const PublicProfilePage: React.FC = () => {
   const getRoleBadgeColor = (role: UserRole) => {
     switch (role) {
       case 'Member':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300';
       case 'Sponsor':
-        return 'bg-purple-100 text-purple-800';
+        return 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300';
       case 'Creator':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300';
       case 'Club_Founder':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 dark:bg-gray-900/30 text-gray-800 dark:text-gray-300';
     }
   };
 
   return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200">
         {/* Header Section */}
         <div className="flex items-center space-x-4 mb-6">
           {profile.profileImage ? (
             <img
               src={profile.profileImage}
               alt={displayName}
-              className="w-24 h-24 rounded-full object-cover"
+                className="w-24 h-24 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600"
             />
           ) : profile.avatarUrl ? (
             <img
               src={profile.avatarUrl}
               alt={displayName}
-              className="w-24 h-24 rounded-full object-cover"
+                className="w-24 h-24 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600"
             />
           ) : (
-            <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center">
-              <span className="text-2xl text-gray-500">{userInitial}</span>
+              <div className="w-24 h-24 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center border-2 border-gray-200 dark:border-gray-600">
+                <span className="text-2xl text-gray-500 dark:text-gray-400">{userInitial}</span>
             </div>
           )}
           <div className="flex-1">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold">{displayName}</h1>
+                  <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{displayName}</h1>
                 {profile.username && (
-                  <p className="text-sm text-gray-500">{profile.username}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{profile.username}</p>
                 )}
               </div>
               <div className="text-right">
-                <p className="text-sm text-gray-500 mb-2">Joined {joinedDate}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Joined {joinedDate}</p>
                 {!isOwnProfile && userId && (
                   <div className="mt-4">
                     <FriendButton userId={userId} />
                   </div>
                 )}
                 {profile.profileCompleted && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mt-2">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 mt-2">
                     Verified Profile
                   </span>
                 )}
@@ -137,7 +138,7 @@ const PublicProfilePage: React.FC = () => {
         {/* Roles Section */}
         {profile.roles && profile.roles.length > 0 && (
           <div className="mb-6">
-            <h2 className="text-xl font-semibold mb-2">Roles</h2>
+              <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Roles</h2>
             <div className="flex flex-wrap gap-2">
               {[...new Set(profile.roles)].map((role, index) => (
                 <span
@@ -154,16 +155,16 @@ const PublicProfilePage: React.FC = () => {
         {/* Bio Section */}
         {profile.bio && (
           <div className="mb-6">
-            <h2 className="text-xl font-semibold mb-2">About</h2>
-            <p className="text-gray-700 whitespace-pre-wrap">{profile.bio}</p>
+              <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">About</h2>
+              <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{profile.bio}</p>
           </div>
         )}
 
         {/* Contact Information */}
         {profile.phoneNumber && (
           <div className="mb-6">
-            <h2 className="text-xl font-semibold mb-2">Contact</h2>
-            <p className="text-gray-700">
+              <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Contact</h2>
+              <p className="text-gray-700 dark:text-gray-300">
               <span className="font-medium">Phone:</span> {profile.phoneNumber}
             </p>
           </div>
@@ -172,12 +173,12 @@ const PublicProfilePage: React.FC = () => {
         {/* Tags Section */}
         {profile.tags && profile.tags.length > 0 && (
           <div className="mb-6">
-            <h2 className="text-xl font-semibold mb-2">Tags</h2>
+              <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Tags</h2>
             <div className="flex flex-wrap gap-2">
               {profile.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                    className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-sm"
                 >
                   {tag}
                 </span>
@@ -189,12 +190,12 @@ const PublicProfilePage: React.FC = () => {
         {/* Interests Section */}
         {profile.interests && profile.interests.length > 0 && (
           <div className="mb-6">
-            <h2 className="text-xl font-semibold mb-2">Interests</h2>
+              <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Interests</h2>
             <div className="flex flex-wrap gap-2">
               {profile.interests.map((interest) => (
                 <span
                   key={interest}
-                  className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm"
+                    className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-sm"
                 >
                   {interest}
                 </span>
@@ -202,6 +203,7 @@ const PublicProfilePage: React.FC = () => {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

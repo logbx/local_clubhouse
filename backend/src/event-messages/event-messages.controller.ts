@@ -44,10 +44,7 @@ export class EventMessagesController {
   @Public()
   async getEventMessages(@Param('eventId') eventId: string) {
     try {
-      console.log('[DEBUG] Fetching messages for eventId:', eventId);
-      
       if (!eventId || eventId === 'undefined') {
-        console.log('[DEBUG] Invalid eventId provided:', eventId);
         return [];
       }
       
@@ -59,8 +56,6 @@ export class EventMessagesController {
         })
         .sort({ createdAt: 1 })
         .exec();
-      
-      console.log('[DEBUG] Found messages:', messages.length);
       
       // Transform the data to match frontend interface
       const transformedMessages = messages.map((message: any) => {
@@ -77,10 +72,9 @@ export class EventMessagesController {
         };
       });
       
-      console.log('[DEBUG] Transformed messages:', transformedMessages.length);
       return transformedMessages;
     } catch (error) {
-      console.error('[DEBUG] Error fetching messages:', error);
+      console.error('Error fetching event messages:', error);
       throw new Error(`Failed to fetch messages: ${error.message}`);
     }
   }

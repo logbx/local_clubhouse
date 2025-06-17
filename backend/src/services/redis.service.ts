@@ -1,8 +1,7 @@
 import { createClient } from 'redis';
-import { promisify } from 'util';
 
 class RedisService {
-  private client;
+  private client: any;
   private subscriber;
   private publisher;
 
@@ -14,8 +13,17 @@ class RedisService {
     this.subscriber = this.client.duplicate();
     this.publisher = this.client.duplicate();
 
-    this.client.on('error', (err) => console.error('Redis Client Error', err));
-    this.client.on('connect', () => console.log('Redis Client Connected'));
+    // Connect to Redis
+    this.client.connect().then(() => {
+      console.log('Redis Client Connected');
+    }).catch((err: any) => {
+      console.error('Redis Connection Error:', err);
+    });
+
+    // Handle Redis errors
+    this.client.on('error', (err: any) => {
+      console.error('Redis Client Error:', err);
+    });
   }
 
   async initialize() {

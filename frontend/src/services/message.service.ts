@@ -22,12 +22,34 @@ export const messageService = {
     return response.data;
   },
   getGroupMessages: async () => {
+    try {
     const response = await axiosInstance.get('/api/group-messages');
     return response.data;
+    } catch (error: any) {
+      console.error('Error fetching group messages:', error);
+      if (error.response?.status === 404) {
+        throw new Error('Group messages feature is not available');
+      }
+      if (error.response?.status === 401) {
+        throw new Error('Please log in to view messages');
+      }
+      throw new Error('Failed to load messages');
+    }
   },
   sendGroupMessage: async (content: string) => {
+    try {
     const response = await axiosInstance.post('/api/group-messages', { content });
     return response.data;
+    } catch (error: any) {
+      console.error('Error sending group message:', error);
+      if (error.response?.status === 404) {
+        throw new Error('Group messages feature is not available');
+      }
+      if (error.response?.status === 401) {
+        throw new Error('Please log in to send messages');
+      }
+      throw new Error('Failed to send message');
+    }
   },
   // Event Sub-Group APIs
   getSubGroups: async (eventId: string) => {

@@ -9,6 +9,11 @@ export enum EventVisibility {
   PRIVATE = 'PRIVATE',
 }
 
+export enum EventFeatures {
+  NONE = 'NONE',
+  SINGLE_ELIMINATION_TOURNAMENT = 'SINGLE_ELIMINATION_TOURNAMENT',
+}
+
 export enum RecurrenceType {
   NONE = 'NONE',
   DAILY = 'DAILY',
@@ -30,6 +35,7 @@ export interface Event {
   visibility: EventVisibility;
   recurrence: RecurrenceType;
   tags: string[];
+  features?: EventFeatures[];
   imageUrl?: string;
   creator: {
     id: string;
@@ -57,6 +63,7 @@ export interface EventFormData {
   visibility: EventVisibility;
   recurrence: RecurrenceType;
   tags: string[];
+  features?: EventFeatures[];
   status: EventStatus;
   imageUrl?: string;
 }

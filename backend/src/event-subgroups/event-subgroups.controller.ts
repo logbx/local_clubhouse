@@ -206,29 +206,23 @@ export class EventSubGroupsController {
   @Get(':subGroupId/messages')
   async getSubGroupMessages(@Param('subGroupId') subGroupId: string, @Request() req: AuthenticatedRequest) {
     try {
-      console.log('[DEBUG] getSubGroupMessages called with:', { subGroupId });
-      
       if (!subGroupId || subGroupId === 'undefined') {
         throw new Error('Invalid subGroupId provided');
       }
       
       const userId = req.user.sub || req.user._id || req.user.id;
-      console.log('[DEBUG] User ID:', userId);
       
       // Check if user is a member of the sub-group
       const subGroup = await this.eventSubGroupModel.findById(subGroupId);
-      console.log('[DEBUG] Found sub-group:', subGroup ? 'Yes' : 'No');
       if (!subGroup) {
         throw new Error('Sub-group not found');
       }
       
       const isMember = subGroup.members.some(memberId => memberId.toString() === userId);
-      console.log('[DEBUG] User is member:', isMember);
       if (!isMember) {
         throw new Error('Access denied: You are not a member of this sub-group');
       }
       
-      console.log('[DEBUG] Fetching messages for subGroupId:', subGroupId);
       const messages = await this.eventSubGroupMessageModel
         .find({ subGroupId })
         .populate({
@@ -237,7 +231,6 @@ export class EventSubGroupsController {
         })
         .sort({ timestamp: 1 })
         .exec();
-      console.log('[DEBUG] Found messages count:', messages.length);
       
       // Transform the data to match frontend interface
       const transformedMessages = messages.map((message: any) => ({
@@ -266,24 +259,19 @@ export class EventSubGroupsController {
     @Request() req: AuthenticatedRequest
   ) {
     try {
-      console.log('[DEBUG] createSubGroupMessage called with:', { subGroupId, content: messageData.content });
-      
       if (!subGroupId || subGroupId === 'undefined') {
         throw new Error('Invalid subGroupId provided');
       }
       
       const userId = req.user.sub || req.user._id || req.user.id;
-      console.log('[DEBUG] User ID:', userId);
       
       // Check if user is a member of the sub-group
       const subGroup = await this.eventSubGroupModel.findById(subGroupId);
-      console.log('[DEBUG] Found sub-group for message creation:', subGroup ? 'Yes' : 'No');
       if (!subGroup) {
         throw new Error('Sub-group not found');
       }
       
       const isMember = subGroup.members.some(memberId => memberId.toString() === userId);
-      console.log('[DEBUG] User is member for message creation:', isMember);
       if (!isMember) {
         throw new Error('Access denied: You are not a member of this sub-group');
       }

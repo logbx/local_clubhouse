@@ -1,0 +1,18 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
+
+export type GroupMessageDocument = GroupMessage & Document;
+
+@Schema({ timestamps: true })
+export class GroupMessage {
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
+  sender: Types.ObjectId;
+
+  @Prop({ required: true })
+  content: string;
+
+  @Prop({ default: Date.now })
+  timestamp: Date;
+}
+
+export const GroupMessageSchema = SchemaFactory.createForClass(GroupMessage); 

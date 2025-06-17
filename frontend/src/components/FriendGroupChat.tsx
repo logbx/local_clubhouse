@@ -62,13 +62,13 @@ const FriendGroupChat: React.FC<FriendGroupChatProps> = ({ groupId, groupName })
   };
 
   if (loading) {
-    return <div className="text-center p-4">Loading messages...</div>;
+    return <div className="text-center p-4 text-gray-600 dark:text-gray-400">Loading messages...</div>;
   }
 
   return (
-    <div className="bg-white rounded-lg shadow">
-      <div className="p-4 border-b">
-        <h3 className="text-lg font-semibold">{groupName}</h3>
+    <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 transition-colors duration-200">
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{groupName}</h3>
       </div>
 
       <div className="h-96 overflow-y-auto p-4 space-y-4">
@@ -81,40 +81,40 @@ const FriendGroupChat: React.FC<FriendGroupChatProps> = ({ groupId, groupName })
                 className="w-8 h-8 rounded-full"
               />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                <span className="text-sm text-gray-500">
+              <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
                   {message.sender?.username?.charAt(0)?.toUpperCase() || '?'}
                 </span>
               </div>
             )}
             <div>
               <div className="flex items-center space-x-2">
-                <span className="font-medium text-sm">{message.sender?.username || 'Unknown User'}</span>
-                <span className="text-xs text-gray-500">
+                <span className="font-medium text-sm text-gray-900 dark:text-white">{message.sender?.username || 'Unknown User'}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
                   {new Date(message.timestamp).toLocaleTimeString()}
                 </span>
               </div>
-              <p className="text-gray-800">{message.content}</p>
+              <p className="text-gray-800 dark:text-gray-200">{message.content}</p>
             </div>
           </div>
         ))}
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSendMessage} className="p-4 border-t">
+      <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200 dark:border-gray-700">
         <div className="flex space-x-2">
           <input
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Type a message..."
-            className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 transition-colors"
             disabled={sending}
           />
           <button
             type="submit"
             disabled={!newMessage.trim() || sending}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-blue-500 dark:bg-blue-600 text-white rounded-lg hover:bg-blue-600 dark:hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {sending ? 'Sending...' : 'Send'}
           </button>

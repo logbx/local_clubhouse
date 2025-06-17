@@ -1,147 +1,216 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import CreatableSelect from 'react-select/creatable';
 import { ActionMeta, MultiValue } from 'react-select';
-import Fuse from 'fuse.js';
 
-interface TagInputProps {
-  value: string[];
-  onChange: (newTags: string[]) => void;
-  suggestions: string[];
-  placeholder?: string;
-  maxTags?: number;
-  label?: string;
-  className?: string;
-}
-
-interface Option {
+interface TagOption {
   label: string;
   value: string;
 }
 
+interface TagInputProps {
+  value: string[];
+  onChange: (tags: string[]) => void;
+  suggestions?: string[];
+  placeholder?: string;
+  maxTags?: number;
+  className?: string;
+}
+
 const TagInput: React.FC<TagInputProps> = ({
-  value,
+  value = [],
   onChange,
-  suggestions,
-  placeholder = 'Type to add...',
+  suggestions = [],
+  placeholder = 'Add tags...',
   maxTags = 10,
-  label,
   className = ''
 }) => {
-  // Convert current tags to react-select format
-  const selectedOptions = value.map(tag => ({ label: tag, value: tag }));
+  const [inputValue, setInputValue] = useState('');
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
-  // Setup fuzzy search with Fuse.js
-  const fuse = useMemo(() => new Fuse(suggestions, {
-    keys: ['label'],
-    threshold: 0.3,
-    distance: 100
-  }), [suggestions]);
+  // Detect dark mode
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    };
 
-  // Custom filter function that uses fuzzy search
-  const filterOptions = (inputValue: string) => {
-    if (!inputValue) {
-      return suggestions.map(tag => ({ label: tag, value: tag }));
-    }
-
-    // Get fuzzy search results
-    const results = fuse.search(inputValue);
+    checkDarkMode();
     
-    // Filter out already selected tags
-    return results
-      .map(result => ({ label: result.item, value: result.item }))
-      .filter(option => !value.includes(option.value))
-      .slice(0, 10); // Limit to 10 suggestions
-  };
+    // Create observer to watch for dark mode changes
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
 
-  const handleChange = (
-    newValue: MultiValue<Option>,
-    actionMeta: ActionMeta<Option>
-  ) => {
+    return () => observer.disconnect();
+  }, []);
+
+  // Convert tags to options format
+  const selectedOptions = useMemo(
+    () => value.map(tag => ({ label: tag, value: tag })),
+    [value]
+  );
+
+  // Create suggestion options, filtering out already selected
+  const suggestionOptions = useMemo(
+    () => suggestions
+      .filter(suggestion => !value.includes(suggestion))
+      .map(suggestion => ({ label: suggestion, value: suggestion })),
+    [suggestions, value]
+  );
+
+  // Filter suggestions based on input
+  const filteredOptions = useMemo(() => {
+    if (!inputValue.trim()) return suggestionOptions.slice(0, 10);
+    
+    return suggestionOptions
+      .filter(option => 
+        option.label.toLowerCase().includes(inputValue.toLowerCase())
+      )
+      .slice(0, 10);
+  }, [suggestionOptions, inputValue]);
+
+  const handleChange = (newValue: MultiValue<TagOption>, _actionMeta: ActionMeta<TagOption>) => {
     const newTags = newValue.map(option => option.value);
     onChange(newTags);
   };
 
-  const handleCreate = (inputValue: string) => {
+  const handleInputChange = (newValue: string) => {
+    setInputValue(newValue);
+  };
+
+  const handleCreateOption = (inputValue: string) => {
     const trimmedValue = inputValue.trim();
     
-    // Basic validation
-    if (trimmedValue.length < 2) {
-      alert('Tags must be at least 2 characters long');
-      return;
-    }
-    
-    if (trimmedValue.length > 20) {
-      alert('Tags cannot be longer than 20 characters');
-      return;
-    }
+    if (!trimmedValue) return;
 
     if (value.length >= maxTags) {
       alert(`Maximum of ${maxTags} tags allowed`);
       return;
     }
 
-    // Check for duplicates (case-insensitive)
     if (value.some(tag => tag.toLowerCase() === trimmedValue.toLowerCase())) {
       alert('This tag has already been added');
       return;
     }
 
     onChange([...value, trimmedValue]);
+    setInputValue('');
   };
 
+  // Theme-aware styles
+  const getStyles = () => ({
+    control: (base: any, state: any) => ({
+      ...base,
+      backgroundColor: isDarkMode ? '#374151' : '#ffffff',
+      borderColor: state.isFocused 
+        ? (isDarkMode ? '#60a5fa' : '#3b82f6')
+        : (isDarkMode ? '#4b5563' : '#d1d5db'),
+      boxShadow: state.isFocused 
+        ? `0 0 0 1px ${isDarkMode ? '#60a5fa' : '#3b82f6'}` 
+        : 'none',
+      '&:hover': {
+        borderColor: isDarkMode ? '#60a5fa' : '#3b82f6',
+      },
+      color: isDarkMode ? '#f9fafb' : '#111827',
+      minHeight: '38px',
+    }),
+    input: (base: any) => ({
+      ...base,
+      color: isDarkMode ? '#f9fafb' : '#111827',
+    }),
+    placeholder: (base: any) => ({
+      ...base,
+      color: isDarkMode ? '#9ca3af' : '#6b7280',
+    }),
+    singleValue: (base: any) => ({
+      ...base,
+      color: isDarkMode ? '#f9fafb' : '#111827',
+    }),
+    multiValue: (base: any) => ({
+      ...base,
+      backgroundColor: isDarkMode ? '#1f2937' : '#eff6ff',
+      borderRadius: '6px',
+      border: isDarkMode ? '1px solid #374151' : 'none',
+    }),
+    multiValueLabel: (base: any) => ({
+      ...base,
+      color: isDarkMode ? '#93c5fd' : '#1e40af',
+      fontWeight: '500',
+    }),
+    multiValueRemove: (base: any) => ({
+      ...base,
+      color: isDarkMode ? '#9ca3af' : '#6b7280',
+      '&:hover': {
+        backgroundColor: isDarkMode ? '#dc2626' : '#fecaca',
+        color: isDarkMode ? '#fef2f2' : '#dc2626',
+      },
+    }),
+    option: (base: any, state: any) => ({
+      ...base,
+      backgroundColor: state.isSelected 
+        ? (isDarkMode ? '#1d4ed8' : '#3b82f6')
+        : state.isFocused 
+          ? (isDarkMode ? '#374151' : '#eff6ff')
+          : (isDarkMode ? '#1f2937' : '#ffffff'),
+      color: state.isSelected 
+        ? '#ffffff' 
+        : (isDarkMode ? '#f9fafb' : '#374151'),
+      '&:active': {
+        backgroundColor: isDarkMode ? '#4b5563' : '#dbeafe',
+      },
+    }),
+    menu: (base: any) => ({
+      ...base,
+      backgroundColor: isDarkMode ? '#1f2937' : '#ffffff',
+      border: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb',
+      boxShadow: isDarkMode 
+        ? '0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2)'
+        : '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+      zIndex: 50,
+    }),
+    menuList: (base: any) => ({
+      ...base,
+      backgroundColor: isDarkMode ? '#1f2937' : '#ffffff',
+    }),
+    noOptionsMessage: (base: any) => ({
+      ...base,
+      color: isDarkMode ? '#9ca3af' : '#6b7280',
+    }),
+    loadingMessage: (base: any) => ({
+      ...base,
+      color: isDarkMode ? '#9ca3af' : '#6b7280',
+    }),
+  });
+
   return (
-    <div className={className}>
-      {label && (
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          {label}
-        </label>
-      )}
-      <CreatableSelect<Option, true>
+    <div className={`tag-input ${className}`}>
+      <CreatableSelect
         isMulti
-        options={filterOptions('')}
         value={selectedOptions}
         onChange={handleChange}
-        onCreateOption={handleCreate}
+        onCreateOption={handleCreateOption}
+        onInputChange={handleInputChange}
+        inputValue={inputValue}
+        options={filteredOptions}
         placeholder={placeholder}
-        className="react-select-container"
-        classNamePrefix="react-select"
-        formatCreateLabel={(inputValue) => `Add "${inputValue}"`}
+        isClearable={false}
+        isSearchable={true}
+        createOptionPosition="first"
+        formatCreateLabel={(inputValue) => `Create "${inputValue}"`}
         noOptionsMessage={({ inputValue }) => 
-          inputValue ? 'No matching suggestions' : 'Start typing to see suggestions'
+          inputValue ? `No matching tags for "${inputValue}"` : 'Start typing to search tags...'
         }
+        classNamePrefix="react-select"
         maxMenuHeight={200}
         menuPlacement="auto"
-        onInputChange={(newValue, actionMeta) => {
-          return newValue;
-        }}
-        styles={{
-          control: (base) => ({
-            ...base,
-            borderColor: '#D1D5DB',
-            '&:hover': {
-              borderColor: '#9CA3AF'
-            }
-          }),
-          multiValue: (base) => ({
-            ...base,
-            backgroundColor: '#E5E7EB',
-            borderRadius: '9999px'
-          }),
-          multiValueLabel: (base) => ({
-            ...base,
-            color: '#374151',
-            padding: '2px 8px'
-          }),
-          multiValueRemove: (base) => ({
-            ...base,
-            color: '#4B5563',
-            ':hover': {
-              backgroundColor: '#D1D5DB',
-              color: '#1F2937'
-            }
-          })
-        }}
+        styles={getStyles()}
       />
+      {value.length > 0 && (
+        <div className="mt-2 text-sm text-gray-500 dark:text-gray-400 transition-colors">
+          {value.length}/{maxTags} tags used
+        </div>
+      )}
     </div>
   );
 };

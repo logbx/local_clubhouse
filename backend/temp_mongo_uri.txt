@@ -1,0 +1,1 @@
+MONGODB_URI=mongodb+srv://logan:t61PWkJEcdYDoquy@cluster0.xl3zc.mongodb.net/local-clubhouse?retryWrites=true&w=majority

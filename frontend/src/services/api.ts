@@ -1,20 +1,32 @@
-import axios, { 
-  AxiosInstance, 
-  InternalAxiosRequestConfig, 
-  AxiosResponse, 
-  AxiosError 
-} from 'axios';
+import axios, { AxiosResponse, AxiosError } from 'axios';
+import type { InternalAxiosRequestConfig } from 'axios';
 import { endpoints } from '../config/api';
 import { envConfig } from '../config/env';
 import { Event, CreateEventDto, UpdateEventDto, SubGroup } from '../types/event';
 
 const baseURL = envConfig.apiUrl;
 
-export const api: AxiosInstance = axios.create({
+console.log('🔧 API Configuration Debug:', {
+  baseURL,
+  envConfig,
+  nodeEnv: process.env.NODE_ENV,
+  viteMode: import.meta.env.MODE,
+  viteDev: import.meta.env.DEV,
+  windowLocation: window.location.href
+});
+
+export const api = axios.create({
   baseURL,
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+// Add debug logging to API instance
+console.log('📡 Axios instance created with:', {
+  baseURL: api.defaults.baseURL,
+  headers: api.defaults.headers,
+  timeout: api.defaults.timeout
 });
 
 let isRefreshing = false;
@@ -34,6 +46,30 @@ const processQueue = (error: any = null, token: string | null = null) => {
 // Request interceptor
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // Add debug logging for all requests
+    console.log('🌐 API Request:', {
+      method: config.method?.toUpperCase(),
+      url: config.url,
+      baseURL: config.baseURL,
+      fullURL: `${config.baseURL}${config.url}`,
+      data: config.data,
+      headers: config.headers
+    });
+    
+    // Add development-specific cache-busting headers
+    const isDev = import.meta.env.DEV;
+    if (isDev && config.headers) {
+      config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+      config.headers['Pragma'] = 'no-cache';
+      config.headers['Expires'] = '0';
+      
+      // Add cache-busting parameter for POST/PUT/DELETE requests
+      if (config.method && ['post', 'put', 'delete', 'patch'].includes(config.method.toLowerCase())) {
+        const separator = config.url?.includes('?') ? '&' : '?';
+        config.url = `${config.url}${separator}_t=${Date.now()}`;
+      }
+    }
+    
     // Don't add Authorization header for auth endpoints
     const authEndpoints = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh'];
     const isAuthEndpoint = authEndpoints.some(endpoint => config.url?.includes(endpoint));
@@ -42,11 +78,15 @@ api.interceptors.request.use(
       const token = localStorage.getItem('accessToken');
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
+        console.log('🔑 Added authorization header to request');
+      } else {
+        console.log('⚠️ No token found for non-auth endpoint');
       }
     }
     return config;
   },
   (error: AxiosError) => {
+    console.error('❌ Request interceptor error:', error);
     return Promise.reject(error);
   }
 );

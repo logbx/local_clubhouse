@@ -58,4 +58,5 @@ export interface Conversation {
   username: string;
   profileImage?: string;
   lastMessage?: Message;
+  unreadCount?: number;
 } 

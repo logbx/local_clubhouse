@@ -8,7 +8,7 @@ class EventService {
     try {
       const event = new Event({
         ...eventData,
-        organizerId,
+        creator: organizerId,
         status: 'DRAFT',
         rsvps: []
       });
@@ -38,22 +38,22 @@ class EventService {
           query.status = 'DRAFT';
         } else {
           // For non-draft events, check if they're past
-          query.$or = [
-            {
-              status: filters.status,
-              endTime: { $gt: now }
-            },
-            {
-              status: 'PAST'
-            }
-          ];
+                  query.$or = [
+          {
+            status: filters.status,
+            endDate: { $gt: now }
+          },
+          {
+            status: 'PAST'
+          }
+        ];
         }
       } else {
         // If no status filter, still respect past events
         query.$or = [
           {
             status: { $ne: 'DRAFT' },
-            endTime: { $gt: now }
+            endDate: { $gt: now }
           },
           {
             status: 'PAST'
@@ -65,7 +65,7 @@ class EventService {
       }
 
       if (filters.visibility) query.visibility = filters.visibility;
-      if (filters.organizerId) query.organizerId = new mongoose.Types.ObjectId(filters.organizerId);
+      if (filters.organizerId) query.creator = new mongoose.Types.ObjectId(filters.organizerId);
       if (filters.tags?.length) query.tags = { $in: filters.tags };
       if (filters.startTime || filters.endTime) {
         query.startTime = {};
@@ -77,7 +77,7 @@ class EventService {
       await Event.updateMany(
         {
           status: { $ne: 'DRAFT' },
-          endTime: { $lt: now }
+          endDate: { $lt: now }
         },
         {
           $set: { status: 'PAST' }
@@ -85,8 +85,8 @@ class EventService {
       );
 
       return await Event.find(query)
-        .populate('organizerId', 'username email')
-        .sort({ startTime: 1 });
+        .populate('creator', 'username email')
+        .sort({ startDate: 1 });
     } catch (error) {
       throw createError(400, 'Failed to fetch events');
     }
@@ -95,7 +95,7 @@ class EventService {
   // Get a single event by ID
   async getEventById(eventId: string): Promise<IEvent> {
     try {
-      const event = await Event.findById(eventId).populate('organizerId', 'username email');
+      const event = await Event.findById(eventId).populate('creator', 'username email');
 
       if (!event) {
         throw createError(404, 'Event not found');
@@ -103,7 +103,7 @@ class EventService {
 
       // Update status if event is past
       const now = new Date();
-      if (event.status !== 'DRAFT' && event.endTime < now && event.status !== 'PAST') {
+      if (event.status !== 'DRAFT' && event.endDate < now && event.status !== 'PAST') {
         event.status = 'PAST';
         await event.save();
       }
@@ -124,7 +124,7 @@ class EventService {
         throw createError(404, 'Event not found');
       }
 
-      if (event.organizerId.toString() !== organizerId) {
+      if (event.creator.toString() !== organizerId) {
         throw createError(403, 'Not authorized to update this event');
       }
 
@@ -133,7 +133,7 @@ class EventService {
       await event.save();
 
       // Return populated event
-      return await Event.findById(eventId).populate('organizerId', 'username email') as IEvent;
+      return await Event.findById(eventId).populate('creator', 'username email') as IEvent;
     } catch (error) {
       if (error.status) throw error;
       throw createError(400, 'Failed to update event');
@@ -149,7 +149,7 @@ class EventService {
         throw createError(404, 'Event not found');
       }
 
-      if (event.organizerId.toString() !== organizerId) {
+      if (event.creator.toString() !== organizerId) {
         throw createError(403, 'Not authorized to delete this event');
       }
 
@@ -178,7 +178,7 @@ class EventService {
       event.rsvps.push(userObjectId);
       await event.save();
 
-      return await Event.findById(eventId).populate('organizerId', 'username email') as IEvent;
+      return await Event.findById(eventId).populate('creator', 'username email') as IEvent;
     } catch (error) {
       if (error.status) throw error;
       throw createError(400, 'Failed to RSVP to event');
@@ -204,7 +204,7 @@ class EventService {
       event.rsvps.splice(rsvpIndex, 1);
       await event.save();
 
-      return await Event.findById(eventId).populate('organizerId', 'username email') as IEvent;
+      return await Event.findById(eventId).populate('creator', 'username email') as IEvent;
     } catch (error) {
       if (error.status) throw error;
       throw createError(400, 'Failed to cancel RSVP');
@@ -215,12 +215,12 @@ class EventService {
   async getUserEvents(userId: string, type: 'organized' | 'rsvped'): Promise<IEvent[]> {
     try {
       const query = type === 'organized' 
-        ? { organizerId: new mongoose.Types.ObjectId(userId) }
+        ? { creator: new mongoose.Types.ObjectId(userId) }
         : { rsvps: new mongoose.Types.ObjectId(userId) };
 
       return await Event.find(query)
-        .populate('organizerId', 'username email')
-        .sort({ startTime: 1 });
+        .populate('creator', 'username email')
+        .sort({ startDate: 1 });
     } catch (error) {
       throw createError(400, 'Failed to fetch user events');
     }

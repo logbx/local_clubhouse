@@ -259,26 +259,26 @@ const ProfileSetupPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-black py-12 px-4 sm:px-6 lg:px-8 transition-colors duration-200">
       <div className="max-w-3xl mx-auto">
-        <div className="bg-white shadow sm:rounded-lg">
+        <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm shadow-lg dark:shadow-gray-900/20 sm:rounded-lg border border-gray-200/50 dark:border-gray-700/50 transition-colors duration-200">
           <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg leading-6 font-medium text-gray-900">
+            <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">
               Complete Your Profile
             </h3>
-            <div className="mt-2 max-w-xl text-sm text-gray-500">
+            <div className="mt-2 max-w-xl text-sm text-gray-500 dark:text-gray-400">
               <p>Please provide some information about yourself to get started.</p>
             </div>
             <form onSubmit={handleSubmit} className="mt-5 space-y-6">
               {/* Profile Image Upload */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Profile Image
                 </label>
                 <div className="flex items-center space-x-8">
                   {/* Avatar preview or placeholder */}
                   <div className="flex-shrink-0">
-                    <div className="w-32 h-32 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
+                    <div className="w-32 h-32 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
                       {imagePreview ? (
                         <img
                           src={imagePreview}
@@ -286,7 +286,7 @@ const ProfileSetupPage: React.FC = () => {
                           className="w-full h-full object-cover rounded-full"
                         />
                       ) : (
-                        <svg className="w-16 h-16 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="w-16 h-16 text-gray-300 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14c3.866 0 7 1.343 7 3v1a1 1 0 01-1 1H6a1 1 0 01-1-1v-1c0-1.657 3.134-3 7-3zm0-2a4 4 0 100-8 4 4 0 000 8z" />
                         </svg>
                       )}
@@ -294,7 +294,7 @@ const ProfileSetupPage: React.FC = () => {
                   </div>
                   {/* Change Photo link and note (using a label to trigger the hidden input) */}
                   <div>
-                    <label className="inline-block text-blue-600 font-medium cursor-pointer hover:underline">
+                    <label className="inline-block text-blue-600 dark:text-blue-400 font-medium cursor-pointer hover:underline">
                       Change Photo
                       <input
                         type="file"
@@ -303,20 +303,20 @@ const ProfileSetupPage: React.FC = () => {
                         onChange={handleFileChange}
                       />
                     </label>
-                    <div className="text-gray-500 text-sm mt-1">PNG, JPG up to 5MB</div>
+                    <div className="text-gray-500 dark:text-gray-400 text-sm mt-1">PNG, JPG up to 5MB</div>
                   </div>
                 </div>
                 {errors.profileImage && (
-                  <p className="mt-2 text-sm text-red-600">{errors.profileImage}</p>
+                  <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.profileImage}</p>
                 )}
               </div>
 
               {/* Username */}
               <div>
-                <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Username <span className="text-red-500">*</span>
                 </label>
-                <p className="text-xs text-gray-500 mb-2">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
                   Choose a unique handle for @mentions and search (e.g., john_doe123). Only lowercase letters, numbers, and underscores allowed.
                 </p>
                 <input
@@ -329,26 +329,26 @@ const ProfileSetupPage: React.FC = () => {
                     setFormData(prev => ({ ...prev, username: value }));
                     setErrors(prev => ({ ...prev, username: '' }));
                   }}
-                  className={`mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md bg-white ${errors.username ? 'border-red-300' : ''}`}
+                  className={`mt-1 block w-full px-3 py-2 border ${errors.username ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'} rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 transition-colors`}
                   placeholder="your_username123"
                 />
                 {errors.username && (
-                  <p className="mt-1 text-sm text-red-600">{errors.username}</p>
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.username}</p>
                 )}
               </div>
 
               {/* Roles */}
               <div>
-                <label className="block text-lg font-semibold text-gray-900 mb-1">
+                <label className="block text-lg font-semibold text-gray-900 dark:text-white mb-1">
                   Select Your Role(s)
                 </label>
-                <p className="text-sm text-gray-500 mb-4">You can select more than one role.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">You can select more than one role.</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {AVAILABLE_ROLES.map((role) => (
                     <label
                       key={role}
                       htmlFor={`role-${role}`}
-                      className={`flex items-start p-4 rounded-lg border border-gray-200 cursor-pointer hover:border-blue-500 transition-colors ${(formData.roles || []).includes(role) ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50' : ''}`}
+                      className={`flex items-start p-4 rounded-lg border cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 transition-colors ${(formData.roles || []).includes(role) ? 'ring-2 ring-blue-500 dark:ring-blue-400 border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-600 bg-white/50 dark:bg-gray-700/50'}`}
                     >
                       <input
                         type="checkbox"
@@ -358,7 +358,7 @@ const ProfileSetupPage: React.FC = () => {
                         className="sr-only peer"
                       />
                       <span
-                        className="mr-3 mt-1 flex items-center justify-center w-5 h-5 border border-gray-300 rounded bg-white peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-colors"
+                        className="mr-3 mt-1 flex items-center justify-center w-5 h-5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-colors"
                         aria-hidden="true"
                       >
                         {(formData.roles || []).includes(role) && (
@@ -370,21 +370,21 @@ const ProfileSetupPage: React.FC = () => {
                       <div>
                         <div className="flex items-center mb-1">
                           {ROLE_ICONS[role]}
-                          <span className="font-medium text-gray-900 text-base">{role.replace('_', ' ')}</span>
+                          <span className="font-medium text-gray-900 dark:text-white text-base">{role.replace('_', ' ')}</span>
                         </div>
-                        <p className="text-sm text-gray-600">{ROLE_DESCRIPTIONS[role]}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">{ROLE_DESCRIPTIONS[role]}</p>
                       </div>
                     </label>
                   ))}
                 </div>
                 {errors.roles && (
-                  <p className="mt-2 text-sm text-red-600">{errors.roles}</p>
+                  <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.roles}</p>
                 )}
               </div>
 
               {/* Phone Number (moved below Roles, restrict to 10 digits, numbers only) */}
               <div>
-                <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Phone Number <span className="text-gray-400">(Optional)</span>
                 </label>
                 <div className="mt-1">
@@ -400,21 +400,21 @@ const ProfileSetupPage: React.FC = () => {
                       setFormData(prev => ({ ...prev, phoneNumber: digits }));
                       setErrors(prev => ({ ...prev, phoneNumber: '' }));
                     }}
-                    className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border border-gray-300 rounded-md bg-white"
+                    className="shadow-sm focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 block w-full sm:text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
                     placeholder="(555) 123-4567"
                   />
                   {errors.phoneNumber && (
-                    <p className="mt 2 text-sm text-red-600">{errors.phoneNumber}</p>
+                    <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.phoneNumber}</p>
                   )}
                 </div>
               </div>
 
               {/* Interests */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Interests <span className="text-red-500">*</span>
                 </label>
-                <p className="text-xs text-gray-500 mb-2">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
                   Start typing to see suggestions, or type your own interests and press Enter to add them.
                 </p>
                 <div className="mt-2">
@@ -431,14 +431,14 @@ const ProfileSetupPage: React.FC = () => {
                     placeholder="Type to search and add interests..."
                   />
                   {errors.interests && (
-                    <p className="mt-2 text-sm text-red-600">{errors.interests}</p>
+                    <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.interests}</p>
                   )}
                 </div>
               </div>
 
               {/* Bio */}
               <div>
-                <label htmlFor="bio" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="bio" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Bio
                 </label>
                 <div className="mt-1">
@@ -447,7 +447,7 @@ const ProfileSetupPage: React.FC = () => {
                     rows={3}
                     value={formData.bio}
                     onChange={(e) => setFormData(prev => ({ ...prev, bio: e.target.value }))}
-                    className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border border-gray-300 rounded-md bg-white"
+                    className="shadow-sm focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 block w-full sm:text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
                     placeholder="Tell us about yourself"
                   />
                 </div>
@@ -458,10 +458,10 @@ const ProfileSetupPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white 
+                  className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white transition-colors
                     ${isSubmitting 
-                      ? 'bg-gray-400 cursor-not-allowed' 
-                      : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                      ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed' 
+                      : 'bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-blue-400'
                     }`}
                 >
                   {isSubmitting ? (
@@ -477,7 +477,7 @@ const ProfileSetupPage: React.FC = () => {
                   )}
                 </button>
                 {errors.submit && (
-                  <p className="mt-2 text-sm text-red-600 text-center">{errors.submit}</p>
+                  <p className="mt-2 text-sm text-red-600 dark:text-red-400 text-center">{errors.submit}</p>
                 )}
               </div>
             </form>

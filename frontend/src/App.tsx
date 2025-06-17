@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import AuthLayout from './components/AuthLayout';
@@ -26,7 +27,12 @@ import PublicEventPage from './pages/PublicEventPage';
 import FriendsDashboard from './pages/FriendsDashboard';
 import MessagesPage from './pages/MessagesPage';
 import MessageThreadPage from './pages/MessageThreadPage';
+import TournamentPage from './pages/TournamentPage';
+import TournamentManagePage from './pages/TournamentManagePage';
+import SingleEliminationTournament from './pages/SingleEliminationTournament';
+import { MatchResultsPage } from './pages/MatchResultsPage';
 import NotificationToast from './components/NotificationToast';
+import { notificationService } from './services/notification.service';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -39,10 +45,30 @@ const queryClient = new QueryClient({
   },
 });
 
+// Theme-aware ToastContainer component
+const ThemedToastContainer: React.FC = () => {
+  return (
+    <ToastContainer
+      position="top-right"
+      autoClose={5000}
+      hideProgressBar={false}
+      newestOnTop={false}
+      closeOnClick
+      rtl={false}
+      pauseOnFocusLoss
+      draggable
+      pauseOnHover
+      theme="colored"
+      className="dark:bg-gray-800"
+    />
+  );
+};
+
 const App: React.FC = () => {
   return (
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
         <AuthProvider>
           <NotificationToast />
           <Routes>
@@ -57,6 +83,7 @@ const App: React.FC = () => {
             {/* Public Profile and Event Routes with Layout */}
             <Route path="/user/:userId" element={<PublicLayout><PublicProfilePage /></PublicLayout>} />
             <Route path="/event/:eventId" element={<PublicLayout><PublicEventPage /></PublicLayout>} />
+            <Route path="/tournament/:tournamentId" element={<PublicLayout><TournamentPage /></PublicLayout>} />
 
             {/* Protected Routes */}
             <Route element={<ProtectedRoute />}>
@@ -69,6 +96,11 @@ const App: React.FC = () => {
                 <Route path="/friends" element={<FriendsDashboard />} />
                 <Route path="/messages" element={<MessagesPage />} />
                 <Route path="/messages/:userId" element={<MessageThreadPage />} />
+                <Route path="/tournament/manage" element={<TournamentManagePage />} />
+                <Route path="/tournament/:tournamentId/manage" element={<TournamentManagePage />} />
+                <Route path="/tournament/:tournamentId/results" element={<MatchResultsPage />} />
+                <Route path="/tournament/single-elimination" element={<SingleEliminationTournament />} />
+                <Route path="/match-results" element={<MatchResultsPage />} />
               </Route>
             </Route>
 
@@ -83,19 +115,9 @@ const App: React.FC = () => {
             <Route path="/unauthorized" element={<UnauthorizedPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
-          <ToastContainer
-            position="top-right"
-            autoClose={5000}
-            hideProgressBar={false}
-            newestOnTop={false}
-            closeOnClick
-            rtl={false}
-            pauseOnFocusLoss
-            draggable
-            pauseOnHover
-            theme="light"
-          />
+            <ThemedToastContainer />
         </AuthProvider>
+        </ThemeProvider>
       </QueryClientProvider>
     </BrowserRouter>
   );

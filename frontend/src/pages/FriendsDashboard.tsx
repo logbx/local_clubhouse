@@ -4,6 +4,7 @@ import { friendApi } from '../services/api';
 import { UserPlusIcon, UserMinusIcon } from '@heroicons/react/24/outline';
 import ChatModal from '../components/ChatModal';
 import FriendGroupList from '../components/FriendGroupList';
+import FriendsSearchBar from '../components/FriendsSearchBar';
 import { toast } from 'react-hot-toast';
 
 interface Friend {
@@ -26,6 +27,7 @@ const FriendsDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'friends' | 'requests' | 'groups'>('friends');
   const [chatOpen, setChatOpen] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   // Fetch friends and friend requests
   const { data: friendsData, isLoading: isLoadingFriends } = useQuery({
@@ -103,43 +105,52 @@ const FriendsDashboard: React.FC = () => {
     }
   });
 
+  const handleGroupSelect = (groupId: string) => {
+    setSelectedGroupId(groupId);
+    setActiveTab('groups');
+  };
+
   if (isLoadingFriends || isLoadingRequests) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 dark:border-primary-400"></div>
       </div>
     );
   }
 
   return (
     <div className="max-w-4xl mx-auto p-6">
+      {/* Search Bar */}
+      <FriendsSearchBar onGroupSelect={handleGroupSelect} />
+
+      {/* Tabs */}
       <div className="flex space-x-4 mb-6">
         <button
           onClick={() => setActiveTab('friends')}
-          className={`px-4 py-2 rounded-lg ${
+          className={`px-4 py-2 rounded-lg transition-colors ${
             activeTab === 'friends'
-              ? 'bg-gray-900 text-white'
-              : 'bg-gray-100 text-gray-700'
+              ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
           }`}
         >
           Friends {friends.length > 0 && `(${friends.length})`}
         </button>
         <button
           onClick={() => setActiveTab('requests')}
-          className={`px-4 py-2 rounded-lg ${
+          className={`px-4 py-2 rounded-lg transition-colors ${
             activeTab === 'requests'
-              ? 'bg-gray-900 text-white'
-              : 'bg-gray-100 text-gray-700'
+              ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
           }`}
         >
           Friend Requests {receivedRequests.length > 0 && `(${receivedRequests.length})`}
         </button>
         <button
           onClick={() => setActiveTab('groups')}
-          className={`px-4 py-2 rounded-lg ${
+          className={`px-4 py-2 rounded-lg transition-colors ${
             activeTab === 'groups'
-              ? 'bg-gray-900 text-white'
-              : 'bg-gray-100 text-gray-700'
+              ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
           }`}
         >
           Groups
@@ -149,12 +160,12 @@ const FriendsDashboard: React.FC = () => {
       {activeTab === 'friends' && (
         <div className="space-y-4">
           {friends.length === 0 ? (
-            <p className="text-gray-500">No friends yet</p>
+            <p className="text-gray-500 dark:text-gray-400 text-center py-8">No friends yet. Use the search bar above to find and connect with people!</p>
           ) : (
             friends.map((friend: Friend) => (
               <div
                 key={friend._id}
-                className="flex items-center justify-between p-4 bg-white rounded-lg shadow"
+                className="flex items-center justify-between p-4 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 transition-colors duration-200"
               >
                 <div className="flex items-center space-x-3">
                   {friend.profileImage ? (
@@ -164,16 +175,16 @@ const FriendsDashboard: React.FC = () => {
                       className="w-10 h-10 rounded-full"
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                      <span className="text-gray-500">
+                    <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                      <span className="text-gray-500 dark:text-gray-400">
                         {friend.username?.charAt(0)?.toUpperCase() || '?'}
                       </span>
                     </div>
                   )}
-                  <span className="font-medium">{friend.username}</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{friend.username}</span>
                 </div>
                 <button
-                  className="ml-4 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  className="ml-4 px-3 py-1 bg-primary-500 dark:bg-primary-600 text-white rounded-lg hover:bg-primary-600 dark:hover:bg-primary-700 transition-colors"
                   onClick={() => {
                     setSelectedFriend(friend);
                     setChatOpen(true);
@@ -201,12 +212,12 @@ const FriendsDashboard: React.FC = () => {
       {activeTab === 'requests' && (
         <div className="space-y-4">
           {receivedRequests.length === 0 ? (
-            <p className="text-gray-500">No friend requests</p>
+            <p className="text-gray-500 dark:text-gray-400 text-center py-8">No friend requests</p>
           ) : (
             receivedRequests.map((request: FriendRequest) => (
               <div
                 key={request._id}
-                className="flex items-center justify-between p-4 bg-white rounded-lg shadow"
+                className="flex items-center justify-between p-4 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 transition-colors duration-200"
               >
                 <div className="flex items-center space-x-3">
                   {request.profileImage ? (
@@ -216,13 +227,13 @@ const FriendsDashboard: React.FC = () => {
                       className="w-10 h-10 rounded-full"
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                      <span className="text-gray-500">
+                    <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                      <span className="text-gray-500 dark:text-gray-400">
                         {request.username?.charAt(0)?.toUpperCase() || '?'}
                       </span>
                     </div>
                   )}
-                  <span className="font-medium">{request.username}</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{request.username}</span>
                 </div>
                 <div className="flex space-x-2">
                   <button
@@ -230,7 +241,7 @@ const FriendsDashboard: React.FC = () => {
                       console.log('Accept clicked', request._id);
                       acceptRequestMutation.mutate(request._id);
                     }}
-                    className="p-2 text-green-600 hover:bg-green-50 rounded-full disabled:opacity-50"
+                    className="p-2 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-full disabled:opacity-50 transition-colors"
                     disabled={acceptRequestMutation.isPending}
                   >
                     <UserPlusIcon className="w-5 h-5" />
@@ -240,7 +251,7 @@ const FriendsDashboard: React.FC = () => {
                       console.log('Decline clicked', request._id);
                       declineRequestMutation.mutate(request._id);
                     }}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded-full disabled:opacity-50"
+                    className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full disabled:opacity-50 transition-colors"
                     disabled={declineRequestMutation.isPending}
                   >
                     <UserMinusIcon className="w-5 h-5" />
@@ -253,7 +264,7 @@ const FriendsDashboard: React.FC = () => {
       )}
 
       {activeTab === 'groups' && (
-        <FriendGroupList friends={friends} />
+        <FriendGroupList friends={friends} selectedGroupId={selectedGroupId} />
       )}
     </div>
   );

@@ -4,6 +4,7 @@ import { envConfig } from '../config/env';
 class WebSocketService {
   private socket: Socket | null = null;
   private token: string | null = null;
+  private connectionCallbacks: (() => void)[] = [];
 
   connect(token: string) {
     if (this.socket?.connected) {
@@ -20,6 +21,9 @@ class WebSocketService {
 
     this.socket.on('connect', () => {
       console.log('WebSocket connected');
+      // Notify any waiting callbacks
+      this.connectionCallbacks.forEach(callback => callback());
+      this.connectionCallbacks = [];
     });
 
     this.socket.on('disconnect', () => {
@@ -28,6 +32,12 @@ class WebSocketService {
 
     this.socket.on('connect_error', (error) => {
       console.error('WebSocket connection error:', error);
+    });
+
+    // Debug: Log all incoming events
+    const originalOn = this.socket.on.bind(this.socket);
+    this.socket.onAny((eventName, ...args) => {
+      console.log(`🔌 WebSocket Event: ${eventName}`, args);
     });
   }
 
@@ -40,8 +50,14 @@ class WebSocketService {
 
   // Join conversation room for one-on-one messages
   joinConversation(conversationId: string) {
-    if (this.socket) {
+    if (this.socket && this.socket.connected) {
+      console.log('🔌 WebSocketService: Joining conversation room:', conversationId);
       this.socket.emit('join-conversation', { conversationId });
+    } else {
+      console.warn('🔌 WebSocketService: Cannot join conversation - socket not connected', {
+        hasSocket: !!this.socket,
+        isConnected: this.socket?.connected || false
+      });
     }
   }
 
@@ -66,10 +82,28 @@ class WebSocketService {
     }
   }
 
+  // Join tournament room
+  joinTournament(tournamentId: string) {
+    if (this.socket) {
+      this.socket.emit('join-tournament', { tournamentId });
+    }
+  }
+
+  // Leave tournament room
+  leaveTournament(tournamentId: string) {
+    if (this.socket) {
+      this.socket.emit('leave-tournament', { tournamentId });
+    }
+  }
+
   // Listen for new messages
   onNewMessage(callback: (message: any) => void) {
     if (this.socket) {
-      this.socket.on('new-message', callback);
+      console.log('🔌 WebSocketService: Setting up new-message listener');
+      this.socket.on('new-message', (message) => {
+        console.log('🔌 WebSocketService: Received new-message event:', message);
+        callback(message);
+      });
     }
   }
 
@@ -114,6 +148,20 @@ class WebSocketService {
     }
   }
 
+  // Listen for tournament updates
+  onTournamentUpdate(callback: (update: any) => void) {
+    if (this.socket) {
+      this.socket.on('tournament-update', callback);
+    }
+  }
+
+  // Listen for match updates
+  onMatchUpdate(callback: (update: any) => void) {
+    if (this.socket) {
+      this.socket.on('match-update', callback);
+    }
+  }
+
   // Remove all listeners
   removeAllListeners() {
     if (this.socket) {
@@ -121,9 +169,26 @@ class WebSocketService {
     }
   }
 
+  // Remove tournament listeners
+  removeTournamentListeners() {
+    if (this.socket) {
+      this.socket.off('tournament-update');
+      this.socket.off('match-update');
+    }
+  }
+
   // Check if connected
   isConnected(): boolean {
     return this.socket?.connected || false;
+  }
+
+  // Wait for connection to be established
+  onConnected(callback: () => void) {
+    if (this.isConnected()) {
+      callback();
+    } else {
+      this.connectionCallbacks.push(callback);
+    }
   }
 }
 

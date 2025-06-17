@@ -139,6 +139,30 @@ export class AppWebSocketGateway implements OnGatewayInit, OnGatewayConnection, 
     }
   }
 
+  // Join a tournament room
+  @SubscribeMessage('join-tournament')
+  handleJoinTournament(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { tournamentId: string }
+  ) {
+    if (client.user) {
+      client.join(`tournament:${data.tournamentId}`);
+      this.logger.log(`User ${client.user.userId} joined tournament ${data.tournamentId}`);
+    }
+  }
+
+  // Leave a tournament room
+  @SubscribeMessage('leave-tournament')
+  handleLeaveTournament(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { tournamentId: string }
+  ) {
+    if (client.user) {
+      client.leave(`tournament:${data.tournamentId}`);
+      this.logger.log(`User ${client.user.userId} left tournament ${data.tournamentId}`);
+    }
+  }
+
   // Utility methods for broadcasting messages
   broadcastNewMessage(conversationId: string, message: any, excludeUserId?: string) {
     const roomName = `conversation:${conversationId}`;
@@ -200,5 +224,57 @@ export class AppWebSocketGateway implements OnGatewayInit, OnGatewayConnection, 
 
   broadcastFriendRequestUpdate(userId: string, update: any) {
     this.server.to(`user:${userId}`).emit('friend-request-update', update);
+  }
+
+  // Tournament broadcasting methods
+  broadcastTournamentUpdate(eventId: string, update: any, excludeUserId?: string) {
+    const roomName = `event:${eventId}`;
+    if (excludeUserId) {
+      const room = this.server.sockets.adapter.rooms.get(roomName);
+      if (room) {
+        room.forEach((socketId) => {
+          const socket = this.server.sockets.sockets.get(socketId) as AuthenticatedSocket;
+          if (socket && socket.user?.userId !== excludeUserId) {
+            socket.emit('tournament-update', update);
+          }
+        });
+      }
+    } else {
+      this.server.to(roomName).emit('tournament-update', update);
+    }
+  }
+
+  broadcastTournamentToParticipants(tournamentId: string, update: any, excludeUserId?: string) {
+    const roomName = `tournament:${tournamentId}`;
+    if (excludeUserId) {
+      const room = this.server.sockets.adapter.rooms.get(roomName);
+      if (room) {
+        room.forEach((socketId) => {
+          const socket = this.server.sockets.sockets.get(socketId) as AuthenticatedSocket;
+          if (socket && socket.user?.userId !== excludeUserId) {
+            socket.emit('tournament-update', update);
+          }
+        });
+      }
+    } else {
+      this.server.to(roomName).emit('tournament-update', update);
+    }
+  }
+
+  broadcastMatchUpdate(tournamentId: string, matchUpdate: any, excludeUserId?: string) {
+    const roomName = `tournament:${tournamentId}`;
+    if (excludeUserId) {
+      const room = this.server.sockets.adapter.rooms.get(roomName);
+      if (room) {
+        room.forEach((socketId) => {
+          const socket = this.server.sockets.sockets.get(socketId) as AuthenticatedSocket;
+          if (socket && socket.user?.userId !== excludeUserId) {
+            socket.emit('match-update', matchUpdate);
+          }
+        });
+      }
+    } else {
+      this.server.to(roomName).emit('match-update', matchUpdate);
+    }
   }
 } 

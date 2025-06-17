@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog } from '@headlessui/react';
-import { Event, EventFormData, EventStatus, EventVisibility, RecurrenceType } from '../types/event';
+import { Event, EventFormData, EventStatus, EventVisibility, RecurrenceType, EventFeatures } from '../types/event';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { eventApi } from '../services/api';
-import { XMarkIcon, PhotoIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, PhotoIcon, CalendarIcon, MapPinIcon, ClockIcon } from '@heroicons/react/24/outline';
 import TagInput from './TagInput';
 import { commonEventTags } from '../data/suggestions';
 import { FileUpload } from './FileUpload';
@@ -25,6 +25,7 @@ const initialFormData: EventFormData = {
   visibility: EventVisibility.PUBLIC,
   recurrence: RecurrenceType.NONE,
   tags: [],
+  features: [],
   status: EventStatus.DRAFT,
 };
 
@@ -60,6 +61,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
         visibility: event.visibility || EventVisibility.PUBLIC,
         recurrence: event.recurrence || RecurrenceType.NONE,
         tags: event.tags || [],
+        features: event.features || [],
         status: event.status || EventStatus.DRAFT,
       });
       if (event.imageUrl) {
@@ -140,7 +142,8 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
       endDate: endDate.toISOString(),
       cost: Number(formData.cost),
       isFree: String(formData.isFree),
-      tags: JSON.stringify(formData.tags || [])
+      tags: JSON.stringify(formData.tags || []),
+      features: JSON.stringify(formData.features || [])
     };
 
     // Append all form data
@@ -267,31 +270,31 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
 
   return (
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
-      <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+      <div className="fixed inset-0 bg-black/40 dark:bg-black/60" aria-hidden="true" />
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="mx-auto max-w-2xl w-full bg-white rounded-xl shadow-lg flex flex-col max-h-[90vh]">
-          <div className="flex justify-between items-center p-6 border-b shrink-0">
-            <Dialog.Title className="text-xl font-semibold">
+        <Dialog.Panel className="mx-auto max-w-2xl w-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl shadow-lg dark:shadow-gray-900/30 flex flex-col max-h-[90vh] border border-gray-200/50 dark:border-gray-700/50 transition-colors duration-200">
+          <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
+            <Dialog.Title className="text-xl font-semibold text-gray-900 dark:text-white">
               {event ? 'Edit Event' : 'Create New Event'}
             </Dialog.Title>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-500"
+              className="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300 transition-colors"
             >
               <XMarkIcon className="h-6 w-6" />
             </button>
           </div>
 
           {showPastDateWarning && (
-            <div className="p-4 bg-yellow-50 border-l-4 border-yellow-400">
+            <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 dark:border-yellow-500">
               <div className="flex">
                 <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                  <svg className="h-5 w-5 text-yellow-400 dark:text-yellow-500" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M8.485 3.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 3.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
                   </svg>
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm text-yellow-700">
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300">
                     This event's end date has already passed. Consider updating the dates or marking it as a past event.
                   </p>
                 </div>
@@ -303,10 +306,10 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
             <div className="flex-1 overflow-y-auto">
               <div className="p-6 space-y-6">
             <div className="space-y-4">
-              <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                <label className="block text-sm font-medium text-gray-700 mb-3">
+              <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-700/50">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                   Event Image
-                  <span className="text-xs text-gray-500 ml-2">(Recommended for better visibility)</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">(Recommended for better visibility)</span>
                 </label>
                 
                 {!imagePreview ? (
@@ -321,7 +324,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
                   />
                 ) : (
                   <div className="space-y-3">
-                    <div className="relative w-full h-48 rounded-lg overflow-hidden bg-gray-100">
+                    <div className="relative w-full h-48 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-600">
                       <img 
                         src={imagePreview} 
                         alt="Event preview" 
@@ -334,7 +337,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
                             setFormData(prev => ({ ...prev, imageUrl: '' }));
                             setImagePreview('');
                           }}
-                          className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-colors duration-200 shadow-lg"
+                          className="absolute top-2 right-2 bg-red-500 dark:bg-red-600 text-white p-2 rounded-full hover:bg-red-600 dark:hover:bg-red-700 transition-colors duration-200 shadow-lg"
                           title="Remove image"
                         >
                           <XMarkIcon className="h-4 w-4" />
@@ -342,14 +345,14 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
-                      <p className="text-sm text-gray-600">✓ Image uploaded successfully</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">✓ Image uploaded successfully</p>
                       <button
                         type="button"
                         onClick={() => {
                           setFormData(prev => ({ ...prev, imageUrl: '' }));
                           setImagePreview('');
                         }}
-                        className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                        className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium transition-colors"
                       >
                         Change Image
                       </button>
@@ -359,7 +362,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
               </div>
 
               <div>
-                <label htmlFor="title" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Title
                 </label>
                 <input
@@ -367,13 +370,13 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
                   id="title"
                   value={formData.title}
                   onChange={e => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 bg-white text-gray-900"
+                      className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
                   required
                 />
               </div>
 
               <div>
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Description
                 </label>
                 <textarea
@@ -381,14 +384,14 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
                   value={formData.description}
                   onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
                   rows={3}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 bg-white text-gray-900"
+                      className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
                   required
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="startDate" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Start Date & Time
                   </label>
                   <input
@@ -396,13 +399,13 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
                     id="startDate"
                     value={formData.startDate}
                     onChange={e => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 bg-white text-gray-900"
+                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
                     required
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="endDate" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     End Date & Time
                   </label>
                   <input
@@ -410,14 +413,14 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
                     id="endDate"
                     value={formData.endDate}
                     onChange={e => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 bg-white text-gray-900"
+                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="location" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="location" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Location
                 </label>
                 <input
@@ -425,26 +428,26 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
                   id="location"
                   value={formData.location}
                   onChange={e => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 bg-white text-gray-900"
+                      className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
                   required
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="cost" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="cost" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Cost
                   </label>
                   <div className="mt-1 relative rounded-md shadow-sm">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <span className="text-gray-500 sm:text-sm">$</span>
+                      <span className="text-gray-500 dark:text-gray-400 sm:text-sm">$</span>
                     </div>
                     <input
                       type="number"
                       id="cost"
                       value={formData.cost}
                       onChange={e => setFormData(prev => ({ ...prev, cost: Number(e.target.value) }))}
-                          className="pl-7 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 bg-white text-gray-900"
+                          className="pl-7 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
                       disabled={formData.isFree}
                     />
                   </div>
@@ -456,23 +459,23 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
                     id="isFree"
                     checked={formData.isFree}
                     onChange={e => setFormData(prev => ({ ...prev, isFree: e.target.checked }))}
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-primary-600 dark:text-primary-500 focus:ring-primary-500 dark:focus:ring-primary-400 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
                   />
-                  <label htmlFor="isFree" className="ml-2 block text-sm text-gray-700">
+                  <label htmlFor="isFree" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
                     This is a free event
                   </label>
                 </div>
               </div>
 
               <div>
-                <label htmlFor="visibility" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="visibility" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Visibility
                 </label>
                 <select
                   id="visibility"
                   value={formData.visibility}
                   onChange={e => setFormData(prev => ({ ...prev, visibility: e.target.value as EventVisibility }))}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 bg-white text-gray-900"
+                      className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
                 >
                   <option value={EventVisibility.PUBLIC}>Public</option>
                   <option value={EventVisibility.PRIVATE}>Private</option>
@@ -480,14 +483,14 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
               </div>
 
               <div>
-                <label htmlFor="recurrence" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="recurrence" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Recurrence
                 </label>
                 <select
                   id="recurrence"
                   value={formData.recurrence}
                   onChange={e => setFormData(prev => ({ ...prev, recurrence: e.target.value as RecurrenceType }))}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 bg-white text-gray-900"
+                      className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
                 >
                   <option value="NONE">None</option>
                   <option value="DAILY">Daily</option>
@@ -498,7 +501,28 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
               </div>
 
               <div>
-                <label htmlFor="tags" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="features" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Features
+                </label>
+                <select
+                  id="features"
+                  value={formData.features && formData.features.length > 0 ? formData.features[0] : EventFeatures.NONE}
+                  onChange={e => {
+                    const value = e.target.value as EventFeatures;
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      features: value === EventFeatures.NONE ? [] : [value]
+                    }));
+                  }}
+                  className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+                >
+                  <option value={EventFeatures.NONE}>None</option>
+                  <option value={EventFeatures.SINGLE_ELIMINATION_TOURNAMENT}>Single Elimination Tournament</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="tags" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Tags
                 </label>
                     <TagInput
@@ -513,25 +537,25 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
               </div>
             </div>
 
-            <div className="flex justify-end space-x-4 p-6 border-t shrink-0 bg-white">
+            <div className="flex justify-end space-x-4 p-6 border-t border-gray-200 dark:border-gray-700 shrink-0 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-primary-400 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={(e) => handleSubmit(e, true)}
-                className="px-4 py-2 text-sm font-medium text-primary-700 bg-primary-100 border border-transparent rounded-md shadow-sm hover:bg-primary-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                className="px-4 py-2 text-sm font-medium text-primary-700 dark:text-primary-300 bg-primary-100 dark:bg-primary-900/30 border border-transparent rounded-md shadow-sm hover:bg-primary-200 dark:hover:bg-primary-900/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-primary-400 transition-colors"
               >
                 Save as Draft
               </button>
               <button
                 type="submit"
                 onClick={(e) => handleSubmit(e, false)}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 dark:bg-primary-500 border border-transparent rounded-md shadow-sm hover:bg-primary-700 dark:hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-primary-400 transition-colors"
               >
                 {event ? 'Update Event' : 'Create Event'}
               </button>

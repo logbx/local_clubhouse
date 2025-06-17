@@ -9,11 +9,13 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { EventsModule } from './events/events.module';
+import { TournamentsModule } from './tournaments/tournaments.module';
 import { SearchModule } from './search/search.module';
 import { EventMessagesModule } from './event-messages/event-messages.module';
 import { EventSubGroupsModule } from './event-subgroups/event-subgroups.module';
 import { FriendsModule } from './friends/friends.module';
 import { FriendGroupsModule } from './friend-groups/friend-groups.module';
+import { GroupMessagesModule } from './group-messages/group-messages.module';
 import { MessagesModule } from './messages/messages.module';
 import { UploadModule } from './modules/upload.module';
 import { WebSocketModule } from './websocket/websocket.module';
@@ -69,11 +71,13 @@ import { EventMessageService } from './services/eventMessage.service';
     AuthModule,
     UsersModule,
     EventsModule,
+    TournamentsModule,
     SearchModule,
     EventMessagesModule,
     EventSubGroupsModule,
     FriendsModule,
     FriendGroupsModule,
+    GroupMessagesModule,
     MessagesModule,
     UploadModule,
     HealthModule,

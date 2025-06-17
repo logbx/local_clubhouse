@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import ThemeSettings from '../components/ThemeSettings';
 import api from '../services/api';
 
 const SettingsPage = () => {
@@ -40,22 +41,30 @@ const SettingsPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-white shadow">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-200">
+      <header className="bg-white dark:bg-gray-800 shadow transition-colors duration-200">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
         </div>
       </header>
       <main>
-        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 space-y-6">
+          {/* Theme Settings Section */}
+          <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-lg transition-colors duration-200">
             <div className="px-4 py-5 sm:px-6">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">Password</h3>
-              <p className="mt-1 max-w-2xl text-sm text-gray-500">Update your password</p>
+              <ThemeSettings />
             </div>
-            <div className="border-t border-gray-200 px-4 py-5 sm:px-6">
+          </div>
+
+          {/* Password Section */}
+          <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-lg transition-colors duration-200">
+            <div className="px-4 py-5 sm:px-6">
+              <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">Password</h3>
+              <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">Update your password</p>
+            </div>
+            <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-5 sm:px-6">
               {success && (
-                <div className="bg-green-50 border-l-4 border-green-400 p-4 mb-4">
+                <div className="bg-green-50 dark:bg-green-900/50 border-l-4 border-green-400 p-4 mb-4">
                   <div className="flex">
                     <div className="flex-shrink-0">
                       <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
@@ -63,14 +72,14 @@ const SettingsPage = () => {
                       </svg>
                     </div>
                     <div className="ml-3">
-                      <p className="text-sm text-green-700">{success}</p>
+                      <p className="text-sm text-green-700 dark:text-green-300">{success}</p>
                     </div>
                   </div>
                 </div>
               )}
               
               {error && (
-                <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
+                <div className="bg-red-50 dark:bg-red-900/50 border-l-4 border-red-400 p-4 mb-4">
                   <div className="flex">
                     <div className="flex-shrink-0">
                       <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
@@ -78,7 +87,7 @@ const SettingsPage = () => {
                       </svg>
                     </div>
                     <div className="ml-3">
-                      <p className="text-sm text-red-700">{error}</p>
+                      <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
                     </div>
                   </div>
                 </div>
@@ -86,7 +95,7 @@ const SettingsPage = () => {
               
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
-                  <label htmlFor="current-password" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="current-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Current Password
                   </label>
                   <div className="mt-1">
@@ -98,13 +107,13 @@ const SettingsPage = () => {
                       required
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                      className="input"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="new-password" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     New Password
                   </label>
                   <div className="mt-1">
@@ -116,13 +125,13 @@ const SettingsPage = () => {
                       required
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                      className="input"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Confirm New Password
                   </label>
                   <div className="mt-1">
@@ -134,7 +143,7 @@ const SettingsPage = () => {
                       required
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                      className="input"
                     />
                   </div>
                 </div>
@@ -143,7 +152,7 @@ const SettingsPage = () => {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                    className="btn btn-primary"
                   >
                     {isSubmitting ? 'Updating...' : 'Update Password'}
                   </button>
@@ -152,12 +161,13 @@ const SettingsPage = () => {
             </div>
           </div>
 
-          <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+          {/* Email Notifications Section */}
+          <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-lg transition-colors duration-200">
             <div className="px-4 py-5 sm:px-6">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">Email Notifications</h3>
-              <p className="mt-1 max-w-2xl text-sm text-gray-500">Manage your email preferences</p>
+              <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">Email Notifications</h3>
+              <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">Manage your email preferences</p>
             </div>
-            <div className="border-t border-gray-200 px-4 py-5 sm:px-6">
+            <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-5 sm:px-6">
               <div className="space-y-4">
                 <div className="flex items-start">
                   <div className="flex items-center h-5">
@@ -166,14 +176,14 @@ const SettingsPage = () => {
                       name="security-notifications"
                       type="checkbox"
                       defaultChecked
-                      className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                      className="focus:ring-primary-500 dark:focus:ring-primary-400 h-4 w-4 text-primary-600 dark:text-primary-400 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
                     />
                   </div>
                   <div className="ml-3 text-sm">
-                    <label htmlFor="security-notifications" className="font-medium text-gray-700">
+                    <label htmlFor="security-notifications" className="font-medium text-gray-700 dark:text-gray-300">
                       Security alerts
                     </label>
-                    <p className="text-gray-500">
+                    <p className="text-gray-500 dark:text-gray-400">
                       Get notified about security-related events for your account.
                     </p>
                   </div>
@@ -186,26 +196,36 @@ const SettingsPage = () => {
                       name="product-updates"
                       type="checkbox"
                       defaultChecked
-                      className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                      className="focus:ring-primary-500 dark:focus:ring-primary-400 h-4 w-4 text-primary-600 dark:text-primary-400 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
                     />
                   </div>
                   <div className="ml-3 text-sm">
-                    <label htmlFor="product-updates" className="font-medium text-gray-700">
+                    <label htmlFor="product-updates" className="font-medium text-gray-700 dark:text-gray-300">
                       Product updates
                     </label>
-                    <p className="text-gray-500">
+                    <p className="text-gray-500 dark:text-gray-400">
                       Receive notifications about new features and improvements.
                     </p>
                   </div>
                 </div>
                 
-                <div className="pt-4">
-                  <button
-                    type="button"
-                    className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    Save Preferences
-                  </button>
+                <div className="flex items-start">
+                  <div className="flex items-center h-5">
+                    <input
+                      id="marketing-emails"
+                      name="marketing-emails"
+                      type="checkbox"
+                      className="focus:ring-primary-500 dark:focus:ring-primary-400 h-4 w-4 text-primary-600 dark:text-primary-400 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+                    />
+                  </div>
+                  <div className="ml-3 text-sm">
+                    <label htmlFor="marketing-emails" className="font-medium text-gray-700 dark:text-gray-300">
+                      Marketing emails
+                    </label>
+                    <p className="text-gray-500 dark:text-gray-400">
+                      Receive emails about new features, tips, and promotional content.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

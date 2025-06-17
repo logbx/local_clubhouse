@@ -10,8 +10,15 @@ interface EnvConfig {
 }
 
 const getEnvConfig = (): EnvConfig => {
+  // In development, use relative URLs to go through Vite proxy
+  // In production, use the full API URL
+  const isDev = import.meta.env.DEV;
+  const apiUrl = isDev 
+    ? '' // Relative URL for development (uses Vite proxy)
+    : (import.meta.env.VITE_API_URL || 'http://localhost:3001');
+  
   return {
-    apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:3001/api',
+    apiUrl,
     wsUrl: import.meta.env.VITE_WS_URL || 'ws://localhost:3001',
     s3Bucket: import.meta.env.VITE_AWS_S3_BUCKET || 'localclubhouse-images',
     s3Region: import.meta.env.VITE_AWS_REGION || 'us-east-2',
