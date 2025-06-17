@@ -81,13 +81,13 @@ export class AuthService {
   async login(identifier: string, password: string) {
     console.log('Login attempt starting with identifier:', identifier);
     
-    // Find user
+    // Find user and explicitly include password field
     const user = await this.userModel.findOne({
       $or: [
         { email: identifier.toLowerCase() },
         { username: identifier }
       ]
-    });
+    }).select('+password');  // Explicitly include the password field
 
     console.log('Login attempt details:', {
       identifier,
