@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import SearchBar from '../components/SearchBar';
 import { useNavigate } from 'react-router-dom';
 import { log, LogCategory } from '../utils/logger';
+import { webSocketService } from '../services/websocket.service';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -66,6 +67,114 @@ const Dashboard: React.FC = () => {
     };
   }, []);
 
+  // Load events and tournaments
+  const { 
+    data: events, 
+    isLoading, 
+    refetch: refetchEvents 
+  } = useQuery({
+    queryKey: ['events'],
+    queryFn: eventApi.getEvents,
+  });
+
+  // WebSocket integration for real-time tournament updates
+  useEffect(() => {
+    if (!events || events.length === 0) return;
+
+    // Join event rooms for all events to receive tournament updates
+    const eventIds = events.map((event: Event) => event.id);
+    eventIds.forEach((eventId: string) => {
+      webSocketService.joinEventChat(eventId);
+    });
+
+    const handleTournamentUpdate = (data: any) => {
+      console.log('🔔 Dashboard WebSocket tournament update received:', data);
+      
+      // Check if this update is for any of our events
+      const relevantEventId = eventIds.find((eventId: string) => 
+        data.eventId === eventId || 
+        (eventTournaments[eventId] && eventTournaments[eventId].some(t => t.id === data.tournamentId))
+      );
+
+      if (relevantEventId && (
+        data.type === 'registration-opened' || 
+        data.type === 'registration-closed' || 
+        data.type === 'player-registered' || 
+        data.type === 'guest-player-added' ||
+        data.type === 'player-removed' ||
+        data.type === 'tournament-started' ||
+        data.type === 'tournament-created' ||
+        data.type === 'tournament-finished'
+      )) {
+        console.log('🔄 Dashboard refreshing tournament data for event:', relevantEventId);
+        
+        // Refresh tournament data for the specific event
+        const refreshEventTournaments = async () => {
+          try {
+            const tournaments = await tournamentService.getTournamentsByEvent(relevantEventId);
+            setEventTournaments(prev => ({
+              ...prev,
+              [relevantEventId]: tournaments
+            }));
+            
+            // Also update localStorage for consistency
+            const allTournaments = JSON.parse(localStorage.getItem('frontend_tournaments') || '{}');
+            if (tournaments.length > 0) {
+              // Convert backend tournament to frontend format for localStorage
+              const tournament = tournaments[0];
+              const frontendTournament = {
+                id: tournament.id,
+                name: tournament.name,
+                status: tournament.isFinished 
+                  ? 'completed' 
+                  : tournament.isStarted 
+                    ? 'active' 
+                    : tournament.registrationOpen === false
+                      ? 'registration_closed'
+                      : 'registration_open',
+                players: tournament.players,
+                playerCount: tournament.players.length,
+                registeredUserCount: tournament.players.filter(p => !p.isGuest).length,
+                registeredUsers: tournament.players.filter(p => !p.isGuest),
+                winner: tournament.winnerId ? tournament.players.find(p => p.id === tournament.winnerId) : null,
+                createdAt: new Date(tournament.createdAt).getTime(),
+                startedAt: tournament.isStarted ? new Date(tournament.createdAt).getTime() : undefined,
+                createdBy: tournament.organizerId,
+                registrationOpen: tournament.registrationOpen
+              };
+              allTournaments[relevantEventId] = frontendTournament;
+            } else {
+              delete allTournaments[relevantEventId];
+            }
+            localStorage.setItem('frontend_tournaments', JSON.stringify(allTournaments));
+            setFrontendTournaments(allTournaments);
+            
+            log.info(LogCategory.TOURNAMENT, 'Dashboard tournament data refreshed', { 
+              eventId: relevantEventId, 
+              updateType: data.type,
+              tournamentsCount: tournaments.length
+            });
+          } catch (error) {
+            console.error('❌ Error refreshing tournament data in dashboard:', error);
+          }
+        };
+        
+        refreshEventTournaments();
+      }
+    };
+
+    // Subscribe to WebSocket tournament updates
+    webSocketService.onTournamentUpdate(handleTournamentUpdate);
+
+    return () => {
+      // Leave all event rooms and remove listeners
+      eventIds.forEach((eventId: string) => {
+        webSocketService.leaveEventChat(eventId);
+      });
+      webSocketService.removeTournamentListeners();
+    };
+  }, [events, eventTournaments]);
+
   // Check if an event has a frontend tournament
   const hasFrontendTournament = (eventId: string) => {
     const tournaments = eventTournaments[eventId];
@@ -88,7 +197,9 @@ const Dashboard: React.FC = () => {
         ? 'completed' 
         : tournament.isStarted 
           ? 'active' 
-          : 'registration_open',
+          : tournament.registrationOpen === false
+            ? 'registration_closed'
+            : 'registration_open',
       players: tournament.players,
       playerCount: tournament.players.length,
       registeredUserCount: tournament.players.filter(p => !p.isGuest).length,
@@ -96,19 +207,10 @@ const Dashboard: React.FC = () => {
       winner: tournament.winnerId ? tournament.players.find(p => p.id === tournament.winnerId) : null,
       createdAt: new Date(tournament.createdAt).getTime(),
       startedAt: tournament.isStarted ? new Date(tournament.createdAt).getTime() : undefined,
-      createdBy: tournament.organizerId
+      createdBy: tournament.organizerId,
+      registrationOpen: tournament.registrationOpen
     };
   };
-
-  // Load events and tournaments
-  const { 
-    data: events, 
-    isLoading, 
-    refetch: refetchEvents 
-  } = useQuery({
-    queryKey: ['events'],
-    queryFn: eventApi.getEvents,
-  });
 
   // Load tournament data for each event
   useEffect(() => {

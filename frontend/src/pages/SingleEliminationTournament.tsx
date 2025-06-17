@@ -459,9 +459,30 @@ const SingleEliminationTournament: React.FC = () => {
     
     try {
       log.info(LogCategory.TOURNAMENT, 'Opening registration for tournament', { tournamentId: tournament.id });
-      await tournamentService.openRegistration(tournament.id);
+      const updatedTournament = await tournamentService.openRegistration(tournament.id);
       log.info(LogCategory.TOURNAMENT, 'Registration opened successfully via backend');
-      // The WebSocket update will handle the UI refresh
+      
+      // Immediately update local state for instant UI feedback
+      const updatedFrontendTournament: Tournament = {
+        ...tournament,
+        registrationOpen: true,
+        status: 'registration_open'
+      };
+      setTournament(updatedFrontendTournament);
+      
+      // Update localStorage for consistency
+      localStorage.setItem(`tournament_${eventId}`, JSON.stringify(updatedFrontendTournament));
+      
+      // Update frontend_tournaments for dashboard
+      const allTournaments = JSON.parse(localStorage.getItem('frontend_tournaments') || '{}');
+      if (eventId) {
+        allTournaments[eventId] = {
+          ...allTournaments[eventId],
+          status: 'registration_open',
+          registrationOpen: true
+        };
+        localStorage.setItem('frontend_tournaments', JSON.stringify(allTournaments));
+      }
     } catch (error) {
       log.error(LogCategory.TOURNAMENT, 'Failed to open registration', error);
       alert('Failed to open registration. Please try again.');
@@ -474,9 +495,30 @@ const SingleEliminationTournament: React.FC = () => {
     
     try {
       log.info(LogCategory.TOURNAMENT, 'Closing registration for tournament', { tournamentId: tournament.id });
-      await tournamentService.closeRegistration(tournament.id);
+      const updatedTournament = await tournamentService.closeRegistration(tournament.id);
       log.info(LogCategory.TOURNAMENT, 'Registration closed successfully via backend');
-      // The WebSocket update will handle the UI refresh
+      
+      // Immediately update local state for instant UI feedback
+      const updatedFrontendTournament: Tournament = {
+        ...tournament,
+        registrationOpen: false,
+        status: 'registration_closed'
+      };
+      setTournament(updatedFrontendTournament);
+      
+      // Update localStorage for consistency
+      localStorage.setItem(`tournament_${eventId}`, JSON.stringify(updatedFrontendTournament));
+      
+      // Update frontend_tournaments for dashboard
+      const allTournaments = JSON.parse(localStorage.getItem('frontend_tournaments') || '{}');
+      if (eventId) {
+        allTournaments[eventId] = {
+          ...allTournaments[eventId],
+          status: 'registration_closed',
+          registrationOpen: false
+        };
+        localStorage.setItem('frontend_tournaments', JSON.stringify(allTournaments));
+      }
     } catch (error) {
       log.error(LogCategory.TOURNAMENT, 'Failed to close registration', error);
       alert('Failed to close registration. Please try again.');

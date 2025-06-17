@@ -3,10 +3,12 @@ import type { InternalAxiosRequestConfig } from 'axios';
 import { endpoints } from '../config/api';
 import { envConfig } from '../config/env';
 import { Event, CreateEventDto, UpdateEventDto, SubGroup } from '../types/event';
+import { log, LogCategory } from '../utils/logger';
 
 const baseURL = envConfig.apiUrl;
 
-console.log('🔧 API Configuration Debug:', {
+// Use logger instead of direct console.log
+log.debug(LogCategory.API, 'API Configuration', {
   baseURL,
   envConfig,
   nodeEnv: process.env.NODE_ENV,
@@ -22,8 +24,8 @@ export const api = axios.create({
   },
 });
 
-// Add debug logging to API instance
-console.log('📡 Axios instance created with:', {
+// Use logger instead of direct console.log
+log.debug(LogCategory.API, 'Axios instance created', {
   baseURL: api.defaults.baseURL,
   headers: api.defaults.headers,
   timeout: api.defaults.timeout
@@ -46,14 +48,11 @@ const processQueue = (error: any = null, token: string | null = null) => {
 // Request interceptor
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Add debug logging for all requests
-    console.log('🌐 API Request:', {
+    // Use logger for request logging - only in debug mode
+    log.debug(LogCategory.API, 'Making request', {
       method: config.method?.toUpperCase(),
       url: config.url,
-      baseURL: config.baseURL,
-      fullURL: `${config.baseURL}${config.url}`,
-      data: config.data,
-      headers: config.headers
+      fullURL: `${config.baseURL}${config.url}`
     });
     
     // Add development-specific cache-busting headers
@@ -78,15 +77,15 @@ api.interceptors.request.use(
       const token = localStorage.getItem('accessToken');
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
-        console.log('🔑 Added authorization header to request');
+        log.debug(LogCategory.API, 'Added authorization header');
       } else {
-        console.log('⚠️ No token found for non-auth endpoint');
+        log.warn(LogCategory.API, 'No token found for non-auth endpoint');
       }
     }
     return config;
   },
   (error: AxiosError) => {
-    console.error('❌ Request interceptor error:', error);
+    log.error(LogCategory.API, 'Request interceptor error', error);
     return Promise.reject(error);
   }
 );
@@ -124,11 +123,11 @@ api.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem('refreshToken');
         if (!refreshToken) {
-          console.log('No refresh token available for auto-refresh');
+          log.warn(LogCategory.API, 'No refresh token available for auto-refresh');
           throw new Error('No refresh token available');
         }
 
-        console.log('Auto-refreshing token via response interceptor...');
+        log.info(LogCategory.API, 'Auto-refreshing token');
         const response = await axios.post(`${baseURL}/api/auth/refresh`, { refreshToken });
         const { accessToken, refreshToken: newRefreshToken } = response.data;
 
@@ -142,7 +141,7 @@ api.interceptors.response.use(
         processQueue(null, accessToken);
         return api(originalRequest);
       } catch (refreshError) {
-        console.error('Auto-refresh failed in response interceptor:', refreshError);
+        log.error(LogCategory.API, 'Auto-refresh failed', refreshError);
         processQueue(refreshError, null);
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
@@ -201,17 +200,17 @@ export const authApi = {
 export const userApi = {
   getProfile: async () => {
     const response = await api.get(endpoints.user.me);
-    console.log('API Response for getProfile:', response.data);
+    log.debug(LogCategory.API, 'Profile fetched successfully');
     return response.data;
   },
   updateProfile: async (data: any) => {
-    console.log('Sending update profile request with data:', data);
+    log.debug(LogCategory.API, 'Updating profile', { hasData: !!data });
     const response = await api.put(endpoints.user.updateProfile, data, {
       headers: {
         'Content-Type': 'application/json',
       },
     });
-    console.log('API Response for updateProfile:', response.data);
+    log.debug(LogCategory.API, 'Profile updated successfully');
     return response.data;
   },
   uploadAvatar: async (file: File) => {
@@ -230,7 +229,7 @@ export const userApi = {
 export const eventApi = {
   getEvents: async () => {
     const response = await api.get(endpoints.events.list);
-    console.log('Raw events API response structure:', {
+    log.debug(LogCategory.API, 'Events fetched', {
       isArray: Array.isArray(response.data),
       hasEvents: !!(response.data && response.data.events),
       hasData: !!(response.data && response.data.data),
@@ -289,13 +288,13 @@ export const friendApi = {
     return response.data;
   },
   acceptFriendRequest: async (userId: string) => {
-    console.log('Accepting friend request for userId:', userId);
+    log.debug(LogCategory.API, 'Accepting friend request', { userId });
     try {
       const response = await api.post(endpoints.friends.accept, { requesterId: userId });
-      console.log('Friend request accept response:', response.data);
+      log.debug(LogCategory.API, 'Friend request accepted successfully');
       return response.data;
     } catch (error: any) {
-      console.error('Error accepting friend request:', {
+      log.error(LogCategory.API, 'Error accepting friend request', {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status
@@ -308,7 +307,7 @@ export const friendApi = {
       const response = await api.post(endpoints.friends.decline, { requesterId: userId });
       return response.data;
     } catch (error: any) {
-      console.error('Error declining friend request:', {
+      log.error(LogCategory.API, 'Error declining friend request', {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status

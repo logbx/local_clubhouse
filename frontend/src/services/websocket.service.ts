@@ -75,6 +75,13 @@ class WebSocketService {
     }
   }
 
+  // Leave event chat room
+  leaveEventChat(eventId: string) {
+    if (this.socket) {
+      this.socket.emit('leave-event-chat', { eventId });
+    }
+  }
+
   // Join sub-group chat room
   joinSubgroupChat(subGroupId: string) {
     if (this.socket) {

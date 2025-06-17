@@ -20,10 +20,14 @@ class Logger {
   private isDevelopment = process.env.NODE_ENV === 'development';
 
   private constructor() {
-    // Enable all categories in development by default
+    // Enable appropriate logging based on environment
     if (this.isDevelopment) {
       this.logLevel = LogLevel.INFO;
       this.enabledCategories = new Set([LogCategory.GENERAL, LogCategory.API]);
+    } else {
+      // Production: Only show errors and warnings by default
+      this.logLevel = LogLevel.WARN;
+      this.enabledCategories = new Set([LogCategory.GENERAL]);
     }
   }
 
