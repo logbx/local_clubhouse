@@ -48,6 +48,10 @@ export class MessagesService {
           { sender: otherUserObjectId, receiver: currentUserObjectId },
         ],
       })
+      .populate([
+        { path: 'sender', select: 'username profileImage' },
+        { path: 'receiver', select: 'username profileImage' }
+      ])
       .sort({ timestamp: 1 })
       .exec();
 
@@ -57,11 +61,19 @@ export class MessagesService {
       { read: true }
     );
 
-    // Return messages with ObjectId strings instead of populated objects
+    // Return messages with populated user data
     return messages.map(msg => ({
       _id: msg._id.toString(),
-      sender: msg.sender.toString(),
-      receiver: msg.receiver.toString(),
+      sender: {
+        _id: (msg.sender as any)._id.toString(),
+        username: (msg.sender as any).username || 'Unknown User',
+        profileImage: (msg.sender as any).profileImage
+      },
+      receiver: {
+        _id: (msg.receiver as any)._id.toString(),
+        username: (msg.receiver as any).username || 'Unknown User',
+        profileImage: (msg.receiver as any).profileImage
+      },
       content: msg.content,
       timestamp: msg.timestamp,
       read: msg.read
