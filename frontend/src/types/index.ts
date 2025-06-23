@@ -59,4 +59,7 @@ export interface Conversation {
   profileImage?: string;
   lastMessage?: Message;
   unreadCount?: number;
-} 
+}
+
+export * from './event';
+export * from './club'; 

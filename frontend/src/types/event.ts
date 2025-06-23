@@ -7,6 +7,7 @@ export enum EventStatus {
 export enum EventVisibility {
   PUBLIC = 'PUBLIC',
   PRIVATE = 'PRIVATE',
+  CLUB = 'CLUB',
 }
 
 export enum EventFeatures {
@@ -43,6 +44,11 @@ export interface Event {
     profileImage?: string;
   };
   creatorId?: string;
+  clubId?: string;
+  clubUsername?: string;
+  clubName?: string;
+  clubLogoUrl?: string;
+  invitedUsers?: string[];
   rsvps: Array<{
     id: string;
     username: string;
@@ -66,6 +72,11 @@ export interface EventFormData {
   features?: EventFeatures[];
   status: EventStatus;
   imageUrl?: string;
+  clubId?: string;
+  clubUsername?: string;
+  clubName?: string;
+  clubLogoUrl?: string;
+  invitedUsers?: string[];
 }
 
 export interface PublicEvent {
@@ -86,6 +97,10 @@ export interface PublicEvent {
     profileImage?: string;
   };
   creatorId: string;
+  clubId?: string;
+  clubUsername?: string;
+  clubName?: string;
+  clubLogoUrl?: string;
   rsvps: string[];
 }
 
