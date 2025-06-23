@@ -18,6 +18,8 @@ export interface IEvent extends Document {
   features?: string[];
   imageUrl?: string;
   creator: Types.ObjectId;
+  clubId?: Types.ObjectId;
+  invitedUsers?: Types.ObjectId[];
   rsvps: Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
@@ -32,12 +34,14 @@ export const EventSchema = new Schema<IEvent>({
   cost: { type: Number, default: 0 },
   isFree: { type: Boolean, default: true },
   status: { type: String, enum: ['DRAFT', 'LIVE', 'PAST'], default: 'DRAFT' },
-  visibility: { type: String, default: 'public' },
+  visibility: { type: String, enum: ['PUBLIC', 'PRIVATE', 'CLUB'], default: 'PUBLIC' },
   recurrence: { type: String, default: 'none' },
   tags: [{ type: String }],
   features: [{ type: String }],
   imageUrl: { type: String },
   creator: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  clubId: { type: Schema.Types.ObjectId, ref: 'Club' },
+  invitedUsers: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   rsvps: [{ type: Schema.Types.ObjectId, ref: 'User' }],
 }, {
   timestamps: true,

@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Event, IEvent, EventStatus } from '../models/event.model';
 import { transformId, transformIds } from '../utils/transform.util';
 import { Public } from '../auth/decorators/public.decorator';
+import { Club, ClubDocument } from '../clubs/schemas/club.schema';
 
 interface AuthenticatedRequest {
   user: {
@@ -18,19 +19,63 @@ interface AuthenticatedRequest {
 @UseGuards(JwtAuthGuard)
 export class EventsController {
   constructor(
-    @InjectModel('Event') private eventModel: Model<IEvent>
+    @InjectModel('Event') private eventModel: Model<IEvent>,
+    @InjectModel(Club.name) private clubModel: Model<ClubDocument>
   ) {}
 
   @Get()
-  async findAll() {
+  async findAll(@Request() req: AuthenticatedRequest) {
+    const userId = req.user.sub || req.user.id;
+    
     const events = await this.eventModel
       .find()
       .populate('creator', 'username email profileImage')
+      .populate('clubId', 'name username logoUrl') // Include club logo
       .lean()
       .exec();
     
+    // Get user's club memberships for filtering club events
+    let userClubIds: string[] = [];
+    try {
+      const userObjectId = new Types.ObjectId(userId);
+      const userClubs = await this.clubModel.find({
+        $or: [
+          { 'members.userId': userObjectId },
+          { createdBy: userObjectId },
+          { club_founder: userObjectId }
+        ],
+        isActive: true
+      }).select('_id').lean();
+      
+      userClubIds = userClubs.map(club => club._id.toString());
+    } catch (error) {
+      console.error('Error fetching user clubs:', error);
+      // If ObjectId conversion fails, user has no club memberships
+      userClubIds = [];
+    }
+
+    // Filter events based on visibility and user permissions
+    const filteredEvents = events.filter(event => {
+      if (event.visibility === 'PUBLIC') {
+        return true; // Public events are visible to all
+      } else if (event.visibility === 'PRIVATE') {
+        // Private events are only visible to creator and invited users
+        const isCreator = event.creator._id.toString() === userId;
+        const isInvited = event.invitedUsers && event.invitedUsers.some((invitedUserId: any) => 
+          invitedUserId.toString() === userId
+        );
+        return isCreator || isInvited;
+      } else if (event.visibility === 'CLUB') {
+        // Club events are visible to club members, creators, and event creators
+        const isEventCreator = event.creator._id.toString() === userId;
+        const isClubMember = event.clubId && userClubIds.includes(event.clubId._id.toString());
+        return isEventCreator || isClubMember;
+      }
+      return false;
+    });
+    
     // Transform events to match frontend expectations
-    const transformedEvents = events.map(event => {
+    const transformedEvents = filteredEvents.map(event => {
       const transformed: any = transformId(event);
       
       // Ensure creator information is properly mapped
@@ -43,6 +88,14 @@ export class EventsController {
         // Fallback for missing creator info
         transformed.creator = { username: 'Unknown', email: '', id: '' };
         transformed.creatorId = '';
+      }
+      
+      // Add club information if present
+      if (transformed.clubId) {
+        transformed.clubUsername = transformed.clubId.username;
+        transformed.clubName = transformed.clubId.name;
+        transformed.clubLogoUrl = transformed.clubId.logoUrl;
+        transformed.clubId = transformed.clubId._id.toString();
       }
       
       // Transform rsvps to match frontend expectations
@@ -114,6 +167,7 @@ export class EventsController {
     const event = await this.eventModel
       .findById(id)
       .populate('creator', 'username email profileImage')
+      .populate('clubId', 'name username logoUrl') // Include club logo
       .lean()
       .exec();
 
@@ -200,6 +254,7 @@ export class EventsController {
     const event = await this.eventModel
       .findById(id)
       .populate('creator', 'username email profileImage')
+      .populate('clubId', 'name username logoUrl') // Populate club info with logo if associated
       .lean()
       .exec();
 
@@ -217,6 +272,14 @@ export class EventsController {
     
     // Add frontend-expected field mappings
     transformedEvent.creatorId = transformedEvent.creator?._id || transformedEvent.creator?.id;
+    
+    // Add club information if present
+    if (transformedEvent.clubId && typeof transformedEvent.clubId === 'object' && transformedEvent.clubId.username) {
+      transformedEvent.clubUsername = transformedEvent.clubId.username;
+      transformedEvent.clubName = transformedEvent.clubId.name;
+      transformedEvent.clubLogoUrl = transformedEvent.clubId.logoUrl;
+      transformedEvent.clubId = transformedEvent.clubId._id ? transformedEvent.clubId._id.toString() : transformedEvent.clubId.toString();
+    }
     
     // Ensure tags are properly formatted as an array
     if (transformedEvent.tags) {
@@ -317,19 +380,51 @@ export class EventsController {
       createEventDto.features = [];
     }
 
-    const createdEvent = await this.eventModel.create({
+    // Handle club association
+    const eventData: any = {
       ...createEventDto,
       creator: new Types.ObjectId(userId)
-    });
+    };
 
-    const populatedEvent = await createdEvent
-      .populate('creator', 'username email profileImage');
+    // Add club reference if provided
+    if (createEventDto.clubId && typeof createEventDto.clubId === 'string') {
+      eventData.clubId = new Types.ObjectId(createEventDto.clubId);
+    }
 
-    return { event: transformId(populatedEvent.toObject()) };
+    // Handle invited users for private events
+    if (createEventDto.invitedUsers && Array.isArray(createEventDto.invitedUsers)) {
+      eventData.invitedUsers = createEventDto.invitedUsers.map((id: string) => new Types.ObjectId(id));
+    }
+
+    const createdEvent = await this.eventModel.create(eventData);
+
+    const populatedEvent = await this.eventModel
+      .findById(createdEvent._id)
+      .populate('creator', 'username email profileImage')
+      .populate('clubId', 'name username logoUrl') // Include club logo
+      .lean()
+      .exec();
+
+    if (!populatedEvent) {
+      throw new Error('Failed to create event');
+    }
+
+    const transformed: any = transformId(populatedEvent);
+    
+    // Add club information if present
+    if (transformed.clubId && typeof transformed.clubId === 'object' && transformed.clubId.username) {
+      transformed.clubUsername = transformed.clubId.username;
+      transformed.clubName = transformed.clubId.name;
+      transformed.clubLogoUrl = transformed.clubId.logoUrl;
+      transformed.clubId = transformed.clubId._id ? transformed.clubId._id.toString() : transformed.clubId.toString();
+    }
+
+    return { event: transformed };
   }
 
   @Put(':id')
   async update(@Param('id') id: string, @Body() updateEventDto: any) {
+    try {
     // Ensure tags are properly formatted before updating
     if (updateEventDto.tags !== undefined) {
       if (typeof updateEventDto.tags === 'string') {
@@ -370,9 +465,35 @@ export class EventsController {
       )];
     }
 
+    // Handle invited users for private events
+    if (updateEventDto.invitedUsers !== undefined) {
+      if (typeof updateEventDto.invitedUsers === 'string') {
+        try {
+          updateEventDto.invitedUsers = JSON.parse(updateEventDto.invitedUsers);
+        } catch {
+          updateEventDto.invitedUsers = [];
+        }
+      }
+      if (!Array.isArray(updateEventDto.invitedUsers)) {
+        updateEventDto.invitedUsers = [];
+      }
+      // Filter out empty strings and convert to ObjectIds
+      updateEventDto.invitedUsers = updateEventDto.invitedUsers
+        .filter((id: any) => id && typeof id === 'string' && id.trim().length > 0)
+        .map((id: string) => {
+          try {
+            return new Types.ObjectId(id);
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+    }
+
     const updatedEvent = await this.eventModel
       .findByIdAndUpdate(id, updateEventDto, { new: true })
       .populate('creator', 'username email profileImage')
+        .populate('clubId', 'name username logoUrl') // Include club logo
       .lean()
       .exec();
 
@@ -381,6 +502,10 @@ export class EventsController {
     }
     
     return { event: transformId(updatedEvent) };
+    } catch (error) {
+      console.error('❌ Error updating event:', id, error);
+      throw error;
+    }
   }
 
   @Delete(':id')
