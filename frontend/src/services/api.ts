@@ -69,11 +69,11 @@ api.interceptors.request.use(
       }
     }
     
-    // Don't add Authorization header for auth endpoints
-    const authEndpoints = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh'];
-    const isAuthEndpoint = authEndpoints.some(endpoint => config.url?.includes(endpoint));
+    // Don't add Authorization header for auth endpoints and public endpoints
+    const publicEndpoints = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh', '/api/users/public/'];
+    const isPublicEndpoint = publicEndpoints.some(endpoint => config.url?.includes(endpoint));
     
-    if (!isAuthEndpoint) {
+    if (!isPublicEndpoint) {
       const token = localStorage.getItem('accessToken');
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
@@ -96,11 +96,11 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    // Don't auto-refresh for auth endpoints
-    const authEndpoints = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh'];
-    const isAuthEndpoint = authEndpoints.some(endpoint => originalRequest.url?.includes(endpoint));
+    // Don't auto-refresh for auth endpoints and public endpoints
+    const publicEndpoints = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh', '/api/users/public/'];
+    const isPublicEndpoint = publicEndpoints.some(endpoint => originalRequest.url?.includes(endpoint));
     
-    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
+    if (error.response?.status === 401 && !originalRequest._retry && !isPublicEndpoint) {
       if (isRefreshing) {
         return new Promise<AxiosResponse>((resolve, reject) => {
           failedQueue.push({ 

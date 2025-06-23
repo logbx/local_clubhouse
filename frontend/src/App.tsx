@@ -31,6 +31,11 @@ import TournamentPage from './pages/TournamentPage';
 import TournamentManagePage from './pages/TournamentManagePage';
 import SingleEliminationTournament from './pages/SingleEliminationTournament';
 import { MatchResultsPage } from './pages/MatchResultsPage';
+import ClubProfilePage from './pages/ClubProfilePage';
+import CreateClubPage from './pages/CreateClubPage';
+import ClubsExplorePage from './pages/ClubsExplorePage';
+import ClubAdminDashboard from './pages/ClubAdminDashboard';
+import SocialHub from './pages/SocialHub';
 import NotificationToast from './components/NotificationToast';
 import { notificationService } from './services/notification.service';
 
@@ -84,6 +89,7 @@ const App: React.FC = () => {
             <Route path="/user/:userId" element={<PublicLayout><PublicProfilePage /></PublicLayout>} />
             <Route path="/event/:eventId" element={<PublicLayout><PublicEventPage /></PublicLayout>} />
             <Route path="/tournament/:tournamentId" element={<PublicLayout><TournamentPage /></PublicLayout>} />
+            <Route path="/clubs/:clubUsername" element={<PublicLayout><ClubProfilePage /></PublicLayout>} />
 
             {/* Protected Routes */}
             <Route element={<ProtectedRoute />}>
@@ -101,7 +107,12 @@ const App: React.FC = () => {
                 <Route path="/tournament/:tournamentId/results" element={<MatchResultsPage />} />
                 <Route path="/tournament/single-elimination" element={<SingleEliminationTournament />} />
                 <Route path="/match-results" element={<MatchResultsPage />} />
+                <Route path="/clubs" element={<ClubsExplorePage />} />
+                <Route path="/create-club" element={<CreateClubPage />} />
+                <Route path="/clubs/:clubUsername/admin" element={<ClubAdminDashboard />} />
               </Route>
+              {/* Full-screen Social Hub */}
+              <Route path="/social" element={<AuthLayout fullScreen><SocialHub /></AuthLayout>} />
             </Route>
 
             {/* Admin Routes */}
