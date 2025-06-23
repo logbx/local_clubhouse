@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PublicEvent, EventVisibility, EventStatus, RecurrenceType } from '../types/event';
 import { useAuth } from '../context/AuthContext';
-import { publicApi } from '../services/api';
+import { publicApi, eventApi } from '../services/api';
 import { format, isValid } from 'date-fns';
-import { CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, ExclamationTriangleIcon, UserIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, ExclamationTriangleIcon, UserIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline';
 import EventChat from '../components/EventChat';
 import SubGroupList from '../components/SubGroupList';
 
@@ -23,8 +23,26 @@ const PublicEventPage: React.FC = () => {
   useEffect(() => {
     const fetchEvent = async () => {
       try {
-        const response = await publicApi.getPublicEvent(eventId!);
-        const eventData = response.data;
+        let response;
+        let eventData;
+        
+        // First try to fetch as a public event
+        try {
+          response = await publicApi.getPublicEvent(eventId!);
+          eventData = response.data;
+        } catch (publicError: any) {
+          // If public fetch fails, try authenticated endpoint (for club/private events)
+          if (publicError.response?.status === 404 && currentUser) {
+            try {
+              response = await eventApi.getEvent(eventId!);
+              eventData = response.event || response.data || response;
+            } catch (authError: any) {
+              throw publicError; // Throw original error if both fail
+            }
+          } else {
+            throw publicError;
+          }
+        }
 
         // Safely handle creator information - check if eventData exists first
         if (eventData) {
@@ -87,7 +105,7 @@ const PublicEventPage: React.FC = () => {
     if (eventId) {
       fetchEvent();
     }
-  }, [eventId]);
+  }, [eventId, currentUser]);
 
   if (loading) return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
   if (error) return <div className="flex justify-center items-center min-h-screen text-red-500">{error}</div>;
@@ -200,15 +218,22 @@ const PublicEventPage: React.FC = () => {
                 <p className="text-gray-600 dark:text-gray-400">{event.rsvps.length} people attending</p>
               </div>
             </div>
-            <div className="flex items-center">
-              <UserIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 mr-2" />
-              <div>
-                <h2 className="text-lg font-semibold text-blue-800 dark:text-blue-300">Event Creator</h2>
-                <p className="text-blue-700 dark:text-blue-300 font-medium">
-                  {event.creator?.username || 'Unknown'}
-                </p>
-              </div>
-            </div>
+            {event.clubName && event.clubUsername && (
+              <button onClick={() => navigate(`/clubs/${event.clubUsername}`)} className="flex items-center hover:opacity-80 transition-opacity">
+                {event.clubLogoUrl ? (
+                  <img src={event.clubLogoUrl} alt={`${event.clubName} logo`} className="h-8 w-8 rounded-full object-cover mr-2 border border-gray-200 dark:border-gray-600" />
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-purple-600 dark:bg-purple-500 mr-2 flex items-center justify-center">
+                    <span className="text-white text-sm font-bold">{event.clubName.charAt(0).toUpperCase()}</span>
+                  </div>
+                )}
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Club Space</h2>
+                  <p className="text-purple-700 dark:text-purple-300 font-medium">{event.clubName}</p>
+                </div>
+              </button>
+            )}
+
           </div>
 
           <div className="mb-6">

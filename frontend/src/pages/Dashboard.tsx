@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Event, EventStatus, EventFeatures } from '../types/event';
+import { Event, EventStatus, EventFeatures, EventVisibility } from '../types/event';
 import { eventApi } from '../services/api';
 import { tournamentService, Tournament } from '../services/tournament.service';
 import { format } from 'date-fns';
@@ -17,7 +17,7 @@ const Dashboard: React.FC = () => {
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<EventStatus>(EventStatus.DRAFT);
+  const [activeTab, setActiveTab] = useState<EventStatus>(EventStatus.LIVE);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
@@ -408,7 +408,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const filteredEvents = events?.filter((event: Event) => event.status === activeTab) || [];
+  const filteredEvents = events?.filter((event: Event) => event.status === activeTab && event.visibility !== EventVisibility.CLUB) || [];
 
   const getEventStatusColor = (status: EventStatus) => {
     switch (status) {
@@ -484,35 +484,14 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* Welcome Section */}
-      <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200 relative" style={{ zIndex: 1 }}>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome back, {user?.username}!</h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-300">Manage your events and stay connected with your community.</p>
-      </div>
-
       {/* Search Bar Section */}
       <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200 relative" style={{ zIndex: 10 }}>
         <SearchBar />
       </div>
 
-      {/* Friend Requests Section */}
-      <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200 relative" style={{ zIndex: 1 }}>
-        <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Friend Requests</h2>
-        <p className="text-gray-600 dark:text-gray-300">
-          You have pending friend requests. Please manage them on your{' '}
-          <a href="/friends" className="text-primary-600 dark:text-primary-400 underline hover:text-primary-800 dark:hover:text-primary-300 transition-colors">Friends page</a>.
-        </p>
-      </div>
-
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {[
-          {
-            id: 'draft',
-            title: 'Draft Events',
-            count: events?.filter((e: Event) => e.status === EventStatus.DRAFT).length || 0,
-            color: 'text-primary-600 dark:text-primary-400'
-          },
           {
             id: 'live',
             title: 'Live Events',
@@ -540,23 +519,12 @@ const Dashboard: React.FC = () => {
         <div className="p-6 border-b border-gray-200/50 dark:border-gray-700/50">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">Events</h2>
-            <button
-              type="button"
-              className="btn btn-primary flex items-center"
-              onClick={() => {
-                setSelectedEvent(null);
-                setIsCreateModalOpen(true);
-              }}
-            >
-              <PlusIcon className="h-5 w-5 mr-2" />
-              Create Event
-            </button>
           </div>
 
           {/* Tabs */}
           <div className="mt-4 border-b border-gray-200/50 dark:border-gray-700/50">
             <nav className="-mb-px flex space-x-8">
-              {Object.values(EventStatus).map((status) => (
+              {[EventStatus.LIVE, EventStatus.PAST].map((status) => (
                 <button
                   key={status}
                   type="button"
@@ -668,14 +636,23 @@ const Dashboard: React.FC = () => {
                         {event.rsvps.length} RSVPs
                       </div>
                       
-                      {/* 6. Event Creator (blue box) */}
-                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300 bg-blue-50/80 dark:bg-blue-900/20 p-2 rounded-md border border-blue-200/50 dark:border-blue-800/50">
-                        <UserIcon className="h-4 w-4 mr-2 text-blue-600 dark:text-blue-400" />
-                        <span className="font-medium text-blue-800 dark:text-blue-300">Event Creator:</span>
-                        <span className="ml-1 text-blue-700 dark:text-blue-300">
-                          {event.creator?.username || 'Unknown'}
-                        </span>
-                      </div>
+                      {/* 6. Club Space */}
+                      {event.clubName && event.clubUsername && (
+                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                          <button onClick={() => navigate(`/clubs/${event.clubUsername}`)} className="flex items-center mr-2 hover:text-purple-700 dark:hover:text-purple-300 transition-colors">
+                            {event.clubLogoUrl ? (
+                              <img src={event.clubLogoUrl} alt={`${event.clubName} logo`} className="h-4 w-4 rounded-full object-cover mr-1 border border-gray-200 dark:border-gray-600" />
+                            ) : (
+                              <div className="h-4 w-4 rounded-full bg-purple-600 dark:bg-purple-500 mr-1 flex items-center justify-center">
+                                <span className="text-white text-xs font-bold">{event.clubName.charAt(0).toUpperCase()}</span>
+                              </div>
+                            )}
+                            <span className="text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 hover:underline font-medium">
+                              {event.clubName}
+                            </span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                     
                     <div className="mt-6 space-y-3">

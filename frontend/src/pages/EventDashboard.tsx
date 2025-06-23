@@ -3,17 +3,15 @@ import { useQuery } from '@tanstack/react-query';
 import { Event, EventStatus } from '../types/event';
 import { eventApi } from '../services/api';
 import { format } from 'date-fns';
-import { PlusIcon, CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, UserIcon } from '@heroicons/react/24/outline';
-import CreateEventModal from '../components/CreateEventModal';
+import { CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const EventDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<EventStatus>(EventStatus.DRAFT);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [activeTab, setActiveTab] = useState<EventStatus>(EventStatus.LIVE);
+
 
   const { data: events, isLoading } = useQuery<Event[]>({
     queryKey: ['events'],
@@ -35,44 +33,19 @@ const EventDashboard: React.FC = () => {
     }
   };
 
-  const canEditEvent = (event: Event) => {
-    return user?.id === event.creatorId || user?.id === event.creator?.id;
-  };
 
-  const handleEditClick = (event: Event) => {
-    setSelectedEvent({ 
-      ...event, 
-      id: event.id,
-      status: event.status,
-      creatorId: event.creatorId,
-      rsvps: event.rsvps,
-      createdAt: event.createdAt,
-      updatedAt: event.updatedAt 
-    });
-    setIsCreateModalOpen(true);
-  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Event Dashboard</h1>
-          <button
-            className="btn btn-primary flex items-center"
-            onClick={() => {
-              setSelectedEvent(null);
-              setIsCreateModalOpen(true);
-            }}
-          >
-            <PlusIcon className="h-5 w-5 mr-2" />
-            Create Event
-          </button>
         </div>
 
         {/* Tabs */}
         <div className="border-b border-gray-200 dark:border-gray-700 mb-8">
           <nav className="-mb-px flex space-x-8">
-            {Object.values(EventStatus).map((status) => (
+            {[EventStatus.LIVE, EventStatus.PAST].map((status) => (
               <button
                 key={status}
                 onClick={() => setActiveTab(status)}
@@ -97,7 +70,7 @@ const EventDashboard: React.FC = () => {
           <div className="text-center py-12">
             <h3 className="text-lg font-medium text-gray-900 dark:text-white">No events found</h3>
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              Get started by creating a new event.
+              No {activeTab.toLowerCase()} events are currently available.
             </p>
           </div>
         ) : (
@@ -153,23 +126,24 @@ const EventDashboard: React.FC = () => {
                       <UserGroupIcon className="h-4 w-4 mr-2" />
                       {event.rsvps.length} RSVPs
                     </div>
-                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-300 bg-blue-50/80 dark:bg-blue-900/20 p-2 rounded-md border border-blue-200/50 dark:border-blue-800/50">
-                      <UserIcon className="h-4 w-4 mr-2 text-blue-600 dark:text-blue-400" />
-                      <span className="font-medium text-blue-800 dark:text-blue-300">Event Creator:</span>
-                      <span className="ml-1 text-blue-700 dark:text-blue-300">
-                        {event.creator?.username || 'Unknown'}
-                      </span>
-                    </div>
+                    {event.clubName && event.clubUsername && (
+                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                        <button onClick={() => navigate(`/clubs/${event.clubUsername}`)} className="flex items-center mr-2 hover:text-purple-700 dark:hover:text-purple-300 transition-colors">
+                          {event.clubLogoUrl ? (
+                            <img src={event.clubLogoUrl} alt={`${event.clubName} logo`} className="h-4 w-4 rounded-full object-cover mr-1 border border-gray-200 dark:border-gray-600" />
+                          ) : (
+                            <div className="h-4 w-4 rounded-full bg-purple-600 dark:bg-purple-500 mr-1 flex items-center justify-center">
+                              <span className="text-white text-xs font-bold">{event.clubName.charAt(0).toUpperCase()}</span>
+                            </div>
+                          )}
+                          <span className="text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 hover:underline font-medium">
+                            {event.clubName}
+                          </span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div className="mt-6 flex space-x-3">
-                    {canEditEvent(event) && (
-                      <button
-                        className="btn btn-secondary flex-1"
-                        onClick={() => handleEditClick(event)}
-                      >
-                        Edit
-                      </button>
-                    )}
                     <button 
                       className="btn btn-primary flex-1"
                       onClick={() => navigate(`/event/${event.id}`)}
@@ -184,15 +158,7 @@ const EventDashboard: React.FC = () => {
         )}
       </div>
 
-      {/* Create/Edit Event Modal */}
-      <CreateEventModal
-        isOpen={isCreateModalOpen}
-        onClose={() => {
-          setIsCreateModalOpen(false);
-          setSelectedEvent(null);
-        }}
-        event={selectedEvent}
-      />
+
     </div>
   );
 };
