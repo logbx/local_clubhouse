@@ -3,9 +3,21 @@ import Navbar from './Navbar';
 
 interface AuthLayoutProps {
   children: ReactNode;
+  fullScreen?: boolean;
 }
 
-export default function AuthLayout({ children }: AuthLayoutProps) {
+export default function AuthLayout({ children, fullScreen = false }: AuthLayoutProps) {
+  if (fullScreen) {
+    return (
+      <div className="h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-1 overflow-hidden">
+          {children}
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />

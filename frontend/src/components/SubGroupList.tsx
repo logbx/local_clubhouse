@@ -102,20 +102,37 @@ const SubGroupList: React.FC<SubGroupListProps> = ({ eventId, isOrganizer }) => 
     if (!newSubGroupName.trim()) return;
     setIsCreating(true);
     try {
-      await eventSubGroupApi.createSubGroup(eventId, newSubGroupName, selectedMembers);
+      console.log('[DEBUG] Creating sub-group with:', {
+        eventId,
+        name: newSubGroupName,
+        members: selectedMembers
+      });
+      
+      const createResponse = await eventSubGroupApi.createSubGroup(eventId, newSubGroupName, selectedMembers);
+      console.log('[DEBUG] Sub-group created:', createResponse);
+      
+      // Wait a moment for the database to be consistent
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       const response = await eventSubGroupApi.getSubGroups(eventId);
+      console.log('[DEBUG] Sub-groups fetched after creation:', response);
+      
       const subGroupData = response.data?.data || response.data || [];
       const normalizedSubGroups = Array.isArray(subGroupData) ? subGroupData.map((group: any) => ({
         ...group,
         id: group._id || group.id
       })) : [];
+      
+      console.log('[DEBUG] Normalized sub-groups:', normalizedSubGroups);
       setSubGroups(normalizedSubGroups);
       setNewSubGroupName('');
       setSelectedMembers([]);
       setShowCreate(false);
-    } catch (error) {
+      setError(null); // Clear any previous errors
+    } catch (error: any) {
       console.error('Error creating sub-group:', error);
-      setError('An error occurred while creating the sub-group.');
+      const errorMessage = error.response?.data?.message || error.message || 'An error occurred while creating the sub-group.';
+      setError(`Failed to create sub-group: ${errorMessage}`);
     } finally {
       setIsCreating(false);
     }

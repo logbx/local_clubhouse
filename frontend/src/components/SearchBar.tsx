@@ -11,6 +11,7 @@ import debounce from 'lodash/debounce';
 interface SearchResults {
   users: Array<Partial<User> & { id: string; tags?: string[]; interests?: string[] }>;
   events: Array<Partial<Event> & { id: string }>;
+  clubs: Array<{ id: string; name: string; description: string; username: string; memberCount: number; sponsors?: any[] }>;
 }
 
 const SearchBar: React.FC = () => {
@@ -75,7 +76,7 @@ const SearchBar: React.FC = () => {
             setIsOpen(true);
           }}
           onFocus={() => setIsOpen(true)}
-          placeholder="Search events, users, or tags..."
+          placeholder="Search events, clubs, users and more"
           className="pl-10 pr-10 py-3 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-primary-400 focus:border-primary-500 dark:focus:border-primary-400 transition-colors"
         />
         {searchTerm && (
@@ -150,6 +151,37 @@ const SearchBar: React.FC = () => {
                 </div>
               )}
 
+              {results.clubs && results.clubs.length > 0 && (
+              <div className="mb-4">
+                <h4 className="px-2 py-1 text-xs font-semibold text-gray-300 uppercase tracking-wider bg-gray-800 rounded mb-2">
+                  Clubs ({results.clubs.length})
+                </h4>
+                <div className="space-y-1">
+                    {results.clubs.map((club) => (
+                        <Link
+                      key={`club-${club.id}`}
+                          to={`/club/${club.username}`}
+                      className="block px-3 py-2 hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-700 rounded"
+                      onClick={() => setIsOpen(false)}
+                        >
+                      <div className="font-semibold text-sm text-white">
+                            {renderHighlight(club.name || 'Unknown Club', searchTerm)}
+                          </div>
+                          <div className="text-xs text-gray-300 mt-1">
+                            <span className="text-gray-400">@{club.username}</span>
+                            <span className="text-gray-400 ml-2">• {club.memberCount} members</span>
+                          </div>
+                          {club.description && (
+                        <div className="text-xs text-gray-300 mt-1 line-clamp-2">
+                          {renderHighlight(club.description, searchTerm)}
+                            </div>
+                          )}
+                        </Link>
+                    ))}
+                </div>
+                </div>
+              )}
+
               {results.events && results.events.length > 0 && (
               <div>
                 <h4 className="px-2 py-1 text-xs font-semibold text-gray-300 uppercase tracking-wider bg-gray-800 rounded mb-2">
@@ -187,7 +219,7 @@ const SearchBar: React.FC = () => {
                 </div>
               )}
             
-            {(!results.users || results.users.length === 0) && (!results.events || results.events.length === 0) && searchTerm && (
+            {(!results.users || results.users.length === 0) && (!results.clubs || results.clubs.length === 0) && (!results.events || results.events.length === 0) && searchTerm && (
               <div className="p-4 text-center text-gray-300">
                 <div className="text-sm font-medium">No results found</div>
                 <div className="text-xs text-gray-400 mt-1">Try searching for different keywords</div>

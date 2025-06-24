@@ -12,6 +12,8 @@ interface CreateEventModalProps {
   isOpen: boolean;
   onClose: () => void;
   event?: Event | null;
+  clubId?: string; // Optional club context
+  clubUsername?: string; // Optional club username
 }
 
 const initialFormData: EventFormData = {
@@ -27,6 +29,7 @@ const initialFormData: EventFormData = {
   tags: [],
   features: [],
   status: EventStatus.DRAFT,
+  invitedUsers: [],
 };
 
 // Popular tags for suggestions
@@ -36,7 +39,7 @@ const popularTags = [
   'Gaming', 'Social', 'Networking', 'Workshop', 'Conference'
 ];
 
-const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, event }) => {
+const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, event, clubId, clubUsername }) => {
   const [formData, setFormData] = useState<EventFormData>(initialFormData);
   const [imagePreview, setImagePreview] = useState<string>('');
   const [currentTag, setCurrentTag] = useState<string>('');
@@ -63,21 +66,33 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
         tags: event.tags || [],
         features: event.features || [],
         status: event.status || EventStatus.DRAFT,
+        clubId: event.clubId,
+        clubUsername: event.clubUsername,
+        invitedUsers: event.invitedUsers || [],
       });
       if (event.imageUrl) {
         setImagePreview(event.imageUrl);
       }
     } else {
-      setFormData(initialFormData);
+      setFormData({
+        ...initialFormData,
+        clubId: clubId, // Set club context if provided
+        clubUsername: clubUsername,
+        visibility: clubId ? EventVisibility.CLUB : EventVisibility.PUBLIC, // Default to CLUB if in club context
+      });
       setImagePreview('');
       setShowPastDateWarning(false);
     }
-  }, [event]);
+  }, [event, clubId, clubUsername]);
 
   const createMutation = useMutation({
     mutationFn: (data: FormData) => eventApi.createEvent(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
+      // Also invalidate club events if this is a club event
+      if (clubId) {
+        queryClient.invalidateQueries({ queryKey: ['club-events', clubId] });
+      }
       onClose();
     },
   });
@@ -86,6 +101,10 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
     mutationFn: ({ id, data }: { id: string; data: FormData }) => eventApi.updateEvent(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
+      // Also invalidate club events if this is a club event
+      if (clubId) {
+        queryClient.invalidateQueries({ queryKey: ['club-events', clubId] });
+      }
       onClose();
     },
   });
@@ -127,8 +146,6 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
       return;
     }
 
-    const formDataToSend = new FormData();
-
     // Determine event status
     let status = saveAsDraft ? EventStatus.DRAFT : EventStatus.LIVE;
     if (!saveAsDraft && endDate < now) {
@@ -141,14 +158,25 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       cost: Number(formData.cost),
-      isFree: String(formData.isFree),
-      tags: JSON.stringify(formData.tags || []),
-      features: JSON.stringify(formData.features || [])
+      isFree: Boolean(formData.isFree),
+      tags: formData.tags || [],
+      features: formData.features || [],
+      invitedUsers: formData.invitedUsers || []
     };
 
-    // Append all form data
+    // Always use FormData for consistency
+    const formDataToSend = new FormData();
     Object.entries(dataToSend).forEach(([key, value]) => {
-      formDataToSend.append(key, value.toString());
+      if (value !== undefined && value !== null) {
+        if (key === 'tags' || key === 'features' || key === 'invitedUsers') {
+          // Handle arrays by JSON stringifying them
+          formDataToSend.append(key, JSON.stringify(value));
+        } else if (key === 'isFree') {
+          formDataToSend.append(key, String(value));
+        } else {
+          formDataToSend.append(key, value.toString());
+        }
+      }
     });
 
     // Append image if exists
@@ -469,17 +497,38 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
 
               <div>
                 <label htmlFor="visibility" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Visibility
+                  Event Visibility
                 </label>
+                {clubId && (
+                  <div className="mt-1 mb-2 p-3 bg-blue-50/80 dark:bg-blue-900/20 border border-blue-200/50 dark:border-blue-800/50 rounded-md">
+                    <p className="text-sm text-blue-800 dark:text-blue-300 font-medium">
+                      💡 Club Event Options:
+                    </p>
+                    <ul className="mt-1 text-xs text-blue-700 dark:text-blue-300 space-y-1">
+                      <li>• <strong>Public:</strong> Appears on everyone's dashboard + your club page</li>
+                      <li>• <strong>Club Only:</strong> Only visible to club members</li>
+                      <li>• <strong>Private:</strong> Only visible to specific invited users</li>
+                    </ul>
+                  </div>
+                )}
                 <select
                   id="visibility"
                   value={formData.visibility}
                   onChange={e => setFormData(prev => ({ ...prev, visibility: e.target.value as EventVisibility }))}
                       className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
                 >
-                  <option value={EventVisibility.PUBLIC}>Public</option>
-                  <option value={EventVisibility.PRIVATE}>Private</option>
+                  <option value={EventVisibility.PUBLIC}>
+                    {clubId ? '🌍 Public - Show on all dashboards + club page' : 'Public - Visible to everyone'}
+                  </option>
+                  <option value={EventVisibility.PRIVATE}>Private - Only visible to invited users</option>
+                  {clubId && <option value={EventVisibility.CLUB}>🏛️ Club Only - Only visible to club members</option>}
                 </select>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {formData.visibility === EventVisibility.PUBLIC && clubId && 'Event will appear on the main dashboard for all users AND on your club page.'}
+                  {formData.visibility === EventVisibility.PUBLIC && !clubId && 'Event will appear on the public dashboard and be discoverable by all users.'}
+                  {formData.visibility === EventVisibility.PRIVATE && 'Event will only be visible to you and users you specifically invite.'}
+                  {formData.visibility === EventVisibility.CLUB && 'Event will only be visible to members of this club and won\'t appear on public dashboards.'}
+                </p>
               </div>
 
               <div>

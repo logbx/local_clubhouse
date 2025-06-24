@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -64,6 +64,20 @@ async function bootstrap() {
       whitelist: true,
       transform: true,
       forbidNonWhitelisted: true,
+      validationError: {
+        target: false,
+        value: false,
+      },
+      exceptionFactory: (errors) => {
+        console.log('[ValidationPipe] Validation errors:', JSON.stringify(errors, null, 2));
+        return new BadRequestException({
+          message: errors.map(error => 
+            Object.values(error.constraints || {}).join(', ')
+          ),
+          error: 'Bad Request',
+          statusCode: 400,
+        });
+      },
     }),
   );
 

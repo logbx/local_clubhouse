@@ -84,10 +84,16 @@ export default function Navbar() {
                 {userMenuOpen && (
                   <div className="absolute right-0 mt-2 w-48 rounded-md bg-white dark:bg-gray-800 py-1 shadow-lg ring-1 ring-black ring-opacity-5 dark:ring-gray-700 transition-colors duration-200">
                     <Link
-                      to="/friends"
+                      to="/social"
                       className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
                     >
-                      Friends
+                      Social
+                    </Link>
+                    <Link
+                      to="/clubs"
+                      className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
+                    >
+                      Clubs
                     </Link>
                     <Link
                       to="/events"
@@ -106,12 +112,6 @@ export default function Navbar() {
                       className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
                     >
                       Settings
-                    </Link>
-                    <Link
-                      to="/messages"
-                      className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
-                    >
-                      Messages
                     </Link>
                     <button
                       onClick={handleLogout}
@@ -162,10 +162,16 @@ export default function Navbar() {
               </div>
               <div className="mt-3 space-y-1 px-2">
                 <Link
-                  to="/friends"
+                  to="/social"
                   className="block rounded-md px-3 py-2 text-base font-medium text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-200"
                 >
-                  Friends
+                  Social
+                </Link>
+                <Link
+                  to="/clubs"
+                  className="block rounded-md px-3 py-2 text-base font-medium text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-200"
+                >
+                  Clubs
                 </Link>
                 <Link
                   to="/events"
@@ -184,12 +190,6 @@ export default function Navbar() {
                   className="block rounded-md px-3 py-2 text-base font-medium text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-200"
                 >
                   Settings
-                </Link>
-                <Link
-                  to="/messages"
-                  className="block rounded-md px-3 py-2 text-base font-medium text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-200"
-                >
-                  Messages
                 </Link>
                 <button
                   onClick={handleLogout}

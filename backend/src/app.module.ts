@@ -22,6 +22,8 @@ import { WebSocketModule } from './websocket/websocket.module';
 import { RedisModule } from './redis/redis.module';
 import { HealthModule } from './health/health.module';
 import { SharedModule } from './shared/shared.module';
+import { ClubsModule } from './clubs/clubs.module';
+import { InstagramModule } from './instagram/instagram.module';
 import { EventMessage, EventMessageSchema } from './models/eventMessage.model';
 import { EventMessageService } from './services/eventMessage.service';
 
@@ -82,6 +84,8 @@ import { EventMessageService } from './services/eventMessage.service';
     UploadModule,
     HealthModule,
     SharedModule,
+    ClubsModule,
+    InstagramModule,
     MongooseModule.forFeature([
       { name: EventMessage.name, schema: EventMessageSchema },
     ]),

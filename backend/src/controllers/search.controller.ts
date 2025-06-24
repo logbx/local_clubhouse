@@ -3,11 +3,12 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { IEvent } from '../models/event.model';
-// For the Event model, we need to check if there's a NestJS event schema or use the Mongoose model
+import { Club, ClubDocument } from '../clubs/schemas/club.schema';
 
 interface SearchResults {
   users: any[];
   events: any[];
+  clubs: any[];
 }
 
 @Controller('search')
@@ -15,6 +16,7 @@ export class SearchController {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel('Event') private eventModel: Model<IEvent>,
+    @InjectModel(Club.name) private clubModel: Model<ClubDocument>,
   ) {}
 
   @Get()
@@ -42,6 +44,20 @@ export class SearchController {
         ]
       }).select('title description startDate endDate location tags');
 
+      // Search clubs
+      const clubDocs = await this.clubModel.find({
+        $and: [
+          { isActive: true },
+          {
+            $or: [
+              { name: { $regex: query, $options: 'i' } },
+              { description: { $regex: query, $options: 'i' } },
+              { username: { $regex: query, $options: 'i' } }
+            ]
+          }
+        ]
+      }).select('name description username members sponsors');
+
       // Transform users to include id field
       const users = userDocs.map(user => ({
         id: user._id.toString(),
@@ -62,9 +78,20 @@ export class SearchController {
         tags: event.tags
       }));
 
+      // Transform clubs to include id field
+      const clubs = clubDocs.map(club => ({
+        id: club._id.toString(),
+        name: club.name,
+        description: club.description,
+        username: club.username,
+        memberCount: club.members.length,
+        sponsors: club.sponsors || []
+      }));
+
       return {
         users,
-        events
+        events,
+        clubs
       };
     } catch (error) {
       console.error('Search error:', error);

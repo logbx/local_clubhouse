@@ -63,6 +63,19 @@ export class EventSubGroupsController {
       }
 
       const userId = req.user.sub || req.user._id || req.user.id;
+      console.log('[DEBUG] Fetching sub-groups for eventId:', eventId, 'userId:', userId);
+      
+      // First, let's see ALL sub-groups for this event for debugging
+      const allSubGroups = await this.eventSubGroupModel
+        .find({ eventId })
+        .populate('members', 'username profileImage')
+        .populate('createdBy', 'username')
+        .exec();
+      
+      console.log('[DEBUG] ALL sub-groups for event:', allSubGroups.length, 'groups');
+      allSubGroups.forEach(group => {
+        console.log('[DEBUG] All Sub-group:', group.name, 'members:', group.members.map(m => m.toString()), 'createdBy:', group.createdBy);
+      });
       
       // Only return sub-groups where user is a member
       const subGroups = await this.eventSubGroupModel
@@ -73,8 +86,15 @@ export class EventSubGroupsController {
         .populate('members', 'username profileImage')
         .populate('createdBy', 'username')
         .exec();
+      
+      console.log('[DEBUG] Found member sub-groups:', subGroups.length, 'groups');
+      subGroups.forEach(group => {
+        console.log('[DEBUG] Member Sub-group:', group.name, 'members:', group.members.map(m => m.toString()));
+      });
+      
       return subGroups;
     } catch (error) {
+      console.error('[ERROR] Failed to fetch sub-groups:', error);
       throw new Error('Failed to fetch sub-groups');
     }
   }
@@ -120,9 +140,12 @@ export class EventSubGroupsController {
   ) {
     try {
       const userId = req.user.sub || req.user._id || req.user.id;
+      console.log('[DEBUG] Creating sub-group for eventId:', subGroupData.eventId, 'userId:', userId);
+      console.log('[DEBUG] Sub-group data:', subGroupData);
       
       // Always include the event creator as a member
       const membersIncludingCreator = [...new Set([userId, ...(subGroupData.members || [])])];
+      console.log('[DEBUG] Members including creator:', membersIncludingCreator);
       
       const subGroup = new this.eventSubGroupModel({
         eventId: subGroupData.eventId,
@@ -131,8 +154,10 @@ export class EventSubGroupsController {
         createdBy: userId,
       });
       await subGroup.save();
+      console.log('[DEBUG] Sub-group created:', subGroup._id, 'with members:', subGroup.members);
       return subGroup;
     } catch (error) {
+      console.error('[ERROR] Failed to create sub-group:', error);
       throw new Error('Failed to create sub-group');
     }
   }

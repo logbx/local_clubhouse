@@ -12,7 +12,7 @@ export default function PublicLayout({ children }: PublicLayoutProps) {
       <main className="flex-grow">
         {children}
       </main>
-      <footer className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 transition-colors duration-200">
+      <footer id="global-footer" className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 transition-colors duration-200">
         <div className="container mx-auto px-4 py-8">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="text-gray-600 dark:text-gray-300 mb-4 md:mb-0">
