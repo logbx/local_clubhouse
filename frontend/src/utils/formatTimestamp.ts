@@ -6,54 +6,29 @@
  * - 2-7 days ago: Weekday + time (Sun 14:30)
  * - More than 7 days ago: Full date + time (3 Jun 2025, 14:30)
  */
-export function formatMessageTimestamp(dateString: string): string {
-  const messageDate = new Date(dateString);
+export function formatMessageTimestamp(timestamp: string): string {
+  const date = new Date(timestamp);
   const now = new Date();
+  const diffInMs = now.getTime() - date.getTime();
+  const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+  const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
 
-  // Validate the date
-  if (isNaN(messageDate.getTime())) {
-    return 'Invalid date';
-  }
-
-  const isSameDay = (a: Date, b: Date): boolean =>
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate();
-
-  const isYesterday = (date: Date): boolean => {
-    const yesterday = new Date();
-    yesterday.setDate(now.getDate() - 1);
-    return isSameDay(date, yesterday);
-  };
-
-  const daysAgo = Math.floor((+now - +messageDate) / (1000 * 60 * 60 * 24));
-
-  const timeOptions: Intl.DateTimeFormatOptions = {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  };
-
-  const dayOfWeekOptions: Intl.DateTimeFormatOptions = {
-    weekday: 'short',
-    ...timeOptions,
-  };
-
-  const fullDateOptions: Intl.DateTimeFormatOptions = {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    ...timeOptions,
-  };
-
-  if (isSameDay(messageDate, now)) {
-    return messageDate.toLocaleTimeString(undefined, timeOptions); // "14:30"
-  } else if (isYesterday(messageDate)) {
-    return `Yesterday ${messageDate.toLocaleTimeString(undefined, timeOptions)}`; // "Yesterday 14:30"
-  } else if (daysAgo < 7) {
-    return messageDate.toLocaleString(undefined, dayOfWeekOptions); // "Sun 14:30"
+  if (diffInMinutes < 1) {
+    return 'Just now';
+  } else if (diffInMinutes < 60) {
+    return `${diffInMinutes}m ago`;
+  } else if (diffInHours < 24) {
+    return `${diffInHours}h ago`;
+  } else if (diffInDays < 7) {
+    return `${diffInDays}d ago`;
   } else {
-    return messageDate.toLocaleString(undefined, fullDateOptions); // "3 Jun 2025, 14:30"
+    // For older messages, show the date
+    return date.toLocaleDateString(undefined, { 
+      month: 'short', 
+      day: 'numeric',
+      year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+    });
   }
 }
 
