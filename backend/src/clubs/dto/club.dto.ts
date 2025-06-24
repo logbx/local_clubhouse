@@ -47,6 +47,16 @@ export class CreateClubDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000, { message: 'Mission cannot exceed 2000 characters' })
+  mission?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000, { message: 'Story cannot exceed 2000 characters' })
+  story?: string;
+
+  @IsOptional()
+  @IsString()
   logoUrl?: string;
 
   @IsOptional()
@@ -88,6 +98,16 @@ export class UpdateClubDto {
   @IsString()
   @MaxLength(1000, { message: 'Description cannot exceed 1000 characters' })
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000, { message: 'Mission cannot exceed 2000 characters' })
+  mission?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000, { message: 'Story cannot exceed 2000 characters' })
+  story?: string;
 
   @IsOptional()
   @IsString()
@@ -172,6 +192,16 @@ export class UpdateClubProfileDto {
   @IsString()
   @MaxLength(500, { message: 'Description cannot exceed 500 characters' })
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000, { message: 'Mission cannot exceed 2000 characters' })
+  mission?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000, { message: 'Story cannot exceed 2000 characters' })
+  story?: string;
 
   @IsOptional()
   @IsString()
@@ -280,4 +310,23 @@ export class DeleteCommentDto {
   @IsString()
   @IsNotEmpty()
   commentId: string;
+}
+
+export class CreateClubGroupChatDto {
+  name: string;
+  description?: string;
+  members?: string[]; // Array of user IDs
+}
+
+export class UpdateClubGroupChatDto {
+  name?: string;
+  description?: string;
+}
+
+export class AddGroupChatMemberDto {
+  userId: string;
+}
+
+export class GroupChatMessageDto {
+  content: string;
 } 

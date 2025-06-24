@@ -27,11 +27,6 @@ const ClubMemberList: React.FC<ClubMemberListProps> = ({ clubUsername, isAdmin, 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const fetchMembers = async () => {
-    if (!isAdmin) {
-      setLoading(false);
-      return;
-    }
-
     try {
       setLoading(true);
       const clubMembers = await clubApi.getClubMembers(clubUsername);
@@ -47,7 +42,7 @@ const ClubMemberList: React.FC<ClubMemberListProps> = ({ clubUsername, isAdmin, 
 
   useEffect(() => {
     fetchMembers();
-  }, [clubUsername, isAdmin]);
+  }, [clubUsername]);
 
   // Helper function to check if a member is the club founder
   const isClubFounder = (memberId: string): boolean => {
@@ -138,21 +133,7 @@ const ClubMemberList: React.FC<ClubMemberListProps> = ({ clubUsername, isAdmin, 
     }
   };
 
-  if (!isAdmin) {
-    return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
-        <div className="text-gray-400 mb-4">
-          <UserIcon className="mx-auto h-12 w-12" />
-        </div>
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-          Admin Access Required
-        </h3>
-        <p className="text-gray-600 dark:text-gray-400">
-          Only club admins can view and manage the member list.
-        </p>
-      </div>
-    );
-  }
+
 
   if (loading) {
     return (
@@ -281,8 +262,8 @@ const ClubMemberList: React.FC<ClubMemberListProps> = ({ clubUsername, isAdmin, 
                         {roleInfo.displayText}
                       </span>
 
-                      {/* Only show actions for other members, not yourself, and only if they can be modified */}
-                      {member.userId._id !== user?.id && roleInfo.canModify && (
+                      {/* Only show actions for other members, not yourself, and only if they can be modified and user is admin */}
+                      {member.userId._id !== user?.id && roleInfo.canModify && isAdmin && (
                         <Menu as="div" className="relative">
                           <Menu.Button
                             disabled={actionLoading === member.userId._id}

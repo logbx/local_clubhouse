@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Event, EventStatus } from '../types/event';
 import { eventApi } from '../services/api';
 import { format } from 'date-fns';
-import { CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, CurrencyDollarIcon, UserIcon } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -11,14 +11,38 @@ const EventDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<EventStatus>(EventStatus.LIVE);
+  const [rsvpLoading, setRsvpLoading] = useState<{ [key: string]: boolean }>({});
 
-
-  const { data: events, isLoading } = useQuery<Event[]>({
+  const { data: events, isLoading, refetch } = useQuery<Event[]>({
     queryKey: ['events'],
     queryFn: eventApi.getEvents,
   });
 
   const filteredEvents = events?.filter(event => event.status === activeTab) || [];
+
+  const handleRsvp = async (eventId: string) => {
+    if (!user) return;
+    
+    try {
+      setRsvpLoading(prev => ({ ...prev, [eventId]: true }));
+      await eventApi.toggleRsvp(eventId);
+      
+      // Refresh events to get updated RSVP status
+      refetch();
+    } catch (error) {
+      console.error('Error updating RSVP:', error);
+    } finally {
+      setRsvpLoading(prev => ({ ...prev, [eventId]: false }));
+    }
+  };
+
+  const isUserRsvped = (event: Event) => {
+    return event.rsvps.some(rsvp => rsvp.id === user?.id);
+  };
+
+  const isEventCreator = (event: Event) => {
+    return user && (event.creator.id === user.id || event.creatorId === user.id);
+  };
 
   const getEventStatusColor = (status: EventStatus) => {
     switch (status) {
@@ -32,8 +56,6 @@ const EventDashboard: React.FC = () => {
         return 'bg-gray-100 text-gray-800 dark:bg-gray-800/50 dark:text-gray-300';
     }
   };
-
-
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 transition-colors duration-200">
@@ -126,9 +148,16 @@ const EventDashboard: React.FC = () => {
                       <UserGroupIcon className="h-4 w-4 mr-2" />
                       {event.rsvps.length} RSVPs
                     </div>
-                    {event.clubName && event.clubUsername && (
-                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                        <button onClick={() => navigate(`/clubs/${event.clubUsername}`)} className="flex items-center mr-2 hover:text-purple-700 dark:hover:text-purple-300 transition-colors">
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                      <CurrencyDollarIcon className="h-4 w-4 mr-2" />
+                      {event.isFree ? 'Free' : `$${event.cost}`}
+                    </div>
+                    
+                    {/* Club and Creator Row */}
+                    <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+                      {/* Club (left side) */}
+                      {event.clubName && event.clubUsername && (
+                        <button onClick={() => navigate(`/clubs/${event.clubUsername}`)} className="flex items-center hover:text-purple-700 dark:hover:text-purple-300 transition-colors">
                           {event.clubLogoUrl ? (
                             <img src={event.clubLogoUrl} alt={`${event.clubName} logo`} className="h-4 w-4 rounded-full object-cover mr-1 border border-gray-200 dark:border-gray-600" />
                           ) : (
@@ -140,12 +169,20 @@ const EventDashboard: React.FC = () => {
                             {event.clubName}
                           </span>
                         </button>
-                      </div>
-                    )}
+                      )}
+                      {/* Creator (right side) */}
+                      {event.creator && (
+                        <div className="flex items-center">
+                          <UserIcon className="h-4 w-4 mr-1" />
+                          <span>{event.creator.username}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="mt-6 flex space-x-3">
+                  
+                  <div className="mt-6 space-y-3">
                     <button 
-                      className="btn btn-primary flex-1"
+                      className="btn btn-primary w-full"
                       onClick={() => navigate(`/event/${event.id}`)}
                     >
                       View Details
@@ -157,8 +194,6 @@ const EventDashboard: React.FC = () => {
           </div>
         )}
       </div>
-
-
     </div>
   );
 };

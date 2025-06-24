@@ -2,13 +2,15 @@ import { Injectable, NotFoundException, ConflictException, ForbiddenException } 
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Club, ClubDocument } from './schemas/club.schema';
-import { CreateClubDto, UpdateClubDto, AddClubCommentDto, ChatMessageDto, UpdateMemberRoleDto, UpdateClubProfileDto, DeleteCommentDto } from './dto/club.dto';
+import { ClubGroupChat, ClubGroupChatDocument } from './schemas/club-group-chat.schema';
+import { CreateClubDto, UpdateClubDto, AddClubCommentDto, ChatMessageDto, UpdateMemberRoleDto, UpdateClubProfileDto, DeleteCommentDto, CreateClubGroupChatDto, UpdateClubGroupChatDto, AddGroupChatMemberDto, GroupChatMessageDto } from './dto/club.dto';
 import { IEvent } from '../models/event.model';
 
 @Injectable()
 export class ClubsService {
   constructor(
     @InjectModel(Club.name) private clubModel: Model<ClubDocument>,
+    @InjectModel(ClubGroupChat.name) private clubGroupChatModel: Model<ClubGroupChatDocument>,
     @InjectModel('Event') private eventModel: Model<IEvent>,
   ) {}
 
@@ -218,7 +220,9 @@ export class ClubsService {
 
   // Chat functionality
   async getChatMessages(clubUsername: string, userId: Types.ObjectId): Promise<Club['chatMessages']> {
-    const club = await this.clubModel.findOne({ username: clubUsername, isActive: true });
+    const club = await this.clubModel.findOne({ username: clubUsername, isActive: true })
+      .populate('chatMessages.senderId', 'username fullName profileImage')
+      .exec();
     
     if (!club) {
       throw new NotFoundException('Club not found');
@@ -230,10 +234,23 @@ export class ClubsService {
       throw new ForbiddenException('Only club members can access chat');
     }
 
-    return club.chatMessages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    // Transform messages to ensure senderName and senderProfileImage are populated
+    const populatedMessages = club.chatMessages.map(message => {
+      const sender = message.senderId as any; // This will be populated by mongoose
+      return {
+        _id: message._id,
+        senderId: message.senderId,
+        senderName: message.senderName || sender?.fullName || sender?.username || 'Unknown User',
+        senderProfileImage: message.senderProfileImage || sender?.profileImage || null,
+        content: message.content,
+        createdAt: message.createdAt
+      };
+    });
+
+    return populatedMessages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }
 
-  async sendChatMessage(clubUsername: string, userId: Types.ObjectId, chatMessageDto: ChatMessageDto, senderName: string): Promise<Club> {
+  async sendChatMessage(clubUsername: string, userId: Types.ObjectId, chatMessageDto: ChatMessageDto, senderName: string, senderProfileImage?: string): Promise<Club> {
     const club = await this.clubModel.findOne({ username: clubUsername, isActive: true });
     
     if (!club) {
@@ -250,6 +267,7 @@ export class ClubsService {
       _id: new Types.ObjectId(),
       senderId: userId,
       senderName,
+      senderProfileImage,
       content: chatMessageDto.content,
       createdAt: new Date(),
     };
@@ -269,7 +287,7 @@ export class ClubsService {
   }
 
   // Member management
-  async getClubMembers(clubUsername: string, userId: Types.ObjectId): Promise<Club['members']> {
+  async getClubMembers(clubUsername: string, userId?: Types.ObjectId): Promise<Club['members']> {
     const club = await this.clubModel
       .findOne({ username: clubUsername, isActive: true })
       .populate('members.userId', 'username fullName profileImage')
@@ -279,15 +297,7 @@ export class ClubsService {
       throw new NotFoundException('Club not found');
     }
 
-    // Check if user is admin, creator, or club founder
-    const userMember = club.members.find(member => member.userId?._id?.equals(userId));
-    const isCreator = club.createdBy.equals(userId);
-    const isFounder = club.club_founder?.equals(userId);
-    
-    if (!isCreator && !isFounder && (!userMember || userMember.role !== 'admin')) {
-      throw new ForbiddenException('Only club admins can view member list');
-    }
-
+    // Club members are now publicly viewable - no admin restriction
     return club.members;
   }
 
@@ -533,19 +543,314 @@ export class ClubsService {
       throw new NotFoundException('Club not found');
     }
 
-    // Count events where the club is associated (live + past events)
-    const eventCount = await this.eventModel.countDocuments({
-      $and: [
-        { clubId: club._id },
-        { 
-          $or: [
-            { status: 'LIVE' },
-            { status: 'PAST' }
-          ]
-        }
-      ]
+    const count = await this.eventModel.countDocuments({ 
+      clubId: club._id,
+      status: { $in: ['live', 'past'] }
     });
 
-    return eventCount;
+    return count;
+  }
+
+  // Group Chat Methods
+  async createGroupChat(clubUsername: string, userId: Types.ObjectId, createGroupChatDto: CreateClubGroupChatDto): Promise<ClubGroupChat> {
+    const club = await this.clubModel.findOne({ username: clubUsername, isActive: true });
+    
+    if (!club) {
+      throw new NotFoundException('Club not found');
+    }
+
+    // Check if user is admin or creator
+    const isAdmin = await this.isUserAdmin(clubUsername, userId);
+    if (!isAdmin) {
+      throw new ForbiddenException('Only club admins can create group chats');
+    }
+
+    // Create the group chat
+    const groupChat = new this.clubGroupChatModel({
+      name: createGroupChatDto.name,
+      description: createGroupChatDto.description,
+      clubId: club._id,
+      createdBy: userId,
+      members: createGroupChatDto.members ? 
+        createGroupChatDto.members.map(id => new Types.ObjectId(id)) : 
+        [userId], // Creator is automatically added
+    });
+
+    const savedGroupChat = await groupChat.save();
+    
+    // Return populated group chat
+    return this.clubGroupChatModel
+      .findById(savedGroupChat._id)
+      .populate('createdBy', 'username fullName profileImage')
+      .populate('members', 'username fullName profileImage')
+      .exec() as Promise<ClubGroupChat>;
+  }
+
+  async getClubGroupChats(clubUsername: string, userId: Types.ObjectId): Promise<ClubGroupChat[]> {
+    const club = await this.clubModel.findOne({ username: clubUsername, isActive: true });
+    
+    if (!club) {
+      throw new NotFoundException('Club not found');
+    }
+
+    // Check if user is a member
+    const isMember = await this.isUserMember(clubUsername, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Only club members can view group chats');
+    }
+
+    // Return group chats where user is a member
+    return this.clubGroupChatModel
+      .find({ 
+        clubId: club._id, 
+        isActive: true,
+        members: userId 
+      })
+      .populate('createdBy', 'username fullName profileImage')
+      .populate('members', 'username fullName profileImage')
+      .sort({ createdAt: -1 })
+      .exec();
+  }
+
+  async updateGroupChat(clubUsername: string, groupChatId: string, userId: Types.ObjectId, updateGroupChatDto: UpdateClubGroupChatDto): Promise<ClubGroupChat> {
+    const club = await this.clubModel.findOne({ username: clubUsername, isActive: true });
+    
+    if (!club) {
+      throw new NotFoundException('Club not found');
+    }
+
+    const groupChat = await this.clubGroupChatModel.findOne({ 
+      _id: groupChatId, 
+      clubId: club._id, 
+      isActive: true 
+    });
+
+    if (!groupChat) {
+      throw new NotFoundException('Group chat not found');
+    }
+
+    // Check if user is admin or creator of the group chat
+    const isAdmin = await this.isUserAdmin(clubUsername, userId);
+    const isCreator = groupChat.createdBy.equals(userId);
+    
+    if (!isAdmin && !isCreator) {
+      throw new ForbiddenException('Only admins or group chat creators can update group chats');
+    }
+
+    const updatedGroupChat = await this.clubGroupChatModel
+      .findByIdAndUpdate(groupChatId, updateGroupChatDto, { new: true })
+      .populate('createdBy', 'username fullName profileImage')
+      .populate('members', 'username fullName profileImage')
+      .exec();
+
+    return updatedGroupChat!;
+  }
+
+  async deleteGroupChat(clubUsername: string, groupChatId: string, userId: Types.ObjectId): Promise<void> {
+    const club = await this.clubModel.findOne({ username: clubUsername, isActive: true });
+    
+    if (!club) {
+      throw new NotFoundException('Club not found');
+    }
+
+    const groupChat = await this.clubGroupChatModel.findOne({ 
+      _id: groupChatId, 
+      clubId: club._id, 
+      isActive: true 
+    });
+
+    if (!groupChat) {
+      throw new NotFoundException('Group chat not found');
+    }
+
+    // Check if user is admin or creator of the group chat
+    const isAdmin = await this.isUserAdmin(clubUsername, userId);
+    const isCreator = groupChat.createdBy.equals(userId);
+    
+    if (!isAdmin && !isCreator) {
+      throw new ForbiddenException('Only admins or group chat creators can delete group chats');
+    }
+
+    await this.clubGroupChatModel.findByIdAndUpdate(groupChatId, { isActive: false });
+  }
+
+  async addGroupChatMember(clubUsername: string, groupChatId: string, userId: Types.ObjectId, addGroupChatMemberDto: AddGroupChatMemberDto): Promise<ClubGroupChat> {
+    const club = await this.clubModel.findOne({ username: clubUsername, isActive: true });
+    
+    if (!club) {
+      throw new NotFoundException('Club not found');
+    }
+
+    const groupChat = await this.clubGroupChatModel.findOne({ 
+      _id: groupChatId, 
+      clubId: club._id, 
+      isActive: true 
+    });
+
+    if (!groupChat) {
+      throw new NotFoundException('Group chat not found');
+    }
+
+    // Check if user is admin or creator of the group chat
+    const isAdmin = await this.isUserAdmin(clubUsername, userId);
+    const isCreator = groupChat.createdBy.equals(userId);
+    
+    if (!isAdmin && !isCreator) {
+      throw new ForbiddenException('Only admins or group chat creators can add members');
+    }
+
+    const newMemberId = new Types.ObjectId(addGroupChatMemberDto.userId);
+
+    // Check if the new member is already in the group chat
+    if (groupChat.members.some(memberId => memberId.equals(newMemberId))) {
+      throw new ConflictException('User is already a member of this group chat');
+    }
+
+    // Check if the new member is a club member
+    const isClubMember = await this.isUserMember(clubUsername, newMemberId);
+    if (!isClubMember) {
+      throw new ForbiddenException('User must be a club member to join group chats');
+    }
+
+    const updatedGroupChat = await this.clubGroupChatModel
+      .findByIdAndUpdate(
+        groupChatId,
+        { $push: { members: newMemberId } },
+        { new: true }
+      )
+      .populate('createdBy', 'username fullName profileImage')
+      .populate('members', 'username fullName profileImage')
+      .exec();
+
+    return updatedGroupChat!;
+  }
+
+  async removeGroupChatMember(clubUsername: string, groupChatId: string, userId: Types.ObjectId, memberUserId: string): Promise<ClubGroupChat> {
+    const club = await this.clubModel.findOne({ username: clubUsername, isActive: true });
+    
+    if (!club) {
+      throw new NotFoundException('Club not found');
+    }
+
+    const groupChat = await this.clubGroupChatModel.findOne({ 
+      _id: groupChatId, 
+      clubId: club._id, 
+      isActive: true 
+    });
+
+    if (!groupChat) {
+      throw new NotFoundException('Group chat not found');
+    }
+
+    // Check if user is admin or creator of the group chat
+    const isAdmin = await this.isUserAdmin(clubUsername, userId);
+    const isCreator = groupChat.createdBy.equals(userId);
+    const memberToRemoveId = new Types.ObjectId(memberUserId);
+    const isSelfRemoval = userId.equals(memberToRemoveId);
+    
+    if (!isAdmin && !isCreator && !isSelfRemoval) {
+      throw new ForbiddenException('Only admins, group chat creators, or the member themselves can remove members');
+    }
+
+    // Prevent removal of group chat creator
+    if (groupChat.createdBy.equals(memberToRemoveId)) {
+      throw new ForbiddenException('Cannot remove the group chat creator');
+    }
+
+    const updatedGroupChat = await this.clubGroupChatModel
+      .findByIdAndUpdate(
+        groupChatId,
+        { $pull: { members: memberToRemoveId } },
+        { new: true }
+      )
+      .populate('createdBy', 'username fullName profileImage')
+      .populate('members', 'username fullName profileImage')
+      .exec();
+
+    return updatedGroupChat!;
+  }
+
+  async getGroupChatMessages(clubUsername: string, groupChatId: string, userId: Types.ObjectId): Promise<ClubGroupChat['messages']> {
+    const club = await this.clubModel.findOne({ username: clubUsername, isActive: true });
+    
+    if (!club) {
+      throw new NotFoundException('Club not found');
+    }
+
+    const groupChat = await this.clubGroupChatModel.findOne({ 
+      _id: groupChatId, 
+      clubId: club._id, 
+      isActive: true 
+    })
+    .populate('messages.senderId', 'username fullName profileImage')
+    .exec();
+
+    if (!groupChat) {
+      throw new NotFoundException('Group chat not found');
+    }
+
+    // Check if user is a member of the group chat
+    if (!groupChat.members.some(memberId => memberId.equals(userId))) {
+      throw new ForbiddenException('Only group chat members can view messages');
+    }
+
+    // Transform messages to ensure senderName and senderProfileImage are populated
+    const populatedMessages = groupChat.messages.map(message => {
+      const sender = message.senderId as any; // This will be populated by mongoose
+      return {
+        _id: message._id,
+        senderId: message.senderId,
+        senderName: message.senderName || sender?.fullName || sender?.username || 'Unknown User',
+        senderProfileImage: message.senderProfileImage || sender?.profileImage || null,
+        content: message.content,
+        createdAt: message.createdAt
+      };
+    });
+
+    return populatedMessages.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
+
+  async sendGroupChatMessage(clubUsername: string, groupChatId: string, userId: Types.ObjectId, groupChatMessageDto: GroupChatMessageDto, senderName: string, senderProfileImage?: string): Promise<ClubGroupChat> {
+    const club = await this.clubModel.findOne({ username: clubUsername, isActive: true });
+    
+    if (!club) {
+      throw new NotFoundException('Club not found');
+    }
+
+    const groupChat = await this.clubGroupChatModel.findOne({ 
+      _id: groupChatId, 
+      clubId: club._id, 
+      isActive: true 
+    });
+
+    if (!groupChat) {
+      throw new NotFoundException('Group chat not found');
+    }
+
+    // Check if user is a member of the group chat
+    if (!groupChat.members.some(memberId => memberId.equals(userId))) {
+      throw new ForbiddenException('Only group chat members can send messages');
+    }
+
+    const message = {
+      _id: new Types.ObjectId(),
+      senderId: userId,
+      senderName,
+      senderProfileImage,
+      content: groupChatMessageDto.content,
+      createdAt: new Date(),
+    };
+
+    const updatedGroupChat = await this.clubGroupChatModel
+      .findByIdAndUpdate(
+        groupChatId,
+        { $push: { messages: message } },
+        { new: true }
+      )
+      .populate('createdBy', 'username fullName profileImage')
+      .populate('members', 'username fullName profileImage')
+      .exec();
+
+    return updatedGroupChat!;
   }
 } 

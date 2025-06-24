@@ -14,7 +14,7 @@ import {
   HttpCode
 } from '@nestjs/common';
 import { ClubsService } from './clubs.service';
-import { CreateClubDto, UpdateClubDto, AddClubCommentDto, ChatMessageDto, UpdateMemberRoleDto, UpdateClubProfileDto, DeleteCommentDto } from './dto/club.dto';
+import { CreateClubDto, UpdateClubDto, AddClubCommentDto, ChatMessageDto, UpdateMemberRoleDto, UpdateClubProfileDto, DeleteCommentDto, CreateClubGroupChatDto, UpdateClubGroupChatDto, AddGroupChatMemberDto, GroupChatMessageDto } from './dto/club.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Public } from '../auth/decorators/public.decorator';
 import { ClubAdminGuard } from './guards/club-admin.guard';
@@ -114,18 +114,21 @@ export class ClubsController {
       username, 
       this.getUserId(req.user), 
       chatMessageDto,
-      req.user.fullName || req.user.username
+      req.user.fullName || req.user.username,
+      req.user.profileImage
     );
   }
 
   // Member management endpoints
   @Get(':username/members')
-  @UseGuards(JwtAuthGuard)
+  @Public()
   async getClubMembers(
     @Param('username') username: string,
     @Request() req: any
   ) {
-    return this.clubsService.getClubMembers(username, this.getUserId(req.user));
+    // For public access, userId is optional
+    const userId = req.user ? this.getUserId(req.user) : undefined;
+    return this.clubsService.getClubMembers(username, userId);
   }
 
   @Put(':username/members/role')
@@ -227,6 +230,99 @@ export class ClubsController {
       username, 
       this.getUserId(req.user), 
       commentId
+    );
+  }
+
+  // Group chat endpoints
+  @Post(':username/group-chats')
+  @UseGuards(JwtAuthGuard)
+  async createGroupChat(
+    @Param('username') username: string,
+    @Body() createGroupChatDto: CreateClubGroupChatDto,
+    @Request() req: any
+  ) {
+    return this.clubsService.createGroupChat(username, this.getUserId(req.user), createGroupChatDto);
+  }
+
+  @Get(':username/group-chats')
+  @UseGuards(JwtAuthGuard)
+  async getClubGroupChats(
+    @Param('username') username: string,
+    @Request() req: any
+  ) {
+    return this.clubsService.getClubGroupChats(username, this.getUserId(req.user));
+  }
+
+  @Put(':username/group-chats/:groupChatId')
+  @UseGuards(JwtAuthGuard)
+  async updateGroupChat(
+    @Param('username') username: string,
+    @Param('groupChatId') groupChatId: string,
+    @Body() updateGroupChatDto: UpdateClubGroupChatDto,
+    @Request() req: any
+  ) {
+    return this.clubsService.updateGroupChat(username, groupChatId, this.getUserId(req.user), updateGroupChatDto);
+  }
+
+  @Delete(':username/group-chats/:groupChatId')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteGroupChat(
+    @Param('username') username: string,
+    @Param('groupChatId') groupChatId: string,
+    @Request() req: any
+  ) {
+    return this.clubsService.deleteGroupChat(username, groupChatId, this.getUserId(req.user));
+  }
+
+  @Post(':username/group-chats/:groupChatId/members')
+  @UseGuards(JwtAuthGuard)
+  async addGroupChatMember(
+    @Param('username') username: string,
+    @Param('groupChatId') groupChatId: string,
+    @Body() addGroupChatMemberDto: AddGroupChatMemberDto,
+    @Request() req: any
+  ) {
+    return this.clubsService.addGroupChatMember(username, groupChatId, this.getUserId(req.user), addGroupChatMemberDto);
+  }
+
+  @Delete(':username/group-chats/:groupChatId/members/:userId')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async removeGroupChatMember(
+    @Param('username') username: string,
+    @Param('groupChatId') groupChatId: string,
+    @Param('userId') userId: string,
+    @Request() req: any
+  ) {
+    return this.clubsService.removeGroupChatMember(username, groupChatId, this.getUserId(req.user), userId);
+  }
+
+  @Get(':username/group-chats/:groupChatId/messages')
+  @UseGuards(JwtAuthGuard)
+  async getGroupChatMessages(
+    @Param('username') username: string,
+    @Param('groupChatId') groupChatId: string,
+    @Request() req: any
+  ) {
+    return this.clubsService.getGroupChatMessages(username, groupChatId, this.getUserId(req.user));
+  }
+
+  @Post(':username/group-chats/:groupChatId/messages')
+  @UseGuards(JwtAuthGuard)
+  async sendGroupChatMessage(
+    @Param('username') username: string,
+    @Param('groupChatId') groupChatId: string,
+    @Body() groupChatMessageDto: GroupChatMessageDto,
+    @Request() req: any
+  ) {
+    return this.clubsService.sendGroupChatMessage(
+      username, 
+      groupChatId,
+      this.getUserId(req.user), 
+      groupChatMessageDto,
+      req.user.fullName || req.user.username,
+      req.user.profileImage
     );
   }
 } 

@@ -12,9 +12,10 @@ export class RegisterDto {
   @IsNotEmpty()
   password: string;
 
-  @IsOptional()
   @IsString()
-  username?: string;
+  @IsNotEmpty()
+  @MinLength(3, { message: 'Username must be at least 3 characters long' })
+  username: string;
 
   @IsString()
   @IsNotEmpty()

@@ -33,8 +33,41 @@ export interface ClubChatMessage {
   _id?: string;
   senderId: string;
   senderName: string;
+  senderProfileImage?: string;
   content: string;
   createdAt: string;
+}
+
+export interface ClubGroupChatMessage {
+  _id?: string;
+  senderId: string;
+  senderName: string;
+  senderProfileImage?: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface ClubGroupChat {
+  _id: string;
+  name: string;
+  description?: string;
+  clubId: string;
+  createdBy: {
+    _id: string;
+    username: string;
+    fullName: string;
+    profileImage?: string;
+  };
+  members: {
+    _id: string;
+    username: string;
+    fullName: string;
+    profileImage?: string;
+  }[];
+  messages: ClubGroupChatMessage[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Club {
@@ -42,6 +75,8 @@ export interface Club {
   name: string;
   username: string;
   description?: string;
+  mission?: string;
+  story?: string;
   logoUrl?: string;
   socialLinks: SocialLink[];
   photoGallery: string[];
@@ -63,6 +98,8 @@ export interface CreateClubDto {
   name: string;
   username: string;
   description?: string;
+  mission?: string;
+  story?: string;
   logoUrl?: string;
   socialLinks?: SocialLink[];
   photoGallery?: string[];
@@ -74,6 +111,8 @@ export interface CreateClubDto {
 export interface UpdateClubDto {
   name?: string;
   description?: string;
+  mission?: string;
+  story?: string;
   logoUrl?: string;
   socialLinks?: SocialLink[];
   photoGallery?: string[];
@@ -105,6 +144,8 @@ export interface MembershipStatus {
 export interface UpdateClubProfileDto {
   name?: string;
   description?: string;
+  mission?: string;
+  story?: string;
   logoUrl?: string;
   socialLinks?: SocialLink[];
   photoGallery?: string[];
@@ -120,4 +161,23 @@ export interface ClubStats {
   totalComments: number;
   totalChatMessages: number;
   createdAt: string;
+}
+
+export interface CreateClubGroupChatDto {
+  name: string;
+  description?: string;
+  members?: string[];
+}
+
+export interface UpdateClubGroupChatDto {
+  name?: string;
+  description?: string;
+}
+
+export interface AddGroupChatMemberDto {
+  userId: string;
+}
+
+export interface GroupChatMessageDto {
+  content: string;
 } 

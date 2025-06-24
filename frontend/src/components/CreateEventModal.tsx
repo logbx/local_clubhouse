@@ -47,6 +47,85 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
   const [showPastDateWarning, setShowPastDateWarning] = useState<boolean>(false);
   const queryClient = useQueryClient();
 
+  // Generate time options in 10-minute increments
+  const generateTimeOptions = () => {
+    const hours = [];
+    for (let hour = 1; hour <= 12; hour++) {
+      hours.push({ value: hour.toString(), label: hour.toString() });
+    }
+
+    const minutes = [];
+    for (let minute = 0; minute < 60; minute += 10) {
+      const minuteStr = minute.toString().padStart(2, '0');
+      minutes.push({ value: minuteStr, label: minuteStr });
+    }
+
+    const periods = [
+      { value: 'AM', label: 'AM' },
+      { value: 'PM', label: 'PM' }
+    ];
+
+    return { hours, minutes, periods };
+  };
+
+  const { hours: hourOptions, minutes: minuteOptions, periods: periodOptions } = generateTimeOptions();
+
+  // Helper functions to extract hour, minute, and period from time string
+  const extractHour = (timeString: string) => {
+    if (!timeString) return '';
+    const [hour] = timeString.split(':');
+    const hourNum = parseInt(hour);
+    if (hourNum === 0) return '12';
+    if (hourNum > 12) return (hourNum - 12).toString();
+    return hourNum.toString();
+  };
+
+  const extractMinute = (timeString: string) => {
+    if (!timeString) return '';
+    const [, minute] = timeString.split(':');
+    return minute || '00';
+  };
+
+  const extractPeriod = (timeString: string) => {
+    if (!timeString) return '';
+    const [hour] = timeString.split(':');
+    const hourNum = parseInt(hour);
+    return hourNum < 12 ? 'AM' : 'PM';
+  };
+
+  // Helper function to combine hour, minute, and period into 24-hour format
+  const combineTime = (hour: string, minute: string, period: string) => {
+    if (!hour || !minute || !period) return '';
+    
+    let hour24 = parseInt(hour);
+    if (period === 'AM' && hour24 === 12) {
+      hour24 = 0;
+    } else if (period === 'PM' && hour24 !== 12) {
+      hour24 += 12;
+    }
+    
+    return `${hour24.toString().padStart(2, '0')}:${minute}`;
+  };
+
+  // Helper functions to extract date and time from datetime string
+  const extractDate = (datetimeString: string) => {
+    if (!datetimeString) return '';
+    return datetimeString.split('T')[0];
+  };
+
+  const extractTime = (datetimeString: string) => {
+    if (!datetimeString) return '';
+    const timePart = datetimeString.split('T')[1];
+    if (!timePart) return '';
+    return timePart.substring(0, 5); // HH:MM format
+  };
+
+  // Helper function to combine date and time
+  const combineDateAndTime = (date: string, time: string) => {
+    if (!date || !time) return '';
+    return `${date}T${time}`;
+  };
+
   useEffect(() => {
     if (event) {
       const endDate = new Date(event.endDate);
@@ -419,31 +498,147 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Start Date & Time
                   </label>
-                  <input
-                    type="datetime-local"
-                    id="startDate"
-                    value={formData.startDate}
-                    onChange={e => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
-                    required
-                  />
+                  <div className="space-y-2">
+                    <input
+                      type="date"
+                      value={extractDate(formData.startDate)}
+                      onChange={e => {
+                        const currentTime = extractTime(formData.startDate);
+                        const newDateTime = combineDateAndTime(e.target.value, currentTime || '09:00');
+                        setFormData(prev => ({ ...prev, startDate: newDateTime }));
+                      }}
+                      className="block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+                      required
+                    />
+                    <div className="grid grid-cols-3 gap-1">
+                      <select
+                        value={extractHour(extractTime(formData.startDate))}
+                        onChange={e => {
+                          const currentTime = extractTime(formData.startDate);
+                          const newTime = combineTime(e.target.value, extractMinute(currentTime), extractPeriod(currentTime));
+                          const newDateTime = combineDateAndTime(extractDate(formData.startDate), newTime);
+                          setFormData(prev => ({ ...prev, startDate: newDateTime }));
+                        }}
+                        className="block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors text-sm"
+                        required
+                      >
+                        {hourOptions.map(option => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={extractMinute(extractTime(formData.startDate))}
+                        onChange={e => {
+                          const currentTime = extractTime(formData.startDate);
+                          const newTime = combineTime(extractHour(currentTime) || '9', e.target.value, extractPeriod(currentTime));
+                          const newDateTime = combineDateAndTime(extractDate(formData.startDate), newTime);
+                          setFormData(prev => ({ ...prev, startDate: newDateTime }));
+                        }}
+                        className="block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors text-sm"
+                        required
+                      >
+                        {minuteOptions.map(option => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={extractPeriod(extractTime(formData.startDate))}
+                        onChange={e => {
+                          const currentTime = extractTime(formData.startDate);
+                          const newTime = combineTime(extractHour(currentTime) || '9', extractMinute(currentTime) || '00', e.target.value);
+                          const newDateTime = combineDateAndTime(extractDate(formData.startDate), newTime);
+                          setFormData(prev => ({ ...prev, startDate: newDateTime }));
+                        }}
+                        className="block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors text-sm"
+                        required
+                      >
+                        {periodOptions.map(option => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
                 <div>
-                  <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     End Date & Time
                   </label>
-                  <input
-                    type="datetime-local"
-                    id="endDate"
-                    value={formData.endDate}
-                    onChange={e => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
-                    required
-                  />
+                  <div className="space-y-2">
+                    <input
+                      type="date"
+                      value={extractDate(formData.endDate)}
+                      onChange={e => {
+                        const currentTime = extractTime(formData.endDate);
+                        const newDateTime = combineDateAndTime(e.target.value, currentTime || '10:00');
+                        setFormData(prev => ({ ...prev, endDate: newDateTime }));
+                      }}
+                      className="block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+                      required
+                    />
+                    <div className="grid grid-cols-3 gap-1">
+                      <select
+                        value={extractHour(extractTime(formData.endDate))}
+                        onChange={e => {
+                          const currentTime = extractTime(formData.endDate);
+                          const newTime = combineTime(e.target.value, extractMinute(currentTime), extractPeriod(currentTime));
+                          const newDateTime = combineDateAndTime(extractDate(formData.endDate), newTime);
+                          setFormData(prev => ({ ...prev, endDate: newDateTime }));
+                        }}
+                        className="block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors text-sm"
+                        required
+                      >
+                        {hourOptions.map(option => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={extractMinute(extractTime(formData.endDate))}
+                        onChange={e => {
+                          const currentTime = extractTime(formData.endDate);
+                          const newTime = combineTime(extractHour(currentTime) || '10', e.target.value, extractPeriod(currentTime));
+                          const newDateTime = combineDateAndTime(extractDate(formData.endDate), newTime);
+                          setFormData(prev => ({ ...prev, endDate: newDateTime }));
+                        }}
+                        className="block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors text-sm"
+                        required
+                      >
+                        {minuteOptions.map(option => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={extractPeriod(extractTime(formData.endDate))}
+                        onChange={e => {
+                          const currentTime = extractTime(formData.endDate);
+                          const newTime = combineTime(extractHour(currentTime) || '10', extractMinute(currentTime) || '00', e.target.value);
+                          const newDateTime = combineDateAndTime(extractDate(formData.endDate), newTime);
+                          setFormData(prev => ({ ...prev, endDate: newDateTime }));
+                        }}
+                        className="block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors text-sm"
+                        required
+                      >
+                        {periodOptions.map(option => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
 

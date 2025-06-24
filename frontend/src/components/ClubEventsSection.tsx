@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Event, EventStatus, EventVisibility, EventFeatures } from '../types/event';
 import { eventApi } from '../services/api';
 import { format } from 'date-fns';
-import { PlusIcon, CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, TrashIcon, UserIcon, TrophyIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, TrashIcon, UserIcon, TrophyIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
 import CreateEventModal from './CreateEventModal';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -30,6 +30,7 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [rsvpLoading, setRsvpLoading] = useState<{ [key: string]: boolean }>({});
 
   // Ensure non-admin users can't access DRAFT tab
   useEffect(() => {
@@ -107,8 +108,28 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
     }
   };
 
+  const handleRsvp = async (eventId: string) => {
+    if (!user) return;
+    
+    try {
+      setRsvpLoading(prev => ({ ...prev, [eventId]: true }));
+      await eventApi.toggleRsvp(eventId);
+      
+      // Refresh events to get updated RSVP status
+      refetchEvents();
+    } catch (error) {
+      console.error('Error updating RSVP:', error);
+    } finally {
+      setRsvpLoading(prev => ({ ...prev, [eventId]: false }));
+    }
+  };
+
+  const isUserRsvped = (event: Event) => {
+    return event.rsvps.some(rsvp => rsvp.id === user?.id);
+  };
+
   const canEditEvent = (event: Event) => {
-    return user?.id === event.creator.id || user?.id === event.creatorId;
+    return user && (event.creator.id === user.id || event.creatorId === user.id) && isAdmin;
   };
 
   const getEventStatusColor = (status: EventStatus) => {
@@ -307,10 +328,24 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
                       {event.rsvps.length} RSVPs
                     </div>
                     
+                    {/* Cost */}
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                      <CurrencyDollarIcon className="h-4 w-4 mr-2" />
+                      {event.isFree ? 'Free' : `$${event.cost}`}
+                    </div>
+                    
+                    {/* Creator */}
+                    {event.creator && (
+                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                        <UserIcon className="h-4 w-4 mr-2" />
+                        {event.creator.username}
+                      </div>
+                    )}
+                    
                     {/* Club Space (only show if different from current club) */}
                     {event.clubName && event.clubUsername && event.clubUsername !== clubUsername && (
                       <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                        <button onClick={() => navigate(`/clubs/${event.clubUsername}`)} className="flex items-center mr-2 hover:text-purple-700 dark:hover:text-purple-300 transition-colors">
+                        <button onClick={() => navigate(`/clubs/${event.clubUsername}`)} className="flex items-center hover:text-purple-700 dark:hover:text-purple-300 transition-colors">
                           {event.clubLogoUrl ? (
                             <img src={event.clubLogoUrl} alt={`${event.clubName} logo`} className="h-4 w-4 rounded-full object-cover mr-1 border border-gray-200 dark:border-gray-600" />
                           ) : (
@@ -327,36 +362,18 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
                   </div>
                   
                   <div className="mt-6 space-y-3">
-                    <div className="flex space-x-3">
-                      {canEditEvent(event) ? (
-                        <>
-                          <button
-                            type="button"
-                            className="btn btn-secondary flex-1"
-                            onClick={() => {
-                              setSelectedEvent({ ...event, id: event.id });
-                              setIsCreateModalOpen(true);
-                            }}
-                          >
-                            Edit
-                          </button>
-                          <button 
-                            type="button"
-                            className="btn btn-primary flex-1"
-                            onClick={() => navigate(`/event/${event.id}`)}
-                          >
-                            View Details
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-danger p-2"
-                            onClick={() => handleDeleteClick(event)}
-                            title="Delete Event"
-                          >
-                            <TrashIcon className="h-5 w-5" />
-                          </button>
-                        </>
-                      ) : (
+                    {canEditEvent(event) ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-secondary flex-1"
+                          onClick={() => {
+                            setSelectedEvent({ ...event, id: event.id });
+                            setIsCreateModalOpen(true);
+                          }}
+                        >
+                          Edit
+                        </button>
                         <button 
                           type="button"
                           className="btn btn-primary flex-1"
@@ -364,8 +381,24 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
                         >
                           View Details
                         </button>
-                      )}
-                    </div>
+                        <button
+                          type="button"
+                          className="btn btn-danger p-2"
+                          onClick={() => handleDeleteClick(event)}
+                          title="Delete Event"
+                        >
+                          <TrashIcon className="h-5 w-5" />
+                        </button>
+                      </>
+                    ) : (
+                      <button 
+                        type="button"
+                        className="btn btn-primary flex-1"
+                        onClick={() => navigate(`/event/${event.id}`)}
+                      >
+                        View Details
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

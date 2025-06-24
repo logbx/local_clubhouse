@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import CreatableSelect from 'react-select/creatable';
 import { ActionMeta, MultiValue } from 'react-select';
+import { getIntelligentSuggestions } from '../data/suggestions';
 
 interface TagOption {
   label: string;
@@ -14,6 +15,7 @@ interface TagInputProps {
   placeholder?: string;
   maxTags?: number;
   className?: string;
+  useIntelligentSuggestions?: boolean;
 }
 
 const TagInput: React.FC<TagInputProps> = ({
@@ -22,7 +24,8 @@ const TagInput: React.FC<TagInputProps> = ({
   suggestions = [],
   placeholder = 'Add tags...',
   maxTags = 10,
-  className = ''
+  className = '',
+  useIntelligentSuggestions = false
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -51,24 +54,39 @@ const TagInput: React.FC<TagInputProps> = ({
     [value]
   );
 
+  // Get suggestions based on mode
+  const getSuggestions = useMemo(() => {
+    if (useIntelligentSuggestions) {
+      return getIntelligentSuggestions(inputValue, value);
+    } else {
+      return suggestions.filter(suggestion => !value.includes(suggestion));
+    }
+  }, [useIntelligentSuggestions, inputValue, value, suggestions]);
+
   // Create suggestion options, filtering out already selected
   const suggestionOptions = useMemo(
-    () => suggestions
-      .filter(suggestion => !value.includes(suggestion))
-      .map(suggestion => ({ label: suggestion, value: suggestion })),
-    [suggestions, value]
+    () => getSuggestions.map(suggestion => ({ label: suggestion, value: suggestion })),
+    [getSuggestions]
   );
 
   // Filter suggestions based on input
   const filteredOptions = useMemo(() => {
-    if (!inputValue.trim()) return suggestionOptions.slice(0, 10);
+    if (!inputValue.trim()) {
+      return suggestionOptions.slice(0, 10);
+    }
     
-    return suggestionOptions
-      .filter(option => 
-        option.label.toLowerCase().includes(inputValue.toLowerCase())
-      )
-      .slice(0, 10);
-  }, [suggestionOptions, inputValue]);
+    if (useIntelligentSuggestions) {
+      // For intelligent suggestions, the filtering is already done in getIntelligentSuggestions
+      return suggestionOptions.slice(0, 15);
+    } else {
+      // For regular mode, filter based on input
+      return suggestionOptions
+        .filter(option => 
+          option.label.toLowerCase().includes(inputValue.toLowerCase())
+        )
+        .slice(0, 10);
+    }
+  }, [suggestionOptions, inputValue, useIntelligentSuggestions]);
 
   const handleChange = (newValue: MultiValue<TagOption>, _actionMeta: ActionMeta<TagOption>) => {
     const newTags = newValue.map(option => option.value);
@@ -96,6 +114,16 @@ const TagInput: React.FC<TagInputProps> = ({
 
     onChange([...value, trimmedValue]);
     setInputValue('');
+  };
+
+  // Enhanced loading message for intelligent suggestions
+  const getNoOptionsMessage = () => {
+    if (useIntelligentSuggestions && inputValue.trim()) {
+      return `Type to search interests or create "${inputValue.trim()}"`;
+    } else if (inputValue.trim()) {
+      return `No options found. Create "${inputValue.trim()}"?`;
+    }
+    return 'Type to search or create new interests';
   };
 
   // Theme-aware styles
@@ -198,17 +226,20 @@ const TagInput: React.FC<TagInputProps> = ({
         isSearchable={true}
         createOptionPosition="first"
         formatCreateLabel={(inputValue) => `Create "${inputValue}"`}
-        noOptionsMessage={({ inputValue }) => 
-          inputValue ? `No matching tags for "${inputValue}"` : 'Start typing to search tags...'
-        }
-        classNamePrefix="react-select"
-        maxMenuHeight={200}
-        menuPlacement="auto"
+        noOptionsMessage={() => getNoOptionsMessage()}
         styles={getStyles()}
+        components={{
+          DropdownIndicator: () => null,
+          IndicatorSeparator: () => null,
+        }}
+        menuPlacement="auto"
+        maxMenuHeight={200}
+        closeMenuOnSelect={false}
+        blurInputOnSelect={false}
       />
-      {value.length > 0 && (
-        <div className="mt-2 text-sm text-gray-500 dark:text-gray-400 transition-colors">
-          {value.length}/{maxTags} tags used
+      {useIntelligentSuggestions && (
+        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          💡 Type keywords like "tech", "music", "sports" to discover related interests
         </div>
       )}
     </div>

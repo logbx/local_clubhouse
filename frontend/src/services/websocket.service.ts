@@ -89,6 +89,34 @@ class WebSocketService {
     }
   }
 
+  // Join club chat room
+  joinClubChat(clubUsername: string) {
+    if (this.socket) {
+      this.socket.emit('join-club-chat', { clubUsername });
+    }
+  }
+
+  // Leave club chat room
+  leaveClubChat(clubUsername: string) {
+    if (this.socket) {
+      this.socket.emit('leave-club-chat', { clubUsername });
+    }
+  }
+
+  // Join club group chat room
+  joinClubGroupChat(groupChatId: string) {
+    if (this.socket) {
+      this.socket.emit('join-club-group-chat', { groupChatId });
+    }
+  }
+
+  // Leave club group chat room
+  leaveClubGroupChat(groupChatId: string) {
+    if (this.socket) {
+      this.socket.emit('leave-club-group-chat', { groupChatId });
+    }
+  }
+
   // Join tournament room
   joinTournament(tournamentId: string) {
     if (this.socket) {
@@ -125,6 +153,27 @@ class WebSocketService {
   onNewSubgroupMessage(callback: (message: any) => void) {
     if (this.socket) {
       this.socket.on('new-subgroup-message', callback);
+    }
+  }
+
+  // Listen for new club chat messages
+  onNewClubMessage(callback: (message: any) => void) {
+    if (this.socket) {
+      this.socket.on('new-club-message', callback);
+    }
+  }
+
+  // Listen for new club group chat messages
+  onNewClubGroupMessage(callback: (message: any) => void) {
+    if (this.socket) {
+      this.socket.on('new-club-group-message', callback);
+    }
+  }
+
+  // Listen for new friend group messages
+  onNewFriendGroupMessage(callback: (message: any) => void) {
+    if (this.socket) {
+      this.socket.on('new-friend-group-message', callback);
     }
   }
 

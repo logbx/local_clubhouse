@@ -4,7 +4,7 @@ import { PublicEvent, EventVisibility, EventStatus, RecurrenceType } from '../ty
 import { useAuth } from '../context/AuthContext';
 import { publicApi, eventApi } from '../services/api';
 import { format, isValid } from 'date-fns';
-import { CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, ExclamationTriangleIcon, UserIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, ExclamationTriangleIcon, UserIcon, BuildingOfficeIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
 import EventChat from '../components/EventChat';
 import SubGroupList from '../components/SubGroupList';
 
@@ -19,80 +19,30 @@ const PublicEventPage: React.FC = () => {
   const [selectedAttendees, setSelectedAttendees] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAttendeeModal, setShowAttendeeModal] = useState(false);
+  const [isRsvpLoading, setIsRsvpLoading] = useState(false);
+  const [userRsvpStatus, setUserRsvpStatus] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchEvent = async () => {
+      if (!eventId) return;
+      
       try {
-        let response;
-        let eventData;
+        setLoading(true);
+        setError(null);
         
-        // First try to fetch as a public event
-        try {
-          response = await publicApi.getPublicEvent(eventId!);
-          eventData = response.data;
-        } catch (publicError: any) {
-          // If public fetch fails, try authenticated endpoint (for club/private events)
-          if (publicError.response?.status === 404 && currentUser) {
-            try {
-              response = await eventApi.getEvent(eventId!);
-              eventData = response.event || response.data || response;
-            } catch (authError: any) {
-              throw publicError; // Throw original error if both fail
-            }
-          } else {
-            throw publicError;
+        const response = await publicApi.getPublicEvent(eventId);
+        console.log('Event response:', response);
+        
+        // Backend returns { data: event } directly
+        if (response.data && response.data.id) {
+          setEvent(response.data);
+          // Check if current user has RSVP'd
+          if (currentUser && response.data.rsvps) {
+            setUserRsvpStatus(response.data.rsvps.includes(currentUser.id));
           }
-        }
-
-        // Safely handle creator information - check if eventData exists first
-        if (eventData) {
-          // Ensure we have creator information
-          if (!eventData.creator && eventData.creatorId) {
-            try {
-              const creatorResponse = await publicApi.getUserProfile(eventData.creatorId);
-              if (creatorResponse && creatorResponse.data && creatorResponse.data.username) {
-                eventData.creator = {
-                  id: eventData.creatorId,
-                  username: creatorResponse.data.username
-                };
-              } else {
-                eventData.creator = {
-                  id: eventData.creatorId,
-                  username: 'Unknown User'
-                };
-              }
-            } catch (err) {
-              console.error('Failed to fetch creator details:', err);
-              eventData.creator = {
-                id: eventData.creatorId,
-                username: 'Unknown User'
-              };
-            }
-          }
-
-          setEvent(eventData);
-          
-          // Fetch all users (organizer + rsvps) - safely access properties
-          const creatorId = eventData.creator?.id || eventData.creator?._id || eventData.creatorId;
-          const rsvps = eventData.rsvps || [];
-          const ids = [creatorId, ...rsvps].filter(id => id); // Filter out any undefined/null IDs
-          
-          const users = await Promise.all(ids.map(async (id: string) => {
-            try {
-              const res = await publicApi.getUserProfile(id);
-              if (res && res.data && res.data.username) {
-                return { id, username: res.data.username };
-              } else {
-                return { id, username: 'Unknown User' };
-              }
-            } catch (err) {
-              console.error(`Failed to fetch user profile for ID ${id}:`, err);
-              return { id, username: 'Unknown User' }; // Fallback for failed user fetches
-            }
-          }));
-          setAllUsers(users);
         } else {
-          setError('No event data received');
+          console.error('No valid event data found in response:', response);
+          setError('Event not found');
         }
       } catch (err) {
         console.error('Error fetching event:', err);
@@ -102,10 +52,32 @@ const PublicEventPage: React.FC = () => {
       }
     };
 
-    if (eventId) {
-      fetchEvent();
-    }
+    fetchEvent();
   }, [eventId, currentUser]);
+
+  const handleRsvp = async () => {
+    if (!currentUser || !event) return;
+    
+    try {
+      setIsRsvpLoading(true);
+      await eventApi.toggleRsvp(event.id);
+      
+      // Update local state
+      const newRsvpStatus = !userRsvpStatus;
+      setUserRsvpStatus(newRsvpStatus);
+      
+      // Update event RSVPs count
+      const updatedRsvps = newRsvpStatus 
+        ? [...event.rsvps, currentUser.id]
+        : event.rsvps.filter(id => id !== currentUser.id);
+      
+      setEvent({ ...event, rsvps: updatedRsvps });
+    } catch (error) {
+      console.error('Error updating RSVP:', error);
+    } finally {
+      setIsRsvpLoading(false);
+    }
+  };
 
   if (loading) return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
   if (error) return <div className="flex justify-center items-center min-h-screen text-red-500">{error}</div>;
@@ -207,33 +179,27 @@ const PublicEventPage: React.FC = () => {
                 <p className="text-gray-600 dark:text-gray-400">{event.location}</p>
               </div>
             </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Cost</h2>
-              <p className="text-gray-600 dark:text-gray-400">{event.isFree ? 'Free' : `$${event.cost}`}</p>
+            <div className="flex items-center">
+              <CurrencyDollarIcon className="h-5 w-5 text-gray-400 dark:text-gray-500 mr-2" />
+              <div>
+                <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Cost</h2>
+                <p className="text-gray-600 dark:text-gray-400">{event.isFree ? 'Free' : `$${event.cost}`}</p>
+              </div>
             </div>
             <div className="flex items-center">
               <UserGroupIcon className="h-5 w-5 text-gray-400 dark:text-gray-500 mr-2" />
               <div>
                 <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Attendees</h2>
-                <p className="text-gray-600 dark:text-gray-400">{event.rsvps.length} people attending</p>
+                <p className="text-gray-600 dark:text-gray-400">
+                  <button 
+                    onClick={() => setShowAttendeeModal(true)}
+                    className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors underline"
+                  >
+                    {event.rsvps.length} people attending
+                  </button>
+                </p>
               </div>
             </div>
-            {event.clubName && event.clubUsername && (
-              <button onClick={() => navigate(`/clubs/${event.clubUsername}`)} className="flex items-center hover:opacity-80 transition-opacity">
-                {event.clubLogoUrl ? (
-                  <img src={event.clubLogoUrl} alt={`${event.clubName} logo`} className="h-8 w-8 rounded-full object-cover mr-2 border border-gray-200 dark:border-gray-600" />
-                ) : (
-                  <div className="h-8 w-8 rounded-full bg-purple-600 dark:bg-purple-500 mr-2 flex items-center justify-center">
-                    <span className="text-white text-sm font-bold">{event.clubName.charAt(0).toUpperCase()}</span>
-                  </div>
-                )}
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Club Space</h2>
-                  <p className="text-purple-700 dark:text-purple-300 font-medium">{event.clubName}</p>
-                </div>
-              </button>
-            )}
-
           </div>
 
           <div className="mb-6">
@@ -255,38 +221,59 @@ const PublicEventPage: React.FC = () => {
             <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{event.description}</p>
           </div>
 
-          {/* Action buttons section */}
-          <div className="space-y-4">
-            {/* Show different actions based on creator status */}
-            {isOwnEvent && !isPastEvent ? (
-              <div className="bg-blue-50/80 dark:bg-blue-900/20 border border-blue-200/50 dark:border-blue-800/50 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <UserIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 mr-2" />
-                    <span className="text-blue-800 dark:text-blue-300 font-medium">You are the creator of this event</span>
+          {/* Club Section */}
+          {event.clubName && event.clubUsername && (
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Club</h2>
+              <button 
+                onClick={() => navigate(`/clubs/${event.clubUsername}`)} 
+                className="flex items-center hover:opacity-80 transition-opacity group"
+              >
+                {event.clubLogoUrl ? (
+                  <img 
+                    src={event.clubLogoUrl} 
+                    alt={`${event.clubName} logo`} 
+                    className="h-8 w-8 rounded-full object-cover mr-3 border border-gray-200 dark:border-gray-600" 
+                  />
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-purple-600 dark:bg-purple-500 mr-3 flex items-center justify-center">
+                    <span className="text-white text-sm font-bold">{event.clubName.charAt(0).toUpperCase()}</span>
                   </div>
-                  <button
-                    onClick={() => navigate(`/dashboard`)}
-                    className="btn btn-primary"
-                  >
-                    Manage Event
-                  </button>
-                </div>
-              </div>
-            ) : !isPastEvent ? (
-              <div className="bg-gray-50/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 rounded-lg p-4">
-                <div className="flex items-center justify-center">
-                  <span className="text-gray-600 dark:text-gray-300">You can view event details and participate in messages below</span>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-yellow-50/80 dark:bg-yellow-900/20 border border-yellow-200/50 dark:border-yellow-800/50 rounded-lg p-4">
-                <div className="flex items-center justify-center">
-                  <span className="text-yellow-700 dark:text-yellow-300">This event has ended. You can still view details and previous messages.</span>
-                </div>
-              </div>
-            )}
-          </div>
+                )}
+                <span className="text-purple-700 dark:text-purple-300 font-medium group-hover:text-purple-900 dark:group-hover:text-purple-100 group-hover:underline transition-colors">
+                  {event.clubName}
+                </span>
+              </button>
+            </div>
+          )}
+
+          {/* Event Creator Section */}
+          {event.creator && (
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Event Creator</h2>
+              <button 
+                onClick={() => navigate(`/profile/${event.creator?.username}`)} 
+                className="flex items-center hover:opacity-80 transition-opacity group"
+              >
+                {event.creator.profileImage ? (
+                  <img 
+                    src={event.creator.profileImage} 
+                    alt={`${event.creator.username} profile`} 
+                    className="h-8 w-8 rounded-full object-cover mr-3 border border-gray-200 dark:border-gray-600" 
+                  />
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-blue-600 dark:bg-blue-500 mr-3 flex items-center justify-center">
+                    <span className="text-white text-sm font-bold">{event.creator.username?.charAt(0).toUpperCase() || 'U'}</span>
+                  </div>
+                )}
+                <span className="text-blue-700 dark:text-blue-300 font-medium group-hover:text-blue-900 dark:group-hover:text-blue-100 group-hover:underline transition-colors">
+                  {event.creator.username}
+                </span>
+              </button>
+            </div>
+          )}
+
+
         </div>
       </div>
       {/* Add Event Chat below event details */}
@@ -297,6 +284,67 @@ const PublicEventPage: React.FC = () => {
             <SubGroupList eventId={event.id} isOrganizer={currentUser?.id === event.creatorId} />
           </>
         )}
+      </div>
+
+      {/* RSVP Section at Bottom */}
+      <div className="px-4 pb-8">
+        <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200">
+          {/* Show different actions based on creator status */}
+          {isOwnEvent && !isPastEvent ? (
+            <div className="bg-blue-50/80 dark:bg-blue-900/20 border border-blue-200/50 dark:border-blue-800/50 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <UserIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 mr-2" />
+                  <span className="text-blue-800 dark:text-blue-300 font-medium">You are the creator of this event</span>
+                </div>
+                <button
+                  onClick={() => navigate(`/dashboard`)}
+                  className="btn btn-primary"
+                >
+                  Manage Event
+                </button>
+              </div>
+            </div>
+          ) : !isPastEvent && currentUser ? (
+            <div className="bg-gray-50/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600 dark:text-gray-300">
+                  {userRsvpStatus ? "You're attending this event" : "Join this event"}
+                </span>
+                <button
+                  onClick={handleRsvp}
+                  disabled={isRsvpLoading}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    userRsvpStatus 
+                      ? 'bg-red-600 hover:bg-red-700 text-white' 
+                      : 'bg-green-600 hover:bg-green-700 text-white'
+                  } ${isRsvpLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {isRsvpLoading ? 'Updating...' : (userRsvpStatus ? 'Cancel RSVP' : 'RSVP')}
+                </button>
+              </div>
+            </div>
+          ) : !isPastEvent && !currentUser ? (
+            <div className="bg-gray-50/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 rounded-lg p-4">
+              <div className="flex items-center justify-center">
+                <span className="text-gray-600 dark:text-gray-300">
+                  <button 
+                    onClick={() => navigate('/login')}
+                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    Login
+                  </button> to RSVP to this event
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-yellow-50/80 dark:bg-yellow-900/20 border border-yellow-200/50 dark:border-yellow-800/50 rounded-lg p-4">
+              <div className="flex items-center justify-center">
+                <span className="text-yellow-700 dark:text-yellow-300">This event has ended. You can still view details and previous messages.</span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
       <div className="mt-6">
         <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Attendees</h3>
@@ -314,6 +362,44 @@ const PublicEventPage: React.FC = () => {
           })}
         </div>
       </div>
+      
+      {/* Attendee Modal */}
+      {showAttendeeModal && (
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg p-6 max-w-md w-full mx-4 shadow-xl dark:shadow-gray-900/50 border border-gray-200/50 dark:border-gray-700/50">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Event Attendees</h3>
+              <button
+                onClick={() => setShowAttendeeModal(false)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {event.rsvps.length === 0 ? (
+                <p className="text-gray-500 dark:text-gray-400 text-center py-4">No attendees yet</p>
+              ) : (
+                event.rsvps.map((attendeeId) => {
+                  const attendeeUser = allUsers.find(user => user.id === attendeeId);
+                  return (
+                    <div key={attendeeId} className="flex items-center p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                      <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center mr-3">
+                        <span className="text-white text-sm font-medium">
+                          {(attendeeUser?.username || 'U').charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <span className="text-gray-900 dark:text-white">
+                        {attendeeUser?.username || 'Unknown User'}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

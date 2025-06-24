@@ -125,10 +125,11 @@ const ClubJoinButton: React.FC<ClubJoinButtonProps> = ({
           <button
             onClick={handleLeaveClub}
             disabled={actionLoading}
-            className="btn btn-secondary flex items-center gap-2"
+            className="bg-green-600 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+            title="Click to leave club"
           >
             <UserMinusIcon className="h-4 w-4" />
-            {actionLoading ? 'Leaving...' : 'Leave Club'}
+            {actionLoading ? 'Leaving...' : 'Joined'}
           </button>
           
           {membershipStatus.isAdmin && (

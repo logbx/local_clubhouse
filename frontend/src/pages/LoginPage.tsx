@@ -3,34 +3,95 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Logo from '../components/Logo';
 
+interface FieldErrors {
+  identifier?: string;
+  password?: string;
+}
+
 const LoginPage: React.FC = () => {
   const [formData, setFormData] = useState({
     identifier: '',
     password: '',
   });
   const [formError, setFormError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const { login, error, clearError, isLoading } = useAuth();
   const navigate = useNavigate();
+
+  const validateField = (name: string, value: string) => {
+    const errors: FieldErrors = { ...fieldErrors };
+
+    switch (name) {
+      case 'identifier':
+        if (!value.trim()) {
+          errors.identifier = 'Email or username is required';
+        } else {
+          delete errors.identifier;
+        }
+        break;
+
+      case 'password':
+        if (!value) {
+          errors.password = 'Password is required';
+        } else {
+          delete errors.password;
+        }
+        break;
+    }
+
+    setFieldErrors(errors);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
     clearError();
 
+    // Validate all fields
+    const errors: FieldErrors = {};
+    
+    if (!formData.identifier.trim()) {
+      errors.identifier = 'Email or username is required';
+    }
+    
+    if (!formData.password) {
+      errors.password = 'Password is required';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+
     try {
       await login(formData.identifier, formData.password);
       navigate('/dashboard');
     } catch (err: any) {
-      setFormError(err.message);
+      const errorMessage = err.response?.data?.message || err.message || 'Login failed';
+      setFormError(errorMessage);
     }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: value,
     });
+
+    // Clear errors when user starts typing
+    if (formError) {
+      setFormError('');
+    }
+    if (error) {
+      clearError();
+    }
+
+    // Real-time validation
+    validateField(name, value);
   };
+
+  const displayError = formError || error;
 
   return (
     <div className="min-h-screen flex flex-col w-full bg-blue-50 dark:bg-black transition-colors duration-200">
@@ -66,7 +127,7 @@ const LoginPage: React.FC = () => {
             </p>
           </div>
           
-          {(formError || error) && (
+          {displayError && (
             <div className="bg-red-50 dark:bg-red-900/30 border-l-4 border-red-500 dark:border-red-400 p-4 mt-6 backdrop-blur-sm">
               <div className="flex">
                 <div className="flex-shrink-0">
@@ -76,7 +137,7 @@ const LoginPage: React.FC = () => {
                 </div>
                 <div className="ml-3">
                   <p className="text-sm text-red-700 dark:text-red-200">
-                    {formError || error}
+                    {displayError}
                   </p>
                 </div>
               </div>
@@ -84,36 +145,53 @@ const LoginPage: React.FC = () => {
           )}
           
           <form className="mt-8 space-y-6 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm p-8 rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 transition-colors duration-200" onSubmit={handleSubmit}>
-            <div className="rounded-md shadow-sm -space-y-px">
+            <div className="space-y-4">
+              {/* Email/Username Input */}
               <div>
-                <label htmlFor="identifier" className="sr-only">Email address or username</label>
+                <label htmlFor="identifier" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Email or Username
+                </label>
                 <input
                   id="identifier"
                   name="identifier"
                   type="text"
                   autoComplete="username"
                   required
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-t-md focus:outline-none focus:ring-primary-500 dark:focus:ring-primary-400 focus:border-primary-500 dark:focus:border-primary-400 focus:z-10 sm:text-sm transition-colors"
-                  placeholder="Email address or username"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors ${
+                    fieldErrors.identifier ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                  }`}
+                  placeholder="Enter your email or username"
                   value={formData.identifier}
                   onChange={handleChange}
                   disabled={isLoading}
                 />
+                {fieldErrors.identifier && (
+                  <p className="mt-1 text-xs text-red-500 dark:text-red-400">{fieldErrors.identifier}</p>
+                )}
               </div>
+
+              {/* Password Input */}
               <div>
-                <label htmlFor="password" className="sr-only">Password</label>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Password
+                </label>
                 <input
                   id="password"
                   name="password"
                   type="password"
                   autoComplete="current-password"
                   required
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-b-md focus:outline-none focus:ring-primary-500 dark:focus:ring-primary-400 focus:border-primary-500 dark:focus:border-primary-400 focus:z-10 sm:text-sm transition-colors"
-                  placeholder="Password"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors ${
+                    fieldErrors.password ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                  }`}
+                  placeholder="Enter your password"
                   value={formData.password}
                   onChange={handleChange}
                   disabled={isLoading}
                 />
+                {fieldErrors.password && (
+                  <p className="mt-1 text-xs text-red-500 dark:text-red-400">{fieldErrors.password}</p>
+                )}
               </div>
             </div>
 
@@ -140,7 +218,7 @@ const LoginPage: React.FC = () => {
             <div>
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || Object.keys(fieldErrors).length > 0}
                 className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 dark:bg-primary-500 hover:bg-primary-700 dark:hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-primary-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isLoading ? (

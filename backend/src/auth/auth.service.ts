@@ -99,12 +99,12 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('No account found with this email or username. Please check your credentials or sign up for a new account.');
     }
 
     if (!user.password) {
       console.log('Password field is missing from user document');
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Account configuration error. Please contact support.');
     }
 
     // Use the schema's comparePassword method
@@ -116,11 +116,14 @@ export class AuthService {
       });
 
       if (!isPasswordValid) {
-        throw new UnauthorizedException('Invalid credentials');
+        throw new UnauthorizedException('Incorrect password. Please try again or use the "Forgot Password" link if you need to reset it.');
       }
     } catch (error) {
       console.error('Error comparing passwords:', error);
-      throw new UnauthorizedException('Invalid credentials');
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new UnauthorizedException('Authentication error. Please try again.');
     }
 
     return this.generateTokens(user);
@@ -130,33 +133,75 @@ export class AuthService {
     // Check email uniqueness
     const existingUser = await this.userModel.findOne({ email: userData.email });
     if (existingUser) {
-      throw new UnauthorizedException('Email already registered');
+      throw new BadRequestException('An account with this email address already exists. Please try logging in instead.');
     }
 
-    // Check username uniqueness only if username is provided
-    if (userData.username) {
-      const existingUsername = await this.userModel.findOne({ username: userData.username });
-      if (existingUsername) {
-        throw new UnauthorizedException('Username already taken');
-      }
+    // Check username requirement and uniqueness
+    if (!userData.username || userData.username.trim().length === 0) {
+      throw new BadRequestException('Username is required.');
+    }
 
-      // Validate username format (only lowercase letters, numbers, underscores)
-      if (!/^[a-z0-9_]+$/.test(userData.username)) {
-        throw new UnauthorizedException('Username can only contain lowercase letters, numbers, and underscores');
-      }
+    // Validate username format (only lowercase letters, numbers, underscores)
+    if (!/^[a-z0-9_]+$/.test(userData.username.trim())) {
+      throw new BadRequestException('Username can only contain lowercase letters, numbers, and underscores.');
+    }
+
+    // Validate username length
+    if (userData.username.trim().length < 3) {
+      throw new BadRequestException('Username must be at least 3 characters long.');
+    }
+
+    const existingUsername = await this.userModel.findOne({ username: userData.username.trim() });
+    if (existingUsername) {
+      throw new BadRequestException('This username is already taken. Please choose a different username.');
     }
 
     if (!userData.password) {
-      throw new UnauthorizedException('Password is required');
+      throw new BadRequestException('Password is required.');
     }
 
-    // Create user - let the schema's pre-save hook handle password hashing
-    const user = await this.userModel.create({
-      ...userData,
-      roles: userData.roles || [UserRole.Member],
-    });
+    if (userData.password.length < 8) {
+      throw new BadRequestException('Password must be at least 8 characters long.');
+    }
 
-    return this.generateTokens(user);
+    if (!userData.email) {
+      throw new BadRequestException('Email address is required.');
+    }
+
+    if (!userData.fullName || userData.fullName.trim().length === 0) {
+      throw new BadRequestException('Full name is required.');
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(userData.email)) {
+      throw new BadRequestException('Please enter a valid email address.');
+    }
+
+    try {
+      // Create user - let the schema's pre-save hook handle password hashing
+      const user = await this.userModel.create({
+        ...userData,
+        username: userData.username.trim().toLowerCase(), // Ensure username is lowercase and trimmed
+        email: userData.email.toLowerCase(), // Ensure email is lowercase
+        roles: userData.roles || [UserRole.Member],
+        profileCompleted: true, // Mark profile as completed since username is now provided during registration
+      });
+
+      return this.generateTokens(user);
+    } catch (error) {
+      console.error('Registration error:', error);
+      if (error.code === 11000) {
+        // MongoDB duplicate key error
+        const field = Object.keys(error.keyPattern)[0];
+        if (field === 'email') {
+          throw new BadRequestException('An account with this email address already exists.');
+        } else if (field === 'username') {
+          throw new BadRequestException('This username is already taken.');
+        }
+      }
+      throw new BadRequestException('Registration failed. Please try again.');
+    }
   }
 
   async generatePasswordResetToken(email: string): Promise<void> {
@@ -206,8 +251,6 @@ export class AuthService {
     await this.emailService.sendPasswordChangeConfirmation(user.email);
   }
 
-
-
   async resetPassword(email: string, newPassword: string) {
     console.log('resetPassword called with email:', email);
     try {
@@ -238,6 +281,13 @@ export class AuthService {
       console.error('Error in resetPassword:', error);
       throw error;
     }
+  }
+
+  async checkUsernameAvailability(username: string): Promise<boolean> {
+    const existingUser = await this.userModel.findOne({ 
+      username: username.toLowerCase() 
+    });
+    return !existingUser;
   }
 
   async refreshTokens(refreshToken: string) {

@@ -2,12 +2,28 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Message, MessageDocument } from './schemas/message.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
 
 @Injectable()
 export class MessagesService {
   constructor(
     @InjectModel(Message.name) private messageModel: Model<MessageDocument>,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
   ) {}
+
+  async getUserInfo(userId: string) {
+    if (!Types.ObjectId.isValid(userId)) {
+      return null;
+    }
+    
+    const user = await this.userModel.findById(userId).select('username profileImage fullName').exec();
+    return user ? {
+      _id: user._id.toString(),
+      username: user.username,
+      fullName: user.fullName,
+      profileImage: user.profileImage
+    } : null;
+  }
 
   async sendMessage(senderId: string, receiverId: string, content: string) {
     if (!Types.ObjectId.isValid(senderId) || !Types.ObjectId.isValid(receiverId)) {

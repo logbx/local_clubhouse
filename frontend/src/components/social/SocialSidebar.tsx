@@ -7,6 +7,8 @@ import { LoadingSpinner } from '../LoadingSpinner';
 import { friendGroupApi, eventApi } from '../../services/api';
 import { messageService } from '../../services/message.service';
 import { clubApi } from '../../services/club.service';
+import { notificationService } from '../../services/notification.service';
+
 
 interface SocialSidebarProps {
   selectedChat: ChatSession | null;
@@ -72,19 +74,33 @@ export const SocialSidebar: React.FC<SocialSidebarProps> = ({
 }) => {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [individualConversations, setIndividualConversations] = useState<IndividualConversation[]>([]);
   const [friendGroups, setFriendGroups] = useState<FriendGroup[]>([]);
   const [eventChats, setEventChats] = useState<EventChat[]>([]);
   const [clubChats, setClubChats] = useState<ClubChat[]>([]);
-  const [eventSubGroups, setEventSubGroups] = useState<EventSubGroup[]>([]);
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [error, setError] = useState<string | null>(null);
+
+  // Subscribe to notification updates
+  useEffect(() => {
+    const unsubscribe = notificationService.subscribe(() => {
+      setUnreadCounts(notificationService.getUnreadCountsByChat());
+    });
+
+    // Set initial unread counts
+    setUnreadCounts(notificationService.getUnreadCountsByChat());
+
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     const fetchAllData = async () => {
       try {
         setLoading(true);
-
+        setError(null);
+        
         // Fetch all data in parallel
         const [
           conversationsData,
@@ -103,18 +119,21 @@ export const SocialSidebar: React.FC<SocialSidebarProps> = ({
         // Process individual conversations
         if (conversationsData.status === 'fulfilled') {
           const conversations = conversationsData.value || [];
-          console.log('Raw conversations data:', conversations);
-          
-          setIndividualConversations(conversations.map((conv: any) => ({
-            userId: conv.userId,
-            username: conv.username || 'Unknown User',
-            profileImage: conv.profileImage,
-            lastMessage: conv.lastMessage ? {
-              content: conv.lastMessage.content,
-              timestamp: conv.lastMessage.timestamp
-            } : undefined,
-            unreadCount: conv.unreadCount || 0
-          })));
+          console.log('🔍 Individual Conversations Debug:', conversations);
+          setIndividualConversations(conversations.map((conv: any) => {
+            const notificationUnreadCount = unreadCounts[`individual-${conv.userId}`] || 0;
+            const debugInfo = {
+              userId: conv.userId,
+              username: conv.username,
+              profileImage: conv.profileImage,
+              lastMessage: conv.lastMessage,
+              updatedAt: conv.lastMessage?.timestamp,
+              unreadCount: notificationUnreadCount > 0 ? notificationUnreadCount : (conv.unreadCount || 0)
+            };
+            console.log('🔍 Individual Conversation Item:', debugInfo);
+            console.log('🔍 Full conversation object:', conv);
+            return debugInfo;
+          }));
         }
 
         // Process friend groups
@@ -141,12 +160,13 @@ export const SocialSidebar: React.FC<SocialSidebarProps> = ({
           subGroups = userSubGroupsData.value || [];
           console.log('[DEBUG] Raw sub-groups data:', subGroups);
           
-          setEventSubGroups(subGroups.map((subGroup: any) => ({
-            _id: subGroup._id,
-            name: subGroup.name,
-            eventId: subGroup.eventId,
-            eventTitle: subGroup.eventTitle,
-            members: subGroup.members || []
+          setEventChats(subGroups.map((subGroup: any) => ({
+            id: subGroup._id,
+            title: subGroup.name,
+            status: 'LIVE',
+            clubUsername: subGroup.eventTitle,
+            subGroups: [subGroup],
+            imageUrl: undefined
           })));
         }
 
@@ -194,6 +214,7 @@ export const SocialSidebar: React.FC<SocialSidebarProps> = ({
 
       } catch (error) {
         console.error('Error fetching social data:', error);
+        setError('An error occurred while fetching social data.');
       } finally {
         setLoading(false);
       }
@@ -219,67 +240,85 @@ export const SocialSidebar: React.FC<SocialSidebarProps> = ({
   // Combine all items into a unified list
   const combinedItems = [
     // Individual conversations
-    ...individualConversations.map(conv => ({
-      id: conv.userId,
-      name: conv.username,
-      type: 'individual' as const,
-      category: 'Individuals',
-      icon: UserIcon,
-      avatarUrl: conv.profileImage,
-      isOnline: onlineUsers.has(conv.userId),
-      lastMessage: conv.lastMessage?.content,
-      updatedAt: conv.lastMessage?.timestamp,
-      unreadCount: conv.unreadCount && conv.unreadCount > 0 ? conv.unreadCount : undefined
-    })),
+    ...individualConversations.map(conv => {
+      const unreadKey = `direct-${conv.userId}`;
+      const notificationUnreadCount = unreadCounts[unreadKey] || 0;
+      const item = {
+        id: conv.userId,
+        name: conv.username,
+        type: 'individual' as const,
+        category: 'Individuals',
+        icon: UserGroupIcon,
+        avatarUrl: conv.profileImage,
+        isOnline: onlineUsers.has(conv.userId),
+        lastMessage: conv.lastMessage?.content,
+        updatedAt: conv.lastMessage?.timestamp,
+        unreadCount: notificationUnreadCount > 0 ? notificationUnreadCount : (conv.unreadCount || 0)
+      };
+      console.log('🔍 Combined Individual Item:', item);
+      return item;
+    }),
     
     // Friend groups
-    ...friendGroups.map(group => ({
-      id: group._id,
-      name: group.name,
-      type: 'friend-group' as const,
-      category: 'Groups',
-      icon: UserGroupIcon,
-      avatarUrl: undefined,
-      memberCount: group.members?.length || 0,
-      isOnline: false,
-      lastMessage: undefined,
-      updatedAt: undefined,
-      unreadCount: undefined
-    })),
+    ...friendGroups.map(group => {
+      const unreadKey = `friend-group-${group._id}`;
+      const notificationUnreadCount = unreadCounts[unreadKey] || 0;
+      return {
+        id: group._id,
+        name: group.name,
+        type: 'friend-group' as const,
+        category: 'Groups',
+        icon: UserGroupIcon,
+        avatarUrl: undefined,
+        memberCount: group.members?.length || 0,
+        isOnline: false,
+        lastMessage: undefined,
+        updatedAt: undefined,
+        unreadCount: notificationUnreadCount > 0 ? notificationUnreadCount : 0
+      };
+    }),
     
     // Club chats
-    ...clubChats.map(club => ({
-      id: club.id,
-      name: club.name,
-      type: 'club-chat' as const,
-      category: 'Clubs',
-      icon: BuildingOfficeIcon,
-      avatarUrl: club.logoUrl,
-      clubUsername: club.username,
-      memberCount: club.memberCount,
-      subGroups: [] as any[], // Add empty subGroups array for clubs (for future implementation)
-      isOnline: false,
-      lastMessage: undefined,
-      updatedAt: undefined,
-      unreadCount: undefined
-    })),
+    ...clubChats.map(club => {
+      const unreadKey = `group-${club.id}`; // Using 'group' type for club chats
+      const notificationUnreadCount = unreadCounts[unreadKey] || 0;
+      return {
+        id: club.id,
+        name: club.name,
+        type: 'club-chat' as const,
+        category: 'Clubs',
+        icon: BuildingOfficeIcon,
+        avatarUrl: club.logoUrl,
+        clubUsername: club.username,
+        memberCount: club.memberCount,
+        subGroups: [] as any[], // Add empty subGroups array for clubs (for future implementation)
+        isOnline: false,
+        lastMessage: undefined,
+        updatedAt: undefined,
+        unreadCount: notificationUnreadCount > 0 ? notificationUnreadCount : 0
+      };
+    }),
     
     // Event chats (with sub-groups)
-    ...eventChats.map(event => ({
-      id: event.id,
-      name: event.title,
-      type: 'event-chat' as const,
-      category: 'Events',
-      icon: CalendarIcon,
-      avatarUrl: event.imageUrl,
-      eventStatus: event.status,
-      clubUsername: event.clubUsername,
-      subGroups: event.subGroups,
-      isOnline: false,
-      lastMessage: undefined,
-      updatedAt: undefined,
-      unreadCount: undefined
-    }))
+    ...eventChats.map(event => {
+      const unreadKey = `event-${event.id}`;
+      const notificationUnreadCount = unreadCounts[unreadKey] || 0;
+      return {
+        id: event.id,
+        name: event.title,
+        type: 'event-chat' as const,
+        category: 'Events',
+        icon: BuildingOfficeIcon,
+        avatarUrl: event.imageUrl,
+        eventStatus: event.status,
+        clubUsername: event.clubUsername,
+        subGroups: event.subGroups,
+        isOnline: false,
+        lastMessage: undefined,
+        updatedAt: undefined,
+        unreadCount: notificationUnreadCount > 0 ? notificationUnreadCount : 0
+      };
+    })
   ];
 
   const filteredItems = combinedItems.filter(item =>
@@ -310,6 +349,14 @@ export const SocialSidebar: React.FC<SocialSidebarProps> = ({
     if (hasSubGroups) {
       toggleItemExpansion(item.id);
     } else {
+      // Mark notifications as read for this chat
+      let notificationType = item.type;
+      if (item.type === 'individual') notificationType = 'direct';
+      if (item.type === 'club-chat') notificationType = 'group';
+      if (item.type === 'friend-group') notificationType = 'friend-group';
+      
+      notificationService.markChatAsRead(notificationType, item.id);
+      
       // For items without sub-groups, open the chat directly
       const chatSession: ChatSession = {
         id: item.id,
@@ -329,6 +376,13 @@ export const SocialSidebar: React.FC<SocialSidebarProps> = ({
   };
 
   const handleGeneralChatClick = (item: any) => {
+    // Mark notifications as read for this chat
+    let notificationType = item.type;
+    if (item.type === 'event-chat') notificationType = 'event';
+    if (item.type === 'club-chat') notificationType = 'group';
+    
+    notificationService.markChatAsRead(notificationType, item.id);
+    
     const chatSession: ChatSession = {
       id: item.id,
       type: item.type,
@@ -346,6 +400,9 @@ export const SocialSidebar: React.FC<SocialSidebarProps> = ({
   };
 
   const handleSubGroupClick = (subGroup: EventSubGroup, eventTitle: string) => {
+    // Mark notifications as read for this sub-group
+    notificationService.markChatAsRead('subgroup', subGroup._id);
+    
     const chatSession: ChatSession = {
       id: subGroup._id,
       type: 'event-subgroup',
@@ -378,7 +435,7 @@ export const SocialSidebar: React.FC<SocialSidebarProps> = ({
         
         {/* Search */}
         <div className="relative">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <ChatBubbleLeftIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
             type="text"
             placeholder="Search conversations..."
@@ -499,14 +556,22 @@ export const SocialSidebar: React.FC<SocialSidebarProps> = ({
                               )}
                             </div>
 
-                            {/* Unread Badge */}
-                            {item.unreadCount && item.unreadCount > 0 && (
-                              <div className="min-w-[20px] h-5 bg-red-500 rounded-full flex items-center justify-center px-1.5">
-                                <span className="text-xs text-white font-bold">
-                                  {item.unreadCount > 99 ? '99+' : item.unreadCount}
-                                </span>
-                              </div>
-                            )}
+                            {/* Unread Indicators */}
+                            <div className="flex items-center space-x-1">
+                              {/* Blue dot for any unread messages */}
+                              {item.unreadCount && item.unreadCount > 0 && (
+                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              )}
+                              
+                              {/* Red numeric badge for multiple messages */}
+                              {item.unreadCount && item.unreadCount > 1 && (
+                                <div className="min-w-[20px] h-5 bg-red-500 rounded-full flex items-center justify-center px-1.5">
+                                  <span className="text-xs text-white font-bold">
+                                    {item.unreadCount > 99 ? '99+' : item.unreadCount}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -532,33 +597,72 @@ export const SocialSidebar: React.FC<SocialSidebarProps> = ({
                                     Main discussion
                                   </p>
                                 </div>
+                                
+                                {/* Unread indicators for general chat */}
+                                <div className="flex items-center space-x-1">
+                                  {/* Blue dot for any unread messages */}
+                                  {item.unreadCount && item.unreadCount > 0 && (
+                                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                  )}
+                                  
+                                  {/* Red numeric badge for multiple messages */}
+                                  {item.unreadCount && item.unreadCount > 1 && (
+                                    <div className="min-w-[16px] h-4 bg-red-500 rounded-full flex items-center justify-center px-1">
+                                      <span className="text-xs text-white font-bold">
+                                        {item.unreadCount > 99 ? '99+' : item.unreadCount}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
 
                             {/* Sub-groups */}
-                            {isEvent && 'subGroups' in item && item.subGroups && item.subGroups.map((subGroup: EventSubGroup) => (
-                              <div
-                                key={subGroup._id}
-                                onClick={() => handleSubGroupClick(subGroup, item.name)}
-                                className={`p-2 rounded-lg cursor-pointer transition-colors ${
-                                  selectedChat?.id === subGroup._id && selectedChat?.type === 'event-subgroup'
-                                    ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
-                                    : 'hover:bg-gray-50 dark:hover:bg-gray-700'
-                                }`}
-                              >
-                                <div className="flex items-center space-x-2">
-                                  <UserGroupIcon className="h-4 w-4 text-gray-500" />
-                                  <div className="flex-1">
-                                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                      {subGroup.name}
-                                    </p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                      {subGroup.members?.length || 0} members
-                                    </p>
+                            {isEvent && 'subGroups' in item && item.subGroups && item.subGroups.map((subGroup: EventSubGroup) => {
+                              const subGroupUnreadKey = `subgroup-${subGroup._id}`;
+                              const subGroupUnreadCount = unreadCounts[subGroupUnreadKey] || 0;
+                              
+                              return (
+                                <div
+                                  key={subGroup._id}
+                                  onClick={() => handleSubGroupClick(subGroup, item.name)}
+                                  className={`p-2 rounded-lg cursor-pointer transition-colors ${
+                                    selectedChat?.id === subGroup._id && selectedChat?.type === 'event-subgroup'
+                                      ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
+                                      : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                                  }`}
+                                >
+                                  <div className="flex items-center space-x-2">
+                                    <UserGroupIcon className="h-4 w-4 text-gray-500" />
+                                    <div className="flex-1">
+                                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                        {subGroup.name}
+                                      </p>
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        {subGroup.members?.length || 0} members
+                                      </p>
+                                    </div>
+                                    
+                                    {/* Unread indicators for sub-groups */}
+                                    <div className="flex items-center space-x-1">
+                                      {/* Blue dot for any unread messages */}
+                                      {subGroupUnreadCount > 0 && (
+                                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                      )}
+                                      
+                                      {/* Red numeric badge for multiple messages */}
+                                      {subGroupUnreadCount > 1 && (
+                                        <div className="min-w-[16px] h-4 bg-red-500 rounded-full flex items-center justify-center px-1">
+                                          <span className="text-xs text-white font-bold">
+                                            {subGroupUnreadCount > 99 ? '99+' : subGroupUnreadCount}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
 
                             {/* Club Sub-groups (when implemented) */}
                             {isClub && 'subGroups' in item && item.subGroups && item.subGroups.map((subGroup: any) => (

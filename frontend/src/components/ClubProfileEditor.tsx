@@ -128,6 +128,8 @@ const ClubProfileEditor: React.FC<ClubProfileEditorProps> = ({ club, onUpdate })
   const [formData, setFormData] = useState<UpdateClubProfileDto>({
     name: club.name,
     description: club.description || '',
+    mission: club.mission || '',
+    story: club.story || '',
     logoUrl: club.logoUrl || '',
     socialLinks: [...club.socialLinks],
     photoGallery: [...club.photoGallery],
@@ -370,6 +372,42 @@ const ClubProfileEditor: React.FC<ClubProfileEditorProps> = ({ club, onUpdate })
             className="input"
             placeholder="Tell people about your club..."
           />
+        </div>
+
+        <div className="mt-4">
+          <label htmlFor="mission" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Our Mission
+          </label>
+          <textarea
+            id="mission"
+            rows={4}
+            value={formData.mission || ''}
+            onChange={(e) => handleInputChange('mission', e.target.value)}
+            className="input"
+            placeholder="What is your club's mission and purpose? (Leave empty to hide this section)"
+            maxLength={2000}
+          />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {(formData.mission || '').length}/2000 characters • Will appear as "Our Mission" section on club page
+          </p>
+        </div>
+
+        <div className="mt-4">
+          <label htmlFor="story" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Our Story
+          </label>
+          <textarea
+            id="story"
+            rows={4}
+            value={formData.story || ''}
+            onChange={(e) => handleInputChange('story', e.target.value)}
+            className="input"
+            placeholder="Tell the story of how your club started and evolved... (Leave empty to hide this section)"
+            maxLength={2000}
+          />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {(formData.story || '').length}/2000 characters • Will appear as "Our Story" section on club page
+          </p>
         </div>
 
         <div className="mt-4">

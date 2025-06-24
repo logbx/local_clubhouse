@@ -15,7 +15,7 @@ import RegisterPage from './pages/RegisterPage';
 import Dashboard from './pages/Dashboard';
 import EventDashboard from './pages/EventDashboard';
 import ProfilePage from './pages/ProfilePage';
-import ProfileSetupPage from './pages/ProfileSetupPage';
+import ProfileEditPage from './pages/ProfileEditPage';
 import SettingsPage from './pages/SettingsPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
@@ -97,8 +97,8 @@ const App: React.FC = () => {
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/events" element={<EventDashboard />} />
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/profile/edit" element={<ProfileEditPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/profile-setup" element={<ProfileSetupPage />} />
                 <Route path="/friends" element={<FriendsDashboard />} />
                 <Route path="/messages" element={<MessagesPage />} />
                 <Route path="/messages/:userId" element={<MessageThreadPage />} />

@@ -103,7 +103,19 @@ const ClubProfilePage: React.FC = () => {
 
     try {
       setSubmittingComment(true);
-      const updatedClub = await clubApi.addComment(club.username, commentForm);
+      
+      // Create comment data and only include email if it's not empty
+      const commentData: any = {
+        authorName: commentForm.authorName.trim(),
+        content: commentForm.content.trim(),
+      };
+      
+      // Only include email if it's provided and not empty
+      if (commentForm.authorEmail && commentForm.authorEmail.trim()) {
+        commentData.authorEmail = commentForm.authorEmail.trim();
+      }
+      
+      const updatedClub = await clubApi.addComment(club.username, commentData);
       setClub(updatedClub);
       setCommentForm({ authorName: '', authorEmail: '', content: '' });
       toast.success('Comment added successfully!');
@@ -134,20 +146,7 @@ const ClubProfilePage: React.FC = () => {
           </Link>
         )}
 
-        {/* Join/Message Buttons */}
-        {user && !isClubCreator && (
-          <>
-            <ClubJoinButton 
-              clubUsername={club.username}
-              clubId={club._id}
-              onMembershipChange={fetchMembershipStatus}
-            />
-            <button className="bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200 flex items-center gap-2 shadow-lg backdrop-blur-sm">
-              <PaperAirplaneIcon className="h-4 w-4" />
-              Message
-            </button>
-          </>
-        )}
+
       </div>
 
       {/* Main Content Container */}
@@ -174,10 +173,21 @@ const ClubProfilePage: React.FC = () => {
 
           {/* Club Info - Right Side */}
           <div className="flex-1 text-center sm:text-left min-w-0">
-            {/* Club Name */}
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-light text-gray-900 dark:text-white mb-4 tracking-tight">
+            {/* Club Name with Join Button */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-light text-gray-900 dark:text-white tracking-tight mb-4 sm:mb-0">
               {club.name}
             </h1>
+              
+              {/* Dynamic Join/Joined Button */}
+              {user && !isClubCreator && (
+                <ClubJoinButton 
+                  clubUsername={club.username}
+                  clubId={club._id}
+                  onMembershipChange={fetchMembershipStatus}
+                />
+              )}
+            </div>
 
             {/* Instagram-Style Metrics Row */}
             <div className="flex justify-center sm:justify-start gap-8 mb-6">
@@ -489,6 +499,34 @@ const ClubProfilePage: React.FC = () => {
                   isEditable={false}
                 />
               )}
+
+              {/* Our Mission */}
+              {club.mission && club.mission.trim() && (
+                <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow border border-gray-200/50 dark:border-gray-700/50 p-6">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    Our Mission
+                  </h3>
+                  <div className="prose prose-gray dark:prose-invert max-w-none">
+                    <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
+                      {club.mission}
+                    </p>
+                  </div>
+                      </div>
+              )}
+
+              {/* Our Story */}
+              {club.story && club.story.trim() && (
+                <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow border border-gray-200/50 dark:border-gray-700/50 p-6">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    Our Story
+                  </h3>
+                  <div className="prose prose-gray dark:prose-invert max-w-none">
+                    <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
+                      {club.story}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -613,6 +651,7 @@ const ClubProfilePage: React.FC = () => {
             <ClubChat 
               clubUsername={club.username} 
               isMember={membershipStatus.isMember} 
+              isAdmin={membershipStatus.isAdmin || isClubCreator || false}
             />
           )}
 
@@ -631,7 +670,7 @@ const ClubProfilePage: React.FC = () => {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         showChat={membershipStatus.isMember || false}
-        showMembers={(membershipStatus.isAdmin || isClubCreator) || false}
+        showMembers={true}
         footerElementId="global-footer"
       />
 

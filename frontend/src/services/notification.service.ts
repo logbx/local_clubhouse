@@ -48,24 +48,53 @@ class NotificationService {
     webSocketService.onNewMessage((message: any) => {
       console.log('🔔 NotificationService: Received new message event:', message);
       
-      // Extract the correct sender ID - could be in different places
-      const senderId = message.senderId || message.sender?._id || message.sender;
-      const senderName = message.senderName || message.sender?.username || message.sender?.name || 'Someone';
-      const senderImage = message.senderImage || message.sender?.profileImage;
+      // The backend now sends message with populated sender object
+      // message.sender is the full user object with _id, username, fullName, profileImage
+      const senderId = message.sender?._id || message.sender?.id || message.senderId;
+      const senderName = message.sender?.username || message.sender?.fullName || message.senderName || 'Someone';
+      const senderImage = message.sender?.profileImage || message.senderImage;
       
       console.log('🔔 NotificationService: Extracted sender info:', {
         senderId,
         senderName,
         senderImage,
         messageId: message._id,
-        content: message.content
+        content: message.content,
+        fullSender: message.sender
       });
+      
+      // Only add notification if we have valid sender info
+      if (senderId && senderName) {
+        this.addNotification({
+          id: message._id || Date.now().toString(),
+          type: 'direct',
+          chatId: senderId,
+          chatName: `Direct Message from ${senderName}`,
+          senderId: senderId,
+          senderName: senderName,
+          senderImage: senderImage,
+          content: message.content,
+          timestamp: message.timestamp || new Date().toISOString(),
+          read: false
+        });
+      } else {
+        console.warn('🔔 NotificationService: Could not extract sender info from message:', message);
+      }
+    });
+
+    // Listen for new friend group messages
+    webSocketService.onNewFriendGroupMessage((message: any) => {
+      console.log('🔔 NotificationService: Received new friend group message:', message);
+      
+      const senderId = message.senderId || message.sender?._id || message.sender;
+      const senderName = message.senderName || message.sender?.username || message.sender?.name || 'Someone';
+      const senderImage = message.senderImage || message.sender?.profileImage;
       
       this.addNotification({
         id: message._id || Date.now().toString(),
-        type: 'direct',
-        chatId: senderId,
-        chatName: `Direct Message from ${senderName}`,
+        type: 'friend-group',
+        chatId: message.friendGroupId || message.groupId,
+        chatName: message.groupName || 'Friend Group',
         senderId: senderId,
         senderName: senderName,
         senderImage: senderImage,
@@ -75,8 +104,49 @@ class NotificationService {
       });
     });
 
-    // Note: Group messages currently don't have real-time WebSocket support
-    // This would need to be added to the WebSocket service if needed
+    // Listen for new club chat messages
+    webSocketService.onNewClubMessage((message: any) => {
+      console.log('🔔 NotificationService: Received new club message:', message);
+      
+      const senderId = message.senderId || message.sender?._id || message.sender;
+      const senderName = message.senderName || message.sender?.username || message.sender?.name || 'Someone';
+      const senderImage = message.senderImage || message.sender?.profileImage;
+      
+      this.addNotification({
+        id: message._id || Date.now().toString(),
+        type: 'group', // Using 'group' for club messages to match existing UI
+        chatId: message.clubId || message.clubUsername,
+        chatName: message.clubName || 'Club Chat',
+        senderId: senderId,
+        senderName: senderName,
+        senderImage: senderImage,
+        content: message.content,
+        timestamp: message.timestamp || new Date().toISOString(),
+        read: false
+      });
+    });
+
+    // Listen for new club group chat messages
+    webSocketService.onNewClubGroupMessage((message: any) => {
+      console.log('🔔 NotificationService: Received new club group message:', message);
+      
+      const senderId = message.senderId || message.sender?._id || message.sender;
+      const senderName = message.senderName || message.sender?.username || message.sender?.name || 'Someone';
+      const senderImage = message.senderImage || message.sender?.profileImage;
+      
+      this.addNotification({
+        id: message._id || Date.now().toString(),
+        type: 'group',
+        chatId: message.groupChatId,
+        chatName: message.groupChatName || 'Club Group Chat',
+        senderId: senderId,
+        senderName: senderName,
+        senderImage: senderImage,
+        content: message.content,
+        timestamp: message.timestamp || new Date().toISOString(),
+        read: false
+      });
+    });
 
     // Listen for new event messages
     webSocketService.onNewEventMessage((message: any) => {
@@ -197,13 +267,17 @@ class NotificationService {
       case 'direct':
         return currentPath === `/messages/${chatId}`;
       case 'group':
-        return currentPath === '/messages' && currentPath.includes('group');
+        // Handle both club chats and general group chats
+        return (currentPath === '/messages' && currentPath.includes('group')) ||
+               (currentPath === '/social-hub' && window.location.hash.includes(chatId)) ||
+               currentPath.includes(`/clubs/${chatId}`);
       case 'event':
         return currentPath.includes(`/events/${chatId}`);
       case 'subgroup':
         return currentPath.includes('subgroup') && currentPath.includes(chatId);
       case 'friend-group':
-        return currentPath.includes(`/friend-groups/${chatId}`);
+        return currentPath.includes(`/friend-groups/${chatId}`) ||
+               (currentPath === '/social-hub' && window.location.hash.includes(chatId));
       default:
         return false;
     }
@@ -261,6 +335,29 @@ class NotificationService {
 
   getUnreadCount(): UnreadCount {
     return { ...this.unreadCount };
+  }
+
+  // Get unread count for a specific chat
+  getUnreadCountForChat(type: string, chatId: string): number {
+    return this.notifications.filter(n => 
+      !n.read && 
+      n.type === type && 
+      n.chatId === chatId
+    ).length;
+  }
+
+  // Get all unread counts by chat
+  getUnreadCountsByChat(): Record<string, number> {
+    const counts: Record<string, number> = {};
+    
+    this.notifications.forEach(notification => {
+      if (!notification.read) {
+        const key = `${notification.type}-${notification.chatId}`;
+        counts[key] = (counts[key] || 0) + 1;
+      }
+    });
+    
+    return counts;
   }
 
   markAsRead(notificationId: string) {

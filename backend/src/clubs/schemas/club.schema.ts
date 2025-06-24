@@ -31,6 +31,7 @@ export interface ClubChat {
   _id?: Types.ObjectId;
   senderId: Types.ObjectId;
   senderName: string;
+  senderProfileImage?: string;
   content: string;
   createdAt: Date;
 }
@@ -51,6 +52,12 @@ export class Club {
 
   @Prop({ trim: true })
   description?: string;
+
+  @Prop({ trim: true })
+  mission?: string;
+
+  @Prop({ trim: true })
+  story?: string;
 
   @Prop()
   logoUrl?: string;
@@ -90,6 +97,7 @@ export class Club {
     type: [{ 
       senderId: { type: Types.ObjectId, ref: 'User' },
       senderName: String,
+      senderProfileImage: String,
       content: String,
       createdAt: { type: Date, default: Date.now }
     }], 

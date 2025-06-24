@@ -392,8 +392,28 @@ export class EventsController {
     }
 
     // Handle invited users for private events
-    if (createEventDto.invitedUsers && Array.isArray(createEventDto.invitedUsers)) {
-      eventData.invitedUsers = createEventDto.invitedUsers.map((id: string) => new Types.ObjectId(id));
+    if (createEventDto.invitedUsers !== undefined) {
+      if (typeof createEventDto.invitedUsers === 'string') {
+        try {
+          createEventDto.invitedUsers = JSON.parse(createEventDto.invitedUsers);
+        } catch {
+          createEventDto.invitedUsers = [];
+        }
+      }
+      if (!Array.isArray(createEventDto.invitedUsers)) {
+        createEventDto.invitedUsers = [];
+      }
+      // Filter out empty strings and convert to ObjectIds
+      eventData.invitedUsers = createEventDto.invitedUsers
+        .filter((id: any) => id && typeof id === 'string' && id.trim().length > 0)
+        .map((id: string) => {
+          try {
+            return new Types.ObjectId(id);
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
     }
 
     const createdEvent = await this.eventModel.create(eventData);

@@ -1,5 +1,23 @@
 import { api } from './api';
-import { Club, CreateClubDto, UpdateClubDto, AddClubCommentDto, ClubChatMessage, ChatMessageDto, ClubMember, UpdateMemberRoleDto, MembershipStatus, UpdateClubProfileDto, ClubStats } from '../types/club';
+import { 
+  Club, 
+  CreateClubDto, 
+  UpdateClubDto, 
+  AddClubCommentDto, 
+  ClubChatMessage, 
+  ChatMessageDto, 
+  ClubMember, 
+  UpdateMemberRoleDto, 
+  MembershipStatus, 
+  UpdateClubProfileDto,
+  ClubStats,
+  ClubGroupChat,
+  ClubGroupChatMessage,
+  CreateClubGroupChatDto,
+  UpdateClubGroupChatDto,
+  AddGroupChatMemberDto,
+  GroupChatMessageDto
+} from '../types/club';
 
 export const clubApi = {
   // Get all clubs with optional search
@@ -122,4 +140,43 @@ export const clubApi = {
       return 0;
     }
   },
-}; 
+
+  // Group chat functionality
+  getClubGroupChats: async (username: string): Promise<ClubGroupChat[]> => {
+    const response = await api.get(`/api/clubs/${username}/group-chats`);
+    return response.data;
+  },
+
+  createGroupChat: async (username: string, groupChatData: CreateClubGroupChatDto): Promise<ClubGroupChat> => {
+    const response = await api.post(`/api/clubs/${username}/group-chats`, groupChatData);
+    return response.data;
+  },
+
+  updateGroupChat: async (username: string, groupChatId: string, groupChatData: UpdateClubGroupChatDto): Promise<ClubGroupChat> => {
+    const response = await api.put(`/api/clubs/${username}/group-chats/${groupChatId}`, groupChatData);
+    return response.data;
+  },
+
+  deleteGroupChat: async (username: string, groupChatId: string): Promise<void> => {
+    await api.delete(`/api/clubs/${username}/group-chats/${groupChatId}`);
+  },
+
+  addGroupChatMember: async (username: string, groupChatId: string, memberData: AddGroupChatMemberDto): Promise<ClubGroupChat> => {
+    const response = await api.post(`/api/clubs/${username}/group-chats/${groupChatId}/members`, memberData);
+    return response.data;
+  },
+
+  removeGroupChatMember: async (username: string, groupChatId: string, memberId: string): Promise<void> => {
+    await api.delete(`/api/clubs/${username}/group-chats/${groupChatId}/members/${memberId}`);
+  },
+
+  getGroupChatMessages: async (username: string, groupChatId: string): Promise<ClubGroupChatMessage[]> => {
+    const response = await api.get(`/api/clubs/${username}/group-chats/${groupChatId}/messages`);
+    return response.data;
+  },
+
+  sendGroupChatMessage: async (username: string, groupChatId: string, messageData: GroupChatMessageDto): Promise<ClubGroupChat> => {
+    const response = await api.post(`/api/clubs/${username}/group-chats/${groupChatId}/messages`, messageData);
+    return response.data;
+  },
+};

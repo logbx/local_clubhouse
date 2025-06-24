@@ -271,6 +271,10 @@ export const eventApi = {
     const response = await api.post(endpoints.events.rsvp(id), { status });
     return response.data;
   },
+  toggleRsvp: async (id: string) => {
+    const response = await api.post(`/events/${id}/rsvp`, {});
+    return response.data;
+  },
 };
 
 // Friend API

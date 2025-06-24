@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Event, EventStatus, EventFeatures, EventVisibility } from '../types/event';
 import { eventApi } from '../services/api';
 import { tournamentService, Tournament } from '../services/tournament.service';
 import { format } from 'date-fns';
-import { PlusIcon, CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, TrashIcon, UserIcon, TrophyIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, TrashIcon, UserIcon, TrophyIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
 import CreateEventModal from '../components/CreateEventModal';
 import { useAuth } from '../context/AuthContext';
 import SearchBar from '../components/SearchBar';
@@ -25,6 +25,7 @@ const Dashboard: React.FC = () => {
   const [eventTournaments, setEventTournaments] = useState<Record<string, Tournament[]>>({});
   const [frontendTournaments, setFrontendTournaments] = useState<Record<string, any>>({});
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
+  const [rsvpLoading, setRsvpLoading] = useState<{ [key: string]: boolean }>({});
 
   // Load frontend tournaments from localStorage
   useEffect(() => {
@@ -482,36 +483,31 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleRsvp = async (eventId: string) => {
+    if (!user) return;
+    
+    try {
+      setRsvpLoading(prev => ({ ...prev, [eventId]: true }));
+      await eventApi.toggleRsvp(eventId);
+      
+      // Refresh events to get updated RSVP status
+      refetchEvents();
+    } catch (error) {
+      console.error('Error updating RSVP:', error);
+    } finally {
+      setRsvpLoading(prev => ({ ...prev, [eventId]: false }));
+    }
+  };
+
+  const isUserRsvped = (event: Event) => {
+    return event.rsvps.some(rsvp => rsvp.id === user?.id);
+  };
+
   return (
     <div className="space-y-8">
       {/* Search Bar Section */}
       <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200 relative" style={{ zIndex: 10 }}>
         <SearchBar />
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {[
-          {
-            id: 'live',
-            title: 'Live Events',
-            count: events?.filter((e: Event) => e.status === EventStatus.LIVE).length || 0,
-            color: 'text-green-600 dark:text-green-400'
-          },
-          {
-            id: 'past',
-            title: 'Past Events',
-            count: events?.filter((e: Event) => e.status === EventStatus.PAST).length || 0,
-            color: 'text-gray-600 dark:text-gray-400'
-          }
-        ].map(stat => (
-          <div key={stat.id} className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200 relative" style={{ zIndex: 1 }}>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{stat.title}</h3>
-            <p className={`text-3xl font-bold ${stat.color} mt-2`}>
-              {stat.count}
-            </p>
-          </div>
-        ))}
       </div>
 
       {/* Event Management Section */}
@@ -636,10 +632,17 @@ const Dashboard: React.FC = () => {
                         {event.rsvps.length} RSVPs
                       </div>
                       
-                      {/* 6. Club Space */}
-                      {event.clubName && event.clubUsername && (
-                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                          <button onClick={() => navigate(`/clubs/${event.clubUsername}`)} className="flex items-center mr-2 hover:text-purple-700 dark:hover:text-purple-300 transition-colors">
+                      {/* 6. Cost */}
+                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                        <CurrencyDollarIcon className="h-4 w-4 mr-2" />
+                        {event.isFree ? 'Free' : `$${event.cost}`}
+                      </div>
+                      
+                      {/* 7. Club and Creator Row */}
+                      <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+                        {/* Club (left side) */}
+                        {event.clubName && event.clubUsername && (
+                          <button onClick={() => navigate(`/clubs/${event.clubUsername}`)} className="flex items-center hover:text-purple-700 dark:hover:text-purple-300 transition-colors">
                             {event.clubLogoUrl ? (
                               <img src={event.clubLogoUrl} alt={`${event.clubName} logo`} className="h-4 w-4 rounded-full object-cover mr-1 border border-gray-200 dark:border-gray-600" />
                             ) : (
@@ -649,10 +652,17 @@ const Dashboard: React.FC = () => {
                             )}
                             <span className="text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 hover:underline font-medium">
                               {event.clubName}
-                            </span>
+                        </span>
                           </button>
-                        </div>
-                      )}
+                        )}
+                        {/* Creator (right side) */}
+                        {event.creator && (
+                          <div className="flex items-center">
+                            <UserIcon className="h-4 w-4 mr-1" />
+                            <span>{event.creator.username}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     
                     <div className="mt-6 space-y-3">

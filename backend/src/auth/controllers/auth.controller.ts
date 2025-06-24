@@ -10,6 +10,7 @@ import {
   UnauthorizedException,
   ValidationPipe,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
 import { AuthService } from '../auth.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
@@ -46,17 +47,24 @@ export class AuthController {
         ...result
       };
     } catch (error) {
-      if (error instanceof UnauthorizedException) {
+      if (error instanceof BadRequestException || error instanceof UnauthorizedException) {
         throw error;
       }
-      throw new UnauthorizedException(error.message || 'Registration failed');
+      throw new BadRequestException(error.message || 'Registration failed');
     }
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body(ValidationPipe) loginDto: LoginDto) {
-    return this.authService.login(loginDto.identifier, loginDto.password);
+    try {
+      return await this.authService.login(loginDto.identifier, loginDto.password);
+    } catch (error) {
+      if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new UnauthorizedException(error.message || 'Login failed');
+    }
   }
 
   @Post('forgot-password')
@@ -161,6 +169,33 @@ export class AuthController {
         throw error;
       }
       throw new BadRequestException('Failed to update password');
+    }
+  }
+
+  @Get('check-username')
+  @HttpCode(HttpStatus.OK)
+  async checkUsernameAvailability(@Query('username') username: string) {
+    try {
+      if (!username || username.trim().length < 3) {
+        throw new BadRequestException('Username must be at least 3 characters long');
+      }
+
+      // Validate username format
+      if (!/^[a-z0-9_]+$/.test(username.trim())) {
+        throw new BadRequestException('Username can only contain lowercase letters, numbers, and underscores');
+      }
+
+      const available = await this.authService.checkUsernameAvailability(username.trim());
+      return { 
+        available,
+        username: username.trim(),
+        message: available ? 'Username is available' : 'Username is already taken'
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Error checking username availability');
     }
   }
 } 

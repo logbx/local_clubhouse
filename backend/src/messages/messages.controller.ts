@@ -33,11 +33,25 @@ export class MessagesController {
     try {
       const message = await this.messagesService.sendMessage(senderId, receiver, content);
       
-      // Transform response to match frontend expectations
+      // Get the full sender information for the WebSocket broadcast
+      const senderInfo = await this.messagesService.getUserInfo(senderId);
+      const receiverInfo = await this.messagesService.getUserInfo(receiver);
+      
+      // Transform response to match frontend expectations with populated sender
       const messageResponse = {
         _id: message._id,
-        sender: message.sender,
-        receiver: message.receiver,
+        sender: {
+          _id: senderId,
+          username: senderInfo?.username || 'Unknown User',
+          fullName: senderInfo?.fullName || 'Unknown User',
+          profileImage: senderInfo?.profileImage
+        },
+        receiver: {
+          _id: receiver,
+          username: receiverInfo?.username || 'Unknown User',
+          fullName: receiverInfo?.fullName || 'Unknown User', 
+          profileImage: receiverInfo?.profileImage
+        },
         content: message.content,
         timestamp: message.timestamp,
         read: message.read
