@@ -14,18 +14,20 @@ interface ClubEventsSectionProps {
   clubUsername: string;
   isAdmin: boolean;
   isMember: boolean;
+  initialTab?: EventStatus;
 }
 
 const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({ 
   clubId, 
   clubUsername, 
   isAdmin, 
-  isMember 
+  isMember,
+  initialTab = EventStatus.LIVE
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<EventStatus>(EventStatus.LIVE);
+  const [activeTab, setActiveTab] = useState<EventStatus>(initialTab);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
@@ -38,6 +40,11 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
       setActiveTab(EventStatus.LIVE);
     }
   }, [isAdmin, activeTab]);
+
+  // Update activeTab when initialTab prop changes
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   // Fetch events for this club
   const { 

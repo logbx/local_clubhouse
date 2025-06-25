@@ -26,6 +26,7 @@ import {
   SparklesIcon
 } from '@heroicons/react/24/outline';
 import { toast } from 'react-toastify';
+import { EventStatus } from '../types/event';
 
 const ClubProfilePage: React.FC = () => {
   const { clubUsername } = useParams<{ clubUsername: string }>();
@@ -48,6 +49,7 @@ const ClubProfilePage: React.FC = () => {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [showSponsorsModal, setShowSponsorsModal] = useState(false);
   const [clubEventsCount, setClubEventsCount] = useState(0);
+  const [eventsTabInitialTab, setEventsTabInitialTab] = useState<EventStatus>(EventStatus.LIVE);
 
   const fetchMembershipStatus = useCallback(async () => {
     if (!clubUsername || !user) return;
@@ -193,7 +195,10 @@ const ClubProfilePage: React.FC = () => {
             <div className="flex justify-center sm:justify-start gap-8 mb-6">
               <div className="text-center">
                 <button 
-                  onClick={() => setActiveTab('events')}
+                  onClick={() => {
+                    setEventsTabInitialTab(EventStatus.LIVE);
+                    setActiveTab('events');
+                  }}
                   className="cursor-pointer hover:opacity-80 transition-opacity"
                 >
                 <span className="block text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
@@ -536,6 +541,7 @@ const ClubProfilePage: React.FC = () => {
               clubUsername={club.username}
               isAdmin={membershipStatus.isAdmin || isClubCreator || false}
               isMember={membershipStatus.isMember || false}
+              initialTab={eventsTabInitialTab}
             />
           )}
 
