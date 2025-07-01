@@ -1,7 +1,15 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Request, NotFoundException, BadRequestException } from '@nestjs/common';
 import { FriendsService } from './friends.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AppWebSocketGateway } from '../websocket/websocket.gateway';
+
+interface AuthenticatedRequest {
+  user: {
+    sub: string;
+    email: string;
+    id?: string;
+  };
+}
 
 @Controller('friends')
 @UseGuards(JwtAuthGuard)
@@ -87,13 +95,33 @@ export class FriendsController {
   }
 
   @Get('requests')
-  async getFriendRequests(@Request() req: any) {
-    const userId = req.user.sub;
-    return await this.friendsService.getFriendRequests(userId);
+  @UseGuards(JwtAuthGuard)
+  async getFriendRequests(@Request() req: AuthenticatedRequest) {
+    try {
+      const userId = req.user.sub;
+      
+      const user = await this.friendsService['userModel'].findById(userId)
+        .populate('receivedRequests', 'username fullName profileImage email')
+        .populate('sentRequests', 'username fullName profileImage email')
+        .exec();
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      return {
+        received: user.receivedRequests as any[],
+        sent: user.sentRequests as any[]
+      };
+    } catch (error) {
+      console.error('Error fetching friend requests:', error);
+      throw new BadRequestException('Failed to fetch friend requests');
+    }
   }
 
-  @Get('status/:userId')
-  async getFriendStatus(@Request() req: any, @Param('userId') targetUserId: string) {
+  @Get(':userId/status')
+  @UseGuards(JwtAuthGuard)
+  async getFriendshipStatus(@Param('userId') targetUserId: string, @Request() req: any) {
     const currentUserId = req.user.sub;
     return await this.friendsService.getFriendStatus(currentUserId, targetUserId);
   }
@@ -183,4 +211,5 @@ export class FriendsController {
       cleanupCount 
     };
   }
+
 } 

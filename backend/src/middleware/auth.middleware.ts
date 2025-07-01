@@ -4,48 +4,68 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AuthenticatedRequest, AuthenticatedUser } from '../types/express';
 import jwt from 'jsonwebtoken';
+import { User } from '../models/user.model';
 
 // Express Request interface with user for the user controller
 export interface AuthRequest extends Request {
-  user?: {
-    _id: string;
-    id?: string;
-    email: string;
-    roles: string[];
-    [key: string]: any;
-  };
+  user?: any;
 }
 
 // Express middleware function for JWT authentication
-export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void | Response> => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json({ error: 'No authorization header' });
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({ error: 'No token, authorization denied' });
     }
 
-    const [type, token] = authHeader.split(' ');
-    if (type !== 'Bearer' || !token) {
-      return res.status(401).json({ error: 'Invalid authorization header' });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret') as any;
+    const user = await User.findById(decoded.id);
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Token is not valid' });
     }
 
-    const secret = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET;
-    if (!secret) {
-      return res.status(500).json({ error: 'JWT secret not configured' });
-    }
-
-    const payload = jwt.verify(token, secret) as any;
-    req.user = {
-      _id: payload.id || payload.sub,
-      id: payload.id || payload.sub,
-      email: payload.email,
-      roles: payload.roles || []
-    };
+    req.user = user;
     next();
   } catch (error) {
-    console.error('Authentication error:', error);
-    return res.status(401).json({ error: 'Invalid token' });
+    return res.status(401).json({ error: 'Token is not valid' });
   }
+};
+
+export const optionalAuthMiddleware = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void | Response> => {
+  try {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (!token) {
+      return next();
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret') as any;
+    const user = await User.findById(decoded.id);
+    
+    if (user) {
+      req.user = user;
+    }
+    
+    next();
+  } catch (error) {
+    // If token is invalid, continue without user
+    next();
+  }
+};
+
+export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction): void | Response => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  if (!req.user.roles.includes('admin')) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  
+  next();
 };
 
 @Injectable()
@@ -55,7 +75,7 @@ export class AuthMiddleware implements NestMiddleware {
     private readonly configService: ConfigService,
   ) {}
 
-  async use(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  async use(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const authHeader = req.headers.authorization;
       if (!authHeader) {
@@ -65,12 +85,12 @@ export class AuthMiddleware implements NestMiddleware {
       const [type, token] = authHeader.split(' ');
       if (type !== 'Bearer' || !token) {
         throw new UnauthorizedException('Invalid authorization header');
-  }
+      }
 
       const secret = this.configService.get<string>('JWT_ACCESS_SECRET');
       if (!secret) {
         throw new Error('JWT_ACCESS_SECRET is not defined');
-    }
+      }
 
       const payload = await this.jwtService.verifyAsync<AuthenticatedUser>(token, { secret });
       req.user = payload;

@@ -1,0 +1,142 @@
+[
+  {
+    "packageName": "Bronze Community Partner",
+    "packageDescription": "Perfect for local businesses wanting to support community events while gaining visibility",
+    "sponsorshipTypes": [
+      {
+        "type": "Product Samples & Swag",
+        "isSelected": true,
+        "customDescription": "We'll provide branded merchandise and product samples for event attendees"
+      },
+      {
+        "type": "Event Promotion",
+        "isSelected": true,
+        "customDescription": "Cross-promotion on our Instagram and in-store displays"
+      },
+      {
+        "type": "Business Product & Service Discount",
+        "isSelected": true,
+        "customDescription": "15% discount on our services for club members"
+      }
+    ],
+    "isFeatured": false,
+    "sortOrder": 3
+  },
+  {
+    "packageName": "Silver Event Support",
+    "packageDescription": "Comprehensive support package for medium-sized events and ongoing partnerships",
+    "sponsorshipTypes": [
+      {
+        "type": "Location Hosting",
+        "isSelected": true,
+        "customDescription": "Free venue space for events up to 50 people"
+      },
+      {
+        "type": "Product Samples & Swag",
+        "isSelected": true,
+        "customDescription": "Premium branded items and product samples"
+      },
+      {
+        "type": "Event Promotion",
+        "isSelected": true,
+        "customDescription": "Featured posts across all our social platforms"
+      },
+      {
+        "type": "Organizer Business Credit",
+        "isSelected": true,
+        "customDescription": "$100 credit towards event catering or supplies"
+      },
+      {
+        "type": "Raffle & Giveaway Donation",
+        "isSelected": true,
+        "customDescription": "Premium products for raffle prizes"
+      }
+    ],
+    "isFeatured": false,
+    "sortOrder": 2
+  },
+  {
+    "packageName": "Gold Premium Partnership",
+    "packageDescription": "Our flagship sponsorship package offering maximum value and comprehensive support",
+    "sponsorshipTypes": [
+      {
+        "type": "Location Hosting",
+        "isSelected": true,
+        "customDescription": "Premium venue space with full A/V equipment"
+      },
+      {
+        "type": "Product Samples & Swag",
+        "isSelected": true,
+        "customDescription": "Exclusive branded merchandise and premium product samples"
+      },
+      {
+        "type": "Raffle & Giveaway Donation",
+        "isSelected": true,
+        "customDescription": "High-value prizes and exclusive experiences"
+      },
+      {
+        "type": "Business Product & Service Discount",
+        "isSelected": true,
+        "customDescription": "25% discount on all services for club members"
+      },
+      {
+        "type": "Event Promotion",
+        "isSelected": true,
+        "customDescription": "Full marketing campaign across all platforms"
+      },
+      {
+        "type": "Entertainment",
+        "isSelected": true,
+        "customDescription": "Live music or DJ services for events"
+      },
+      {
+        "type": "Event Staffing & Support",
+        "isSelected": true,
+        "customDescription": "Dedicated staff to help with event setup and management"
+      },
+      {
+        "type": "Monetary Club Donation",
+        "isSelected": true,
+        "customDescription": "$500 direct financial contribution"
+      },
+      {
+        "type": "Organizer Business Credit",
+        "isSelected": true,
+        "customDescription": "$300 credit for event expenses"
+      }
+    ],
+    "isFeatured": true,
+    "sortOrder": 1
+  },
+  {
+    "packageName": "Quick Swag Package",
+    "packageDescription": "Simple and affordable way to support events with branded merchandise",
+    "sponsorshipTypes": [
+      {
+        "type": "Product Samples & Swag",
+        "isSelected": true,
+        "customDescription": "Branded stickers, pens, and small promotional items"
+      }
+    ],
+    "isFeatured": false,
+    "sortOrder": 4
+  },
+  {
+    "packageName": "Custom Event Experience",
+    "packageDescription": "Tailored sponsorship solution for unique events and special occasions",
+    "sponsorshipTypes": [
+      {
+        "type": "Custom Sponsorship",
+        "isSelected": true,
+        "customDescription": "We work with you to create a unique sponsorship experience that fits your specific event needs"
+      },
+      {
+        "type": "Event Promotion",
+        "isSelected": true,
+        "customDescription": "Customized marketing approach based on event type"
+      }
+    ],
+    "isFeatured": false,
+    "sortOrder": 5
+  }
+] 

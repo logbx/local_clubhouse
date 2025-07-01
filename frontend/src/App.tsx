@@ -35,9 +35,17 @@ import ClubProfilePage from './pages/ClubProfilePage';
 import CreateClubPage from './pages/CreateClubPage';
 import ClubsExplorePage from './pages/ClubsExplorePage';
 import ClubAdminDashboard from './pages/ClubAdminDashboard';
+import SponsorProfilePage from './pages/SponsorProfilePage';
+import CreateSponsorPage from './pages/CreateSponsorPage';
+import SponsorsExplorePage from './pages/SponsorsExplorePage';
+import SponsorDashboard from './pages/SponsorDashboard';
 import SocialHub from './pages/SocialHub';
 import NotificationToast from './components/NotificationToast';
 import { notificationService } from './services/notification.service';
+import SwissTournament from './pages/SwissTournament';
+import SwissTournamentAdmin from './pages/SwissTournamentAdmin';
+import SwissTournamentManagePage from './pages/SwissTournamentManagePage';
+import { SwissMatchResultsPage } from './pages/SwissMatchResultsPage';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -90,6 +98,7 @@ const App: React.FC = () => {
             <Route path="/event/:eventId" element={<PublicLayout><PublicEventPage /></PublicLayout>} />
             <Route path="/tournament/:tournamentId" element={<PublicLayout><TournamentPage /></PublicLayout>} />
             <Route path="/clubs/:clubUsername" element={<PublicLayout><ClubProfilePage /></PublicLayout>} />
+            <Route path="/sponsors/:sponsorUsername" element={<PublicLayout><SponsorProfilePage /></PublicLayout>} />
 
             {/* Protected Routes */}
             <Route element={<ProtectedRoute />}>
@@ -103,13 +112,20 @@ const App: React.FC = () => {
                 <Route path="/messages" element={<MessagesPage />} />
                 <Route path="/messages/:userId" element={<MessageThreadPage />} />
                 <Route path="/tournament/manage" element={<TournamentManagePage />} />
-                <Route path="/tournament/:tournamentId/manage" element={<TournamentManagePage />} />
-                <Route path="/tournament/:tournamentId/results" element={<MatchResultsPage />} />
                 <Route path="/tournament/single-elimination" element={<SingleEliminationTournament />} />
-                <Route path="/match-results" element={<MatchResultsPage />} />
+                <Route path="/tournament/single-elimination/:tournamentId" element={<SingleEliminationTournament />} />
+                <Route path="/tournament/single-elimination/:tournamentId/manage" element={<TournamentManagePage />} />
+                <Route path="/tournament/single-elimination/:tournamentId/results" element={<MatchResultsPage />} />
+                <Route path="/tournament/swiss" element={<SwissTournament />} />
+                <Route path="/tournament/swiss/:tournamentId" element={<SwissTournament />} />
+                <Route path="/tournament/swiss/:tournamentId/manage" element={<SwissTournamentManagePage />} />
+                <Route path="/tournament/swiss/:tournamentId/results" element={<SwissMatchResultsPage />} />
                 <Route path="/clubs" element={<ClubsExplorePage />} />
                 <Route path="/create-club" element={<CreateClubPage />} />
                 <Route path="/clubs/:clubUsername/admin" element={<ClubAdminDashboard />} />
+                <Route path="/sponsors" element={<SponsorsExplorePage />} />
+                <Route path="/create-sponsor" element={<CreateSponsorPage />} />
+                <Route path="/sponsors/:sponsorUsername/dashboard" element={<SponsorDashboard />} />
               </Route>
               {/* Full-screen Social Hub */}
               <Route path="/social" element={<AuthLayout fullScreen><SocialHub /></AuthLayout>} />

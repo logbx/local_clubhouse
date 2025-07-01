@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsArray, IsNotEmpty, Matches, MaxLength, MinLength, IsEmail, IsIn, ValidateNested, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsNotEmpty, Matches, MaxLength, MinLength, IsEmail, IsIn, ValidateNested } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
 export class SocialLinkDto {
@@ -215,7 +215,6 @@ export class UpdateClubProfileDto {
     if (typeof value === 'string') {
       try {
         const parsed = JSON.parse(value);
-        // Filter out any links with empty platform or url
         return Array.isArray(parsed) ? parsed.filter(link => 
           link && 
           typeof link.platform === 'string' && 
@@ -227,7 +226,6 @@ export class UpdateClubProfileDto {
         return [];
       }
     }
-    // Filter out any links with empty platform or url
     return Array.isArray(value) ? value.filter(link => 
       link && 
       typeof link.platform === 'string' && 
@@ -306,27 +304,41 @@ export class UpdateClubProfileDto {
   activeCities?: string[];
 }
 
-export class DeleteCommentDto {
+export class CreateClubGroupChatDto {
   @IsString()
   @IsNotEmpty()
-  commentId: string;
-}
-
-export class CreateClubGroupChatDto {
   name: string;
+
+  @IsOptional()
+  @IsString()
   description?: string;
-  members?: string[]; // Array of user IDs
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  members?: string[];
 }
 
 export class UpdateClubGroupChatDto {
+  @IsOptional()
+  @IsString()
   name?: string;
+
+  @IsOptional()
+  @IsString()
   description?: string;
 }
 
 export class AddGroupChatMemberDto {
+  @IsString()
+  @IsNotEmpty()
   userId: string;
 }
 
 export class GroupChatMessageDto {
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(1, { message: 'Message content is required' })
+  @MaxLength(1000, { message: 'Message cannot exceed 1000 characters' })
   content: string;
 } 

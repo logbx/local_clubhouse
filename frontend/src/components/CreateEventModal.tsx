@@ -3,17 +3,21 @@ import { Dialog } from '@headlessui/react';
 import { Event, EventFormData, EventStatus, EventVisibility, RecurrenceType, EventFeatures } from '../types/event';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { eventApi } from '../services/api';
+import { clubApi } from '../services/club.service';
 import { XMarkIcon, PhotoIcon, CalendarIcon, MapPinIcon, ClockIcon } from '@heroicons/react/24/outline';
 import TagInput from './TagInput';
 import { commonEventTags } from '../data/suggestions';
 import { FileUpload } from './FileUpload';
+import { toast } from 'react-toastify';
+import { useAuth } from '../context/AuthContext';
 
 interface CreateEventModalProps {
   isOpen: boolean;
   onClose: () => void;
   event?: Event | null;
-  clubId?: string; // Optional club context
-  clubUsername?: string; // Optional club username
+  clubId?: string;
+  clubUsername?: string;
+  isSponsorship?: boolean;
 }
 
 const initialFormData: EventFormData = {
@@ -39,13 +43,25 @@ const popularTags = [
   'Gaming', 'Social', 'Networking', 'Workshop', 'Conference'
 ];
 
-const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, event, clubId, clubUsername }) => {
+const CreateEventModal: React.FC<CreateEventModalProps> = ({
+  isOpen,
+  onClose,
+  event,
+  clubId,
+  clubUsername,
+  isSponsorship = false
+}) => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState<EventFormData>(initialFormData);
   const [imagePreview, setImagePreview] = useState<string>('');
   const [currentTag, setCurrentTag] = useState<string>('');
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [showPastDateWarning, setShowPastDateWarning] = useState<boolean>(false);
   const queryClient = useQueryClient();
+  const [selectedClub, setSelectedClub] = useState<string>('');
+  const [availableClubs, setAvailableClubs] = useState<any[]>([]);
+  const [submitting, setSubmitting] = useState<boolean>(false);
+  const [isDraft, setIsDraft] = useState<boolean>(true);
 
   // Generate time options in 10-minute increments
   const generateTimeOptions = () => {
@@ -164,6 +180,21 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
     }
   }, [event, clubId, clubUsername]);
 
+  // Fetch available clubs for collaboration
+  useEffect(() => {
+    if (isSponsorship) {
+      const fetchClubs = async () => {
+        try {
+          const clubs = await clubApi.getClubs();
+          setAvailableClubs(clubs);
+        } catch (error) {
+          console.error('Failed to fetch clubs:', error);
+        }
+      };
+      fetchClubs();
+    }
+  }, [isSponsorship]);
+
   const createMutation = useMutation({
     mutationFn: (data: FormData) => eventApi.createEvent(data),
     onSuccess: () => {
@@ -188,98 +219,83 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
     },
   });
 
-  const handleSubmit = async (e: React.FormEvent, saveAsDraft = false) => {
+  const handleSaveDraft = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Validate all required fields with detailed error messages
-    const validationErrors: string[] = [];
-
-    if (!formData.title.trim()) {
-      validationErrors.push('Title is required');
-    }
-    if (!formData.description.trim()) {
-      validationErrors.push('Description is required');
-    }
-    if (!formData.location.trim()) {
-      validationErrors.push('Location is required');
-    }
-    if (!formData.startDate) {
-      validationErrors.push('Start date is required');
-    }
-    if (!formData.endDate) {
-      validationErrors.push('End date is required');
-    }
-
-    // Validate date order
-    const startDate = new Date(formData.startDate);
-    const endDate = new Date(formData.endDate);
-    const now = new Date();
-    
-    if (endDate < startDate) {
-      validationErrors.push('End date must be after start date');
-    }
-
-    // Check if there are any validation errors
-    if (validationErrors.length > 0) {
-      alert(validationErrors.join('\n'));
-      return;
-    }
-
-    // Determine event status
-    let status = saveAsDraft ? EventStatus.DRAFT : EventStatus.LIVE;
-    if (!saveAsDraft && endDate < now) {
-      status = EventStatus.PAST;
-    }
-
-    const dataToSend = {
-      ...formData,
-      status,
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
-      cost: Number(formData.cost),
-      isFree: Boolean(formData.isFree),
-      tags: formData.tags || [],
-      features: formData.features || [],
-      invitedUsers: formData.invitedUsers || []
-    };
-
-    // Always use FormData for consistency
-    const formDataToSend = new FormData();
-    Object.entries(dataToSend).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        if (key === 'tags' || key === 'features' || key === 'invitedUsers') {
-          // Handle arrays by JSON stringifying them
-          formDataToSend.append(key, JSON.stringify(value));
-        } else if (key === 'isFree') {
-          formDataToSend.append(key, String(value));
-        } else {
-          formDataToSend.append(key, value.toString());
-        }
-      }
-    });
-
-    // Append image if exists
-    if (imagePreview) {
-      formDataToSend.append('image', imagePreview);
-    }
-
+    setSubmitting(true);
     try {
-      if (event) {
-        // Use id consistently
-        if (!event.id) {
-          throw new Error('Event ID is missing - cannot update event');
+      const formDataToSubmit = new FormData();
+      
+      // Set status to DRAFT
+      const eventData = {
+        ...formData,
+        status: EventStatus.DRAFT
+      };
+      
+      // Append all form data
+      Object.entries(eventData).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          if (Array.isArray(value)) {
+            formDataToSubmit.append(key, JSON.stringify(value));
+          } else {
+            formDataToSubmit.append(key, value.toString());
+          }
         }
-        await updateMutation.mutateAsync({ id: event.id, data: formDataToSend });
+      });
+
+      if (event?.id) {
+        // Update existing event
+        await eventApi.updateEvent(event.id, formDataToSubmit);
+        toast.success('Draft saved successfully!');
       } else {
-        await createMutation.mutateAsync(formDataToSend);
+        // Create new event
+        await createMutation.mutateAsync(formDataToSubmit);
+        toast.success('Draft created successfully!');
+      }
+      onClose();
+    } catch (error) {
+      console.error('Failed to save draft:', error);
+      toast.error('Failed to save draft. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const formDataToSubmit = new FormData();
+      
+      // Set status to LIVE for publish
+      const eventData = {
+        ...formData,
+        status: EventStatus.LIVE
+      };
+      
+      // Append all form data
+      Object.entries(eventData).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          if (Array.isArray(value)) {
+            formDataToSubmit.append(key, JSON.stringify(value));
+          } else {
+            formDataToSubmit.append(key, value.toString());
+          }
+        }
+      });
+
+      if (event?.id) {
+        await eventApi.updateEvent(event.id, formDataToSubmit);
+        toast.success('Event updated successfully!');
+      } else {
+        await createMutation.mutateAsync(formDataToSubmit);
+        toast.success('Event created successfully!');
       }
       onClose();
     } catch (error) {
       console.error('Failed to save event:', error);
-      const errorMessage = error instanceof Error 
-        ? `Failed to save event: ${error.message}`
-        : 'Failed to save event. Please try again.';
-      alert(errorMessage);
+      toast.error('Failed to save event. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -376,7 +392,13 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
   };
 
   return (
-    <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+    <Dialog
+      open={isOpen}
+      onClose={() => {
+        if (!submitting) onClose();
+      }}
+      className="relative z-50"
+    >
       <div className="fixed inset-0 bg-black/40 dark:bg-black/60" aria-hidden="true" />
       <div className="fixed inset-0 flex items-center justify-center p-4">
         <Dialog.Panel className="mx-auto max-w-2xl w-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl shadow-lg dark:shadow-gray-900/30 flex flex-col max-h-[90vh] border border-gray-200/50 dark:border-gray-700/50 transition-colors duration-200">
@@ -409,7 +431,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
             </div>
           )}
 
-          <form onSubmit={e => handleSubmit(e, false)} className="flex flex-col min-h-0 flex-1">
+          <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
             <div className="flex-1 overflow-y-auto">
               <div className="p-6 space-y-6">
             <div className="space-y-4">
@@ -750,18 +772,19 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
                 </label>
                 <select
                   id="features"
-                  value={formData.features && formData.features.length > 0 ? formData.features[0] : EventFeatures.NONE}
+                  value={formData.features && formData.features.length > 0 ? formData.features[0] : ''}
                   onChange={e => {
-                    const value = e.target.value as EventFeatures;
+                    const value = e.target.value;
                     setFormData(prev => ({ 
                       ...prev, 
-                      features: value === EventFeatures.NONE ? [] : [value]
+                      features: value === '' ? [] : [value as EventFeatures]
                     }));
                   }}
                   className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
                 >
-                  <option value={EventFeatures.NONE}>None</option>
+                  <option value="">None</option>
                   <option value={EventFeatures.SINGLE_ELIMINATION_TOURNAMENT}>Single Elimination Tournament</option>
+                  <option value={EventFeatures.SWISS_TOURNAMENT}>Swiss Tournament</option>
                 </select>
               </div>
 
@@ -781,28 +804,64 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, ev
               </div>
             </div>
 
-            <div className="flex justify-end space-x-4 p-6 border-t border-gray-200 dark:border-gray-700 shrink-0 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm">
+            {/* Add club collaboration field for sponsor events */}
+            {isSponsorship && (
+              <div className="mb-4">
+                <label htmlFor="clubCollaboration" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Club Collaboration
+                </label>
+                <div className="mt-1 mb-2 p-3 bg-blue-50/80 dark:bg-blue-900/20 border border-blue-200/50 dark:border-blue-800/50 rounded-md">
+                  <p className="text-sm text-blue-800 dark:text-blue-300">
+                    💡 To create a live event, you need to collaborate with a club. Draft events can be created without club collaboration.
+                  </p>
+                </div>
+                <select
+                  id="clubCollaboration"
+                  value={selectedClub}
+                  onChange={(e) => setSelectedClub(e.target.value)}
+                  className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+                  disabled={formData.status !== EventStatus.LIVE}
+                >
+                  <option value="">Select a club to collaborate with</option>
+                  {availableClubs.map((club) => (
+                    <option key={club._id} value={club._id}>
+                      {club.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-between gap-3">
               <button
                 type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-primary-400 transition-colors"
+                className="btn btn-secondary"
+                onClick={() => !submitting && onClose()}
+                disabled={submitting}
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                onClick={(e) => handleSubmit(e, true)}
-                className="px-4 py-2 text-sm font-medium text-primary-700 dark:text-primary-300 bg-primary-100 dark:bg-primary-900/30 border border-transparent rounded-md shadow-sm hover:bg-primary-200 dark:hover:bg-primary-900/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-primary-400 transition-colors"
-              >
-                Save as Draft
-              </button>
-              <button
-                type="submit"
-                onClick={(e) => handleSubmit(e, false)}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 dark:bg-primary-500 border border-transparent rounded-md shadow-sm hover:bg-primary-700 dark:hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-primary-400 transition-colors"
-              >
-                {event ? 'Update Event' : 'Create Event'}
-              </button>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={handleSaveDraft}
+                  disabled={submitting}
+                >
+                  {submitting ? 'Saving...' : 'Save Draft'}
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                >
+                  {submitting ? 'Publishing...' : 
+                    event ? 
+                      event.status === EventStatus.DRAFT ? 'Make Live' : 'Update Event'
+                    : 'Publish Event'}
+                </button>
+              </div>
             </div>
           </form>
         </Dialog.Panel>

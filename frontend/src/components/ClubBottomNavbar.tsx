@@ -61,10 +61,9 @@ const ClubBottomNavbar: React.FC<ClubBottomNavbarProps> = ({
         if (rafId) cancelAnimationFrame(rafId);
       };
     }
-    // If no footerElementId, always stick to bottom
   }, [footerElementId]);
 
-  const handleTabChange = (tabId: 'about' | 'events' | 'comments' | 'chat' | 'members') => {
+  const handleTabClick = (tabId: 'about' | 'events' | 'comments' | 'chat' | 'members') => {
     onTabChange(tabId);
     
     // Smooth scroll to top after tab change
@@ -107,20 +106,19 @@ const ClubBottomNavbar: React.FC<ClubBottomNavbarProps> = ({
     },
   ].filter(tab => tab.show);
 
-  if (!isVisible) return null;
+  if (!isVisible) {
+    return null;
+  }
 
   return (
     <div
       ref={navbarRef}
-      className={`${
-        isSticky ? 'fixed bottom-0' : 'relative'
-      } left-0 right-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 shadow-lg z-50 transition-all duration-200 ease-out ${
-        !isSticky ? 'mb-6' : ''
+      className={`fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg transition-transform duration-300 ${
+        isSticky ? 'translate-y-0' : 'translate-y-full'
       }`}
     >
-      {/* Navigation Bar */}
-      <div className="max-w-5xl mx-auto px-4">
-        <nav className="flex items-center justify-around py-3">
+      <div className="max-w-6xl mx-auto px-4">
+        <nav className="flex justify-around items-center py-2">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -128,23 +126,15 @@ const ClubBottomNavbar: React.FC<ClubBottomNavbarProps> = ({
             return (
               <button
                 key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                className={`flex flex-col items-center py-2 px-2 sm:px-3 rounded-lg transition-all duration-200 min-w-0 flex-1 max-w-[100px] group ${
+                onClick={() => handleTabClick(tab.id)}
+                className={`flex flex-col items-center justify-center px-3 py-2 rounded-lg transition-all duration-200 min-w-0 flex-1 max-w-20 ${
                   isActive
-                    ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                    ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700'
                 }`}
               >
-                <Icon className={`h-5 w-5 mb-1 transition-transform duration-200 ${
-                  isActive 
-                    ? 'text-blue-600 dark:text-blue-400 scale-110' 
-                    : 'group-hover:scale-105'
-                }`} />
-                <span className={`text-xs font-medium truncate transition-colors duration-200 ${
-                  isActive 
-                    ? 'text-blue-600 dark:text-blue-400' 
-                    : ''
-                }`}>
+                <Icon className="h-6 w-6 mb-1" />
+                <span className="text-xs font-medium truncate">
                   {tab.name}
                 </span>
               </button>

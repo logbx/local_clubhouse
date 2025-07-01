@@ -341,9 +341,16 @@ const Dashboard: React.FC = () => {
       
       const eventTitle = event?.title || 'Event';
       const creatorId = event?.creator?.id || event?.creatorId || '';
+      const feature = event?.features?.includes(EventFeatures.SWISS_TOURNAMENT) 
+        ? EventFeatures.SWISS_TOURNAMENT 
+        : EventFeatures.SINGLE_ELIMINATION_TOURNAMENT;
       
-      // Navigate to the new SingleEliminationTournament page with creatorId
-      navigate(`/tournament/single-elimination?eventId=${eventId}&eventTitle=${encodeURIComponent(eventTitle)}&creatorId=${creatorId}`);
+      // Navigate to the appropriate tournament page based on the event feature
+      if (feature === EventFeatures.SWISS_TOURNAMENT) {
+        navigate(`/tournament/swiss?eventId=${eventId}&eventTitle=${encodeURIComponent(eventTitle)}&creatorId=${creatorId}&feature=${feature}`);
+      } else {
+        navigate(`/tournament/single-elimination?eventId=${eventId}&eventTitle=${encodeURIComponent(eventTitle)}&creatorId=${creatorId}&feature=${feature}`);
+      }
     } catch (error) {
       log.error(LogCategory.TOURNAMENT, 'Failed to navigate to tournament creation', error);
       alert('Failed to navigate to tournament creation. Please try again.');
@@ -354,58 +361,64 @@ const Dashboard: React.FC = () => {
   const getTournamentButtonInfo = (event: Event) => {
     const tournament = getFrontendTournament(event.id);
     const isCreator = canEditEvent(event);
+    const tournamentType = event.features?.includes(EventFeatures.SWISS_TOURNAMENT) ? 'swiss' : 'single-elimination';
     
     if (!tournament) {
       return isCreator 
-        ? { text: 'Create Tournament', action: () => navigate(`/tournament/manage?eventId=${event.id}&eventTitle=${encodeURIComponent(event.title)}`), disabled: false }
+        ? { text: 'Create Tournament', action: () => navigate(`/tournament/${tournamentType}?eventId=${event.id}&eventTitle=${encodeURIComponent(event.title)}&creatorId=${event.creator?.id || event.creatorId}&feature=${event.features?.includes(EventFeatures.SWISS_TOURNAMENT) ? EventFeatures.SWISS_TOURNAMENT : EventFeatures.SINGLE_ELIMINATION_TOURNAMENT}`), disabled: false }
         : { text: 'No Tournament', action: () => {}, disabled: true };
+    }
+
+    const tournamentId = tournament.id;
+    if (!tournamentId) {
+      return { text: 'Invalid Tournament', action: () => {}, disabled: true };
     }
 
     switch (tournament.status) {
       case 'not_created':
         return isCreator 
-          ? { text: 'Create Tournament', action: () => navigate(`/tournament/manage?eventId=${event.id}&eventTitle=${encodeURIComponent(event.title)}`), disabled: false }
+          ? { text: 'Create Tournament', action: () => navigate(`/tournament/${tournamentType}?eventId=${event.id}&eventTitle=${encodeURIComponent(event.title)}&creatorId=${event.creator?.id || event.creatorId}&feature=${event.features?.includes(EventFeatures.SWISS_TOURNAMENT) ? EventFeatures.SWISS_TOURNAMENT : EventFeatures.SINGLE_ELIMINATION_TOURNAMENT}`), disabled: false }
           : { text: 'No Tournament', action: () => {}, disabled: true };
       
       case 'registration_open':
         if (isCreator) {
-          return { text: 'Manage Tournament', action: () => navigate(`/tournament/${tournament.id}/manage`), disabled: false };
+          return { text: 'Manage Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/manage`), disabled: false };
         } else {
           const isParticipant = user && tournament.players?.some((p: any) => p.userId === user.id);
           return isParticipant
-            ? { text: 'Tournament Ready', action: () => navigate(`/tournament/${tournament.id}`), disabled: false }
-            : { text: 'Join Tournament', action: () => navigate(`/tournament/${tournament.id}`), disabled: false };
+            ? { text: 'Tournament Ready', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}`), disabled: false }
+            : { text: 'Join Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}`), disabled: false };
         }
       
       case 'registration_closed':
         if (isCreator) {
-          return { text: 'Start Tournament', action: () => navigate(`/tournament/${tournament.id}/manage`), disabled: false };
+          return { text: 'Start Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/manage`), disabled: false };
         } else {
           const isParticipant = user && tournament.players?.some((p: any) => p.userId === user.id);
           return isParticipant
-            ? { text: 'Tournament Ready', action: () => navigate(`/tournament/${tournament.id}`), disabled: false }
-            : { text: 'Registration Closed', action: () => navigate(`/tournament/${tournament.id}`), disabled: false };
+            ? { text: 'Tournament Ready', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}`), disabled: false }
+            : { text: 'Registration Closed', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}`), disabled: false };
         }
       
       case 'active':
         if (isCreator) {
-          return { text: 'Manage Tournament', action: () => navigate(`/tournament/${tournament.id}/manage`), disabled: false };
+          return { text: 'Manage Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/manage`), disabled: false };
         } else {
           const isParticipant = user && tournament.players?.some((p: any) => p.userId === user.id);
           return isParticipant
-            ? { text: 'Tournament Live', action: () => navigate(`/tournament/${tournament.id}/results`), disabled: false }
-            : { text: 'View Tournament', action: () => navigate(`/tournament/${tournament.id}/results`), disabled: false };
+            ? { text: 'Tournament Live', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/results`), disabled: false }
+            : { text: 'View Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/results`), disabled: false };
         }
       
       case 'completed':
         if (isCreator) {
-          return { text: 'Manage Tournament', action: () => navigate(`/tournament/${tournament.id}/manage`), disabled: false };
+          return { text: 'Manage Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/manage`), disabled: false };
         } else {
-          return { text: 'View Results', action: () => navigate(`/tournament/${tournament.id}/results`), disabled: false };
+          return { text: 'View Results', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/results`), disabled: false };
         }
       
       default:
-        return { text: 'View Tournament', action: () => navigate(`/tournament/${tournament.id}`), disabled: false };
+        return { text: 'View Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}`), disabled: false };
     }
   };
 
@@ -618,11 +631,11 @@ const Dashboard: React.FC = () => {
                         {event.tags.join(', ')}
                       </div>
                       
-                      {/* 4. Tournament: Single Elimination (only if tournament enabled) */}
-                      {(event.features && event.features.includes(EventFeatures.SINGLE_ELIMINATION_TOURNAMENT)) && (
+                      {/* 4. Tournament Type (show both Single Elimination and Swiss) */}
+                      {(event.features && (event.features.includes(EventFeatures.SINGLE_ELIMINATION_TOURNAMENT) || event.features.includes(EventFeatures.SWISS_TOURNAMENT))) && (
                         <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                           <TrophyIcon className="h-4 w-4 mr-2" />
-                          Tournament: Single Elimination
+                          Tournament: {event.features.includes(EventFeatures.SWISS_TOURNAMENT) ? 'Swiss' : 'Single Elimination'}
                         </div>
                       )}
                       
@@ -711,9 +724,11 @@ const Dashboard: React.FC = () => {
                       </div>
                       
                       {/* Tournament Actions */}
-                      {(event.features && event.features.includes(EventFeatures.SINGLE_ELIMINATION_TOURNAMENT)) && (
+                      {(event.features && (event.features.includes(EventFeatures.SINGLE_ELIMINATION_TOURNAMENT) || event.features.includes(EventFeatures.SWISS_TOURNAMENT))) && (
                         (() => {
                           const buttonInfo = getTournamentButtonInfo(event);
+                          const tournamentType = event.features.includes(EventFeatures.SWISS_TOURNAMENT) ? 'swiss' : 'single-elimination';
+                          const frontendTournament = getFrontendTournament(event.id);
                           return (
                             <button
                               type="button"
@@ -722,7 +737,26 @@ const Dashboard: React.FC = () => {
                                   ? 'bg-gray-400 text-gray-700 cursor-not-allowed dark:bg-gray-600 dark:text-gray-400'
                                   : 'bg-blue-800 text-white hover:bg-blue-900 dark:bg-blue-700 dark:hover:bg-blue-800'
                               }`}
-                              onClick={buttonInfo.action}
+                              onClick={() => {
+                                if (buttonInfo.action && frontendTournament) {
+                                  const url = buttonInfo.action.toString();
+                                  // If it's a direct tournament URL, append the tournament type
+                                  if (url.includes('/tournament/')) {
+                                    // Check if it's a results URL
+                                    if (url.includes('/results')) {
+                                      navigate(`/tournament/${tournamentType}/${frontendTournament.id}/results`);
+                                    } else if (url.includes('/manage')) {
+                                      navigate(`/tournament/${tournamentType}/${frontendTournament.id}/manage`);
+                                    } else {
+                                      navigate(`/tournament/${tournamentType}?eventId=${event.id}&eventTitle=${encodeURIComponent(event.title)}&creatorId=${event.creator?.id || event.creatorId}&feature=${event.features?.includes(EventFeatures.SWISS_TOURNAMENT) ? EventFeatures.SWISS_TOURNAMENT : EventFeatures.SINGLE_ELIMINATION_TOURNAMENT}`);
+                                    }
+                                  } else {
+                                    handleCreateTournament(event.id);
+                                  }
+                                } else {
+                                  handleCreateTournament(event.id);
+                                }
+                              }}
                               disabled={buttonInfo.disabled}
                             >
                               <TrophyIcon className="h-4 w-4 mr-2" />

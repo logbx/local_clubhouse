@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Club, ClubDocument } from './schemas/club.schema';
 import { ClubGroupChat, ClubGroupChatDocument } from './schemas/club-group-chat.schema';
-import { CreateClubDto, UpdateClubDto, AddClubCommentDto, ChatMessageDto, UpdateMemberRoleDto, UpdateClubProfileDto, DeleteCommentDto, CreateClubGroupChatDto, UpdateClubGroupChatDto, AddGroupChatMemberDto, GroupChatMessageDto } from './dto/club.dto';
+import { CreateClubDto, UpdateClubDto, AddClubCommentDto, ChatMessageDto, UpdateMemberRoleDto, UpdateClubProfileDto, CreateClubGroupChatDto, UpdateClubGroupChatDto, AddGroupChatMemberDto, GroupChatMessageDto } from './dto/club.dto';
 import { IEvent } from '../models/event.model';
 
 @Injectable()

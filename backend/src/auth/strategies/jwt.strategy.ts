@@ -8,7 +8,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   private readonly logger = new Logger(JwtStrategy.name);
 
   constructor(
-    private readonly configService: ConfigService,
+    configService: ConfigService,
   ) {
     const secret = configService.get<string>('JWT_ACCESS_SECRET');
     if (!secret) {

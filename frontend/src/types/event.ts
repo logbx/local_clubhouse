@@ -1,61 +1,25 @@
 export enum EventStatus {
   DRAFT = 'DRAFT',
   LIVE = 'LIVE',
-  PAST = 'PAST',
+  PAST = 'PAST'
 }
 
 export enum EventVisibility {
   PUBLIC = 'PUBLIC',
   PRIVATE = 'PRIVATE',
-  CLUB = 'CLUB',
-}
-
-export enum EventFeatures {
-  NONE = 'NONE',
-  SINGLE_ELIMINATION_TOURNAMENT = 'SINGLE_ELIMINATION_TOURNAMENT',
+  CLUB = 'CLUB'
 }
 
 export enum RecurrenceType {
   NONE = 'NONE',
   DAILY = 'DAILY',
   WEEKLY = 'WEEKLY',
-  MONTHLY = 'MONTHLY',
-  CUSTOM = 'CUSTOM',
+  MONTHLY = 'MONTHLY'
 }
 
-export interface Event {
-  id: string;
-  title: string;
-  description: string;
-  startDate: string | Date;
-  endDate: string | Date;
-  location: string;
-  cost: number;
-  isFree: boolean;
-  status: EventStatus;
-  visibility: EventVisibility;
-  recurrence: RecurrenceType;
-  tags: string[];
-  features?: EventFeatures[];
-  imageUrl?: string;
-  creator: {
-    id: string;
-    username: string;
-    profileImage?: string;
-  };
-  creatorId?: string;
-  clubId?: string;
-  clubUsername?: string;
-  clubName?: string;
-  clubLogoUrl?: string;
-  invitedUsers?: string[];
-  rsvps: Array<{
-    id: string;
-    username: string;
-    status: string;
-  }>;
-  createdAt: string;
-  updatedAt: string;
+export enum EventFeatures {
+  SINGLE_ELIMINATION_TOURNAMENT = 'SINGLE_ELIMINATION_TOURNAMENT',
+  SWISS_TOURNAMENT = 'SWISS_TOURNAMENT'
 }
 
 export interface EventFormData {
@@ -69,14 +33,26 @@ export interface EventFormData {
   visibility: EventVisibility;
   recurrence: RecurrenceType;
   tags: string[];
-  features?: EventFeatures[];
+  features: EventFeatures[];
   status: EventStatus;
-  imageUrl?: string;
   clubId?: string;
   clubUsername?: string;
   clubName?: string;
   clubLogoUrl?: string;
-  invitedUsers?: string[];
+  invitedUsers: string[];
+}
+
+export interface Event extends EventFormData {
+  id: string;
+  creator: {
+    id: string;
+    username: string;
+  };
+  creatorId?: string;
+  rsvps: any[];
+  imageUrl?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface PublicEvent {

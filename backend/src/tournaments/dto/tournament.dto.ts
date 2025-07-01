@@ -1,4 +1,5 @@
-import { IsString, IsNumber, IsOptional, IsMongoId, Min, Max } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsMongoId, Min, Max, IsEnum, IsArray } from 'class-validator';
+import { TournamentType } from '../../models/tournament.model';
 
 export class CreateTournamentDto {
   @IsString()
@@ -11,6 +12,15 @@ export class CreateTournamentDto {
   @Min(2)
   @Max(128)
   maxPlayers: number;
+
+  @IsEnum(TournamentType)
+  type: TournamentType;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(10)
+  numRounds?: number; // Optional for Single Elimination, required for Swiss (validated in controller)
 }
 
 export class RegisterPlayerDto {
@@ -19,7 +29,7 @@ export class RegisterPlayerDto {
 }
 
 export class AddGuestPlayerDto {
-  @IsMongoId()
+  @IsString()
   tournamentId: string;
 
   @IsString()
@@ -27,7 +37,7 @@ export class AddGuestPlayerDto {
 }
 
 export class RemovePlayerDto {
-  @IsMongoId()
+  @IsString()
   tournamentId: string;
 
   @IsString()
@@ -40,7 +50,7 @@ export class StartTournamentDto {
 }
 
 export class ReportResultDto {
-  @IsMongoId()
+  @IsString()
   tournamentId: string;
 
   @IsString()
@@ -51,6 +61,9 @@ export class ReportResultDto {
 
   @IsString()
   loserId: string;
+
+  @IsString()
+  result: 'win' | 'loss' | 'draw';
 }
 
 export class ConfirmResultDto {
@@ -80,12 +93,23 @@ export class OverrideResultDto {
 }
 
 export class TournamentPlayerDto {
+  @IsString()
   id: string;
+
+  @IsString()
   name: string;
-  userId?: string;
-  isGuest: boolean;
-  hasConfirmedWin?: boolean;
-  hasReported?: boolean;
+
+  @IsNumber()
+  points: number;
+
+  @IsNumber()
+  wins: number;
+
+  @IsNumber()
+  buchholzScore: number;
+
+  @IsNumber()
+  rank: number;
 }
 
 export class TournamentMatchDto {
@@ -97,12 +121,15 @@ export class TournamentMatchDto {
   status: 'pending' | 'completed' | 'forfeit';
   resultReportedBy: string[];
   confirmedBy?: string;
+  result?: 'win' | 'loss' | 'draw';
+  round?: number;
 }
 
 export class TournamentRoundDto {
   roundNumber: number;
   matches: TournamentMatchDto[];
   byePlayers?: TournamentPlayerDto[];
+  isComplete?: boolean;
 }
 
 export class TournamentDto {
@@ -118,4 +145,7 @@ export class TournamentDto {
   winnerId?: string;
   createdAt: Date;
   updatedAt: Date;
+  type: TournamentType;
+  numRounds?: number;
+  currentRound?: number;
 } 

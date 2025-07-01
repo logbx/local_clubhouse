@@ -1,11 +1,15 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request, UnauthorizedException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { Event, IEvent, EventStatus } from '../models/event.model';
-import { transformId, transformIds } from '../utils/transform.util';
+import { IEvent } from '../models/event.model';
 import { Public } from '../auth/decorators/public.decorator';
 import { Club, ClubDocument } from '../clubs/schemas/club.schema';
+import { EventsService } from './events.service';
+import { CreateEventDto } from './dto/create-event.dto';
+import { UpdateEventDto } from './dto/update-event.dto';
+import { Query } from '@nestjs/common';
+import { transformId } from '../utils/transform.util';
 
 interface AuthenticatedRequest {
   user: {
@@ -20,7 +24,8 @@ interface AuthenticatedRequest {
 export class EventsController {
   constructor(
     @InjectModel('Event') private eventModel: Model<IEvent>,
-    @InjectModel(Club.name) private clubModel: Model<ClubDocument>
+    @InjectModel(Club.name) private clubModel: Model<ClubDocument>,
+    private readonly eventsService: EventsService
   ) {}
 
   @Get()
@@ -564,18 +569,24 @@ export class EventsController {
   }
 
   @Post(':id/rsvp')
-  async rsvpEvent(@Param('id') id: string, @Body() rsvpData: { status: string }, @Request() req: AuthenticatedRequest) {
+  async rsvpEvent(@Param('id') id: string, @Body() _rsvpData: { status: string }, @Request() req: AuthenticatedRequest) {
     const userId = req.user.sub || req.user.id;
-    if (!userId) {
-      throw new UnauthorizedException('User ID not found in token');
-    }
-
+    
     const event = await this.eventModel.findById(id);
     if (!event) {
       throw new NotFoundException('Event not found');
     }
 
-    // Update RSVP logic here
+    const userObjectId = new Types.ObjectId(userId);
+    const isRsvped = event.rsvps.some(rsvp => rsvp.equals(userObjectId));
+
+    if (isRsvped) {
+      event.rsvps = event.rsvps.filter(rsvp => !rsvp.equals(userObjectId));
+    } else {
+      event.rsvps.push(userObjectId);
+    }
+
+    await event.save();
     return { event: transformId(event.toObject()) };
   }
 } 

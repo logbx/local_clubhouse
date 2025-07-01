@@ -6,8 +6,6 @@ import { User, UserDocument, UserRole } from '../users/schemas/user.schema';
 import * as bcryptjs from 'bcryptjs';
 import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
-import { RegisterDto } from './dto/auth.dto';
-import { UserService } from '../services/user.service';
 import { EmailService } from '../services/email.service';
 
 @Injectable()

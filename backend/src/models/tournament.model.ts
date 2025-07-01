@@ -2,6 +2,11 @@ import { Schema, Document, Types, model } from 'mongoose';
 
 export type TournamentStatus = 'pending' | 'submitted' | 'confirmed' | 'disputed' | 'completed' | 'forfeit';
 
+export enum TournamentType {
+  SINGLE_ELIMINATION = 'single_elimination',
+  SWISS = 'swiss'
+}
+
 export interface ITournamentPlayer {
   id: string; // userId if account exists, otherwise UUID
   name: string; // Display name (fullName for users, custom name for guests)
@@ -12,6 +17,11 @@ export interface ITournamentPlayer {
   hasConfirmedWin?: boolean;
   hasReported?: boolean;
   registeredAt?: Date; // When the player registered
+  // Swiss tournament specific fields
+  points?: number; // Total points in Swiss tournament
+  wins?: number; // Number of wins
+  buchholzScore?: number; // Sum of opponents' scores
+  pastOpponents?: string[]; // Array of opponent IDs faced
 }
 
 export interface ITournamentMatch {
@@ -28,12 +38,16 @@ export interface ITournamentMatch {
   disputedBy?: string; // userId that disputed
   resolvedBy?: string; // userId that resolved the dispute
   resolutionNotes?: string; // Notes from dispute resolution
+  // Swiss tournament specific fields
+  result?: 'win' | 'loss' | 'draw'; // Explicit result for Swiss tournaments
+  round?: number; // Round number for this match
 }
 
 export interface ITournamentRound {
   roundNumber: number;
   matches: ITournamentMatch[];
-  byePlayers?: ITournamentPlayer[]; // Players who get a bye in this round
+  byePlayers?: ITournamentPlayer[]; // Optional bye players for display
+  isComplete?: boolean; // Whether all matches in this round are completed
 }
 
 export interface ITournament extends Document {
@@ -50,6 +64,10 @@ export interface ITournament extends Document {
   winnerId?: string;
   createdAt: Date;
   updatedAt: Date;
+  // Swiss tournament specific fields
+  type: TournamentType;
+  numRounds?: number; // Total number of rounds for Swiss tournament
+  currentRound?: number; // Current round number
 }
 
 const TournamentPlayerSchema = new Schema<ITournamentPlayer>({
@@ -61,7 +79,12 @@ const TournamentPlayerSchema = new Schema<ITournamentPlayer>({
   isGuest: { type: Boolean, required: true },
   hasConfirmedWin: { type: Boolean, default: false },
   hasReported: { type: Boolean, default: false },
-  registeredAt: { type: Date }
+  registeredAt: { type: Date },
+  // Swiss tournament specific fields
+  points: { type: Number, default: 0 },
+  wins: { type: Number, default: 0 },
+  buchholzScore: { type: Number, default: 0 },
+  pastOpponents: [{ type: String }]
 }, { _id: false });
 
 const TournamentMatchSchema = new Schema<ITournamentMatch>({
@@ -81,13 +104,17 @@ const TournamentMatchSchema = new Schema<ITournamentMatch>({
   disputeReason: { type: String },
   disputedBy: { type: String },
   resolvedBy: { type: String },
-  resolutionNotes: { type: String }
+  resolutionNotes: { type: String },
+  // Swiss tournament specific fields
+  result: { type: String, enum: ['win', 'loss', 'draw'] },
+  round: { type: Number }
 }, { _id: false });
 
 const TournamentRoundSchema = new Schema<ITournamentRound>({
   roundNumber: { type: Number, required: true },
   matches: [TournamentMatchSchema],
-  byePlayers: [TournamentPlayerSchema] // Optional bye players for display
+  byePlayers: [TournamentPlayerSchema], // Optional bye players for display
+  isComplete: { type: Boolean, default: false }
 }, { _id: false });
 
 export const TournamentSchema = new Schema<ITournament>({
@@ -99,8 +126,12 @@ export const TournamentSchema = new Schema<ITournament>({
   rounds: [TournamentRoundSchema],
   isStarted: { type: Boolean, default: false },
   isFinished: { type: Boolean, default: false },
-  registrationOpen: { type: Boolean, default: false },
-  winnerId: { type: String }
+  registrationOpen: { type: Boolean, default: true },
+  winnerId: { type: String },
+  // Swiss tournament specific fields
+  type: { type: String, enum: Object.values(TournamentType), default: TournamentType.SINGLE_ELIMINATION },
+  numRounds: { type: Number, min: 1, max: 10 },
+  currentRound: { type: Number, default: 0 }
 }, {
   timestamps: true,
   toObject: {

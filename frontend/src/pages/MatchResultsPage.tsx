@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Tournament, TournamentMatch, tournamentService } from '../services/tournament.service';
+import { Tournament, TournamentMatch, tournamentService, TournamentType } from '../services/tournament.service';
 import TournamentBracket from '../components/TournamentBracket';
 import { useAuth } from '../context/AuthContext';
+import { toast } from 'react-hot-toast';
+import { MatchResultModal } from '../components/MatchResultModal';
 
 export const MatchResultsPage: React.FC = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
@@ -11,6 +13,8 @@ export const MatchResultsPage: React.FC = () => {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedMatch, setSelectedMatch] = useState<TournamentMatch | null>(null);
+  const [showResultModal, setShowResultModal] = useState(false);
 
   useEffect(() => {
     if (tournamentId) {
@@ -23,7 +27,13 @@ export const MatchResultsPage: React.FC = () => {
       setLoading(true);
       const tournamentData = await tournamentService.getTournament(tournamentId!);
       
-      // Debug logging for match results page
+      // Verify this is a Single Elimination tournament
+      if (tournamentData.type !== TournamentType.SINGLE_ELIMINATION) {
+        setError('This page is only for Single Elimination tournaments');
+        return;
+      }
+      
+      // Debug logging
       console.log('🏆 MatchResultsPage - Tournament loaded:', {
         tournamentId,
         tournamentName: tournamentData.name,
@@ -31,7 +41,7 @@ export const MatchResultsPage: React.FC = () => {
         currentUserId: user?.id,
         isCreator: tournamentData.organizerId === user?.id,
         rounds: tournamentData.rounds?.length || 0,
-        totalMatches: tournamentData.rounds?.flatMap(r => r.matches).length || 0
+        totalMatches: tournamentData.rounds?.flatMap(r => r.matches).length || 0,
       });
       
       setTournament(tournamentData);
@@ -41,6 +51,29 @@ export const MatchResultsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmitResult = async (match: TournamentMatch, result: 'win' | 'loss') => {
+    if (!tournament || !user) return;
+
+    try {
+      // Determine winner based on who submitted the result
+      const isPlayer1 = match.player1.id === user.id;
+      const winnerId = result === 'win' ? user.id : (isPlayer1 ? match.player2.id : match.player1.id);
+      const loserId = result === 'win' ? (isPlayer1 ? match.player2.id : match.player1.id) : user.id;
+
+      await tournamentService.submitMatchResult(tournament.id, match.matchId, winnerId, loserId, false);
+      toast.success('Match result submitted successfully!');
+      loadTournament(); // Refresh tournament data
+    } catch (error) {
+      console.error('Error submitting match result:', error);
+      toast.error('Failed to submit match result');
+    }
+  };
+
+  const openMatchResultModal = (match: TournamentMatch) => {
+    setSelectedMatch(match);
+    setShowResultModal(true);
   };
 
   if (loading) {
@@ -73,10 +106,13 @@ export const MatchResultsPage: React.FC = () => {
   }
 
   const allMatches = tournament.rounds?.flatMap(round => round.matches) || [];
-  const pendingMatches = allMatches.filter(match => match.status === 'pending');
-  const submittedMatches = allMatches.filter(match => match.status === 'submitted');
-  const disputedMatches = allMatches.filter(match => match.status === 'disputed');
-  const completedMatches = allMatches.filter(match => match.status === 'completed' || match.status === 'forfeit');
+  const userMatches = allMatches.filter(match => 
+    match.player1.id === user?.id || match.player2.id === user?.id
+  );
+  const pendingMatches = userMatches.filter(match => match.status === 'pending');
+  const submittedMatches = userMatches.filter(match => match.status === 'submitted');
+  const disputedMatches = userMatches.filter(match => match.status === 'disputed');
+  const completedMatches = userMatches.filter(match => match.status === 'completed' || match.status === 'forfeit');
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -86,21 +122,18 @@ export const MatchResultsPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                Match Results
+                Your Match Results
               </h1>
               <p className="text-gray-600 dark:text-gray-400 mt-2">
-                {tournament.name} • {tournament.players.length} players
+                {tournament.name} • Single Elimination Tournament
               </p>
             </div>
-            {/* Only show Back to Tournament button for tournament organizers */}
-            {tournament.organizerId === user?.id && (
-              <button
-                onClick={() => navigate(`/tournament/${tournamentId}`)}
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-              >
-                Back to Tournament
-              </button>
-            )}
+            <button
+              onClick={() => navigate(`/tournament/single-elimination/${tournamentId}`)}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+            >
+              Back to Tournament
+            </button>
           </div>
         </div>
 
@@ -108,7 +141,7 @@ export const MatchResultsPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
             <div className="text-2xl font-bold text-yellow-600">{pendingMatches.length}</div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Pending Matches</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">Your Pending Matches</div>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
             <div className="text-2xl font-bold text-blue-600">{submittedMatches.length}</div>
@@ -124,15 +157,15 @@ export const MatchResultsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Tournament Bracket with Integrated Result Submission */}
+        {/* Tournament Matches */}
         <div className="mb-8">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-600">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Tournament Bracket
+                Your Tournament Matches
               </h2>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Click on any match to submit results, confirm outcomes, or manage disputes
+                Submit your match results or confirm your opponent's submissions
               </p>
             </div>
             <div className="p-6">
@@ -147,6 +180,58 @@ export const MatchResultsPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {selectedMatch && (
+        <MatchResultModal
+          isOpen={showResultModal}
+          onClose={() => {
+            setShowResultModal(false);
+            setSelectedMatch(null);
+          }}
+          match={selectedMatch}
+          currentUserId={user?.id || ''}
+          isCreator={tournament?.organizerId === user?.id}
+          onSubmitResult={async (winnerId, loserId, isDraw, notes) => {
+            if (!tournament) return;
+            console.log('Submitting match result:', { winnerId, loserId, isDraw, notes });
+            await tournamentService.submitMatchResult(tournament.id, selectedMatch.matchId, winnerId, loserId, false, notes);
+            toast.success('Match result submitted successfully!');
+            loadTournament();
+            setShowResultModal(false);
+          }}
+          onConfirmResult={async () => {
+            if (!tournament || !selectedMatch) return;
+            await tournamentService.confirmMatchResult(tournament.id, selectedMatch.matchId);
+            toast.success('Match result confirmed!');
+            loadTournament();
+            setShowResultModal(false);
+          }}
+          onDisputeResult={async (reason) => {
+            if (!tournament || !selectedMatch) return;
+            await tournamentService.disputeMatchResult(tournament.id, selectedMatch.matchId, reason);
+            toast.success('Match result disputed');
+            loadTournament();
+            setShowResultModal(false);
+          }}
+          onResolveDispute={async (winnerId, loserId, isDraw, notes) => {
+            if (!tournament || !selectedMatch) return;
+            await tournamentService.resolveMatchDispute(tournament.id, selectedMatch.matchId, winnerId, loserId, false, notes);
+            toast.success('Dispute resolved');
+            loadTournament();
+            setShowResultModal(false);
+          }}
+          onForfeit={async (forfeitingPlayerId) => {
+            if (!tournament || !selectedMatch) return;
+            await tournamentService.forfeitMatch(tournament.id, selectedMatch.matchId, forfeitingPlayerId);
+            toast.success('Match forfeited');
+            loadTournament();
+            setShowResultModal(false);
+          }}
+          isSingleElimination={true}
+        />
+      )}
     </div>
   );
-}; 
+};
+
+export default MatchResultsPage; 

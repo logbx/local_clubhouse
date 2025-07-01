@@ -137,22 +137,22 @@ const ClubProfilePage: React.FC = () => {
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 pb-24">
       {/* Fixed Action Buttons - Top Right Corner */}
-      <div className="fixed top-4 right-4 z-50 flex gap-2">
+      <div className="fixed top-20 right-4 z-40">
         {/* Admin Dashboard Link */}
         {(membershipStatus.isAdmin || isClubCreator) && (
           <Link
             to={`/clubs/${club.username}/admin`}
-            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-full hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-lg backdrop-blur-sm"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-all duration-200 shadow-lg flex items-center gap-2 font-medium"
+            title="Manage Club Dashboard"
           >
             <CogIcon className="h-4 w-4" />
+            <span className="text-sm">Settings</span>
           </Link>
         )}
-
-
       </div>
 
       {/* Main Content Container */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-16">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-28">
         
         {/* Instagram-Style Hero Section */}
         <div className="flex flex-col sm:flex-row gap-8 sm:gap-12 mb-12">

@@ -4,6 +4,7 @@ import { endpoints } from '../config/api';
 import { envConfig } from '../config/env';
 import { Event, CreateEventDto, UpdateEventDto, SubGroup } from '../types/event';
 import { log, LogCategory } from '../utils/logger';
+import { API_BASE_URL } from '../config/api';
 
 const baseURL = envConfig.apiUrl;
 
@@ -18,7 +19,7 @@ log.debug(LogCategory.API, 'API Configuration', {
 });
 
 export const api = axios.create({
-  baseURL,
+  baseURL: 'http://localhost:3001',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -128,7 +129,7 @@ api.interceptors.response.use(
         }
 
         log.info(LogCategory.API, 'Auto-refreshing token');
-        const response = await axios.post(`${baseURL}/api/auth/refresh`, { refreshToken });
+        const response = await api.post('/api/auth/refresh', { refreshToken });
         const { accessToken, refreshToken: newRefreshToken } = response.data;
 
         localStorage.setItem('accessToken', accessToken);

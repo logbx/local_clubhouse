@@ -1,11 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 
-export const errorHandler = (
-  err: any,
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const errorMiddleware = (err: any, _req: Request, res: Response, _next: NextFunction): Response => {
   console.error(err.stack);
   
   // Handle specific error types
@@ -24,7 +19,7 @@ export const errorHandler = (
   }
   
   // Default error response
-  res.status(500).json({
+  return res.status(500).json({
     error: 'Internal Server Error',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong!'
   });

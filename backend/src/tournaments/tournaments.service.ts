@@ -1,13 +1,14 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Inject, forwardRef, InternalServerErrorException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
-import { Tournament, ITournament, ITournamentPlayer, ITournamentMatch, ITournamentRound } from '../models/tournament.model';
+import { Tournament, ITournament, ITournamentPlayer, ITournamentMatch, ITournamentRound, TournamentType } from '../models/tournament.model';
 import { Event, EventDocument } from '../events/schemas/event.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
-import { CreateTournamentDto, AddGuestPlayerDto, RemovePlayerDto, ReportResultDto, ConfirmResultDto, OverrideResultDto } from './dto/tournament.dto';
+import { CreateTournamentDto, AddGuestPlayerDto, RemovePlayerDto, ReportResultDto, ConfirmResultDto, OverrideResultDto, TournamentPlayerDto } from './dto/tournament.dto';
 import { AppWebSocketGateway } from '../websocket/websocket.gateway';
 import { generateSingleEliminationBracket, shufflePlayers, calculateTotalRounds, getRoundName, populateNextRound } from './utils/generateSingleEliminationBracket';
+import { generateSwissPairings, calculateStandings, processMatchResult } from './utils/generateSwissPairings';
 
 @Injectable()
 export class TournamentsService {
@@ -15,9 +16,33 @@ export class TournamentsService {
     @InjectModel(Tournament.name) private tournamentModel: Model<ITournament>,
     @InjectModel(Event.name) private eventModel: Model<EventDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
-    @Inject(forwardRef(() => AppWebSocketGateway))
     private readonly webSocketGateway: AppWebSocketGateway,
   ) {}
+
+  async create(createTournamentDto: CreateTournamentDto, organizerId: string): Promise<ITournament> {
+    // Validate tournament type and number of rounds
+    if (createTournamentDto.type === TournamentType.SWISS && !createTournamentDto.numRounds) {
+      throw new BadRequestException('Number of rounds is required for Swiss tournaments');
+    }
+
+    if (createTournamentDto.type === TournamentType.SWISS && 
+        (createTournamentDto.numRounds < 1 || createTournamentDto.numRounds > 10)) {
+      throw new BadRequestException('Number of rounds must be between 1 and 10');
+    }
+
+    const tournament = new this.tournamentModel({
+      ...createTournamentDto,
+      organizerId: new Types.ObjectId(organizerId),
+      players: [],
+      rounds: [],
+      isStarted: false,
+      isFinished: false,
+      registrationOpen: true,
+      currentRound: 0
+    });
+
+    return tournament.save();
+  }
 
   async createTournament(createTournamentDto: CreateTournamentDto, organizerId: string): Promise<any> {
     // Verify the event exists and user has permission
@@ -31,6 +56,26 @@ export class TournamentsService {
       throw new ForbiddenException('Only the event creator can create tournaments');
     }
 
+    // Check if event is in DRAFT status
+    if (event.status === 'DRAFT') {
+      throw new BadRequestException('Cannot create tournament for a draft event. Please publish the event first.');
+    }
+
+    // Validate tournament type and number of rounds
+    if (createTournamentDto.type === TournamentType.SWISS && !createTournamentDto.numRounds) {
+      throw new BadRequestException('Number of rounds is required for Swiss tournaments');
+    }
+
+    if (createTournamentDto.type === TournamentType.SWISS && 
+        (createTournamentDto.numRounds < 1 || createTournamentDto.numRounds > 10)) {
+      throw new BadRequestException('Number of rounds must be between 1 and 10');
+    }
+
+    // For single elimination, calculate the number of rounds based on maxPlayers
+    if (createTournamentDto.type === TournamentType.SINGLE_ELIMINATION) {
+      createTournamentDto.numRounds = Math.ceil(Math.log2(createTournamentDto.maxPlayers));
+    }
+
     // Check if tournament already exists for this event
     const existingTournament = await this.tournamentModel.findOne({ eventId: createTournamentDto.eventId });
     if (existingTournament) {
@@ -42,12 +87,15 @@ export class TournamentsService {
       organizerId: new Types.ObjectId(organizerId),
       players: [],
       rounds: [],
+      registrationOpen: true,
+      isStarted: false,
+      isFinished: false
     });
 
     const savedTournament = await tournament.save();
 
     // Broadcast tournament creation to event participants
-    this.webSocketGateway.broadcastTournamentUpdate(createTournamentDto.eventId, {
+    this.webSocketGateway.broadcastTournamentUpdate(createTournamentDto.eventId.toString(), {
       type: 'tournament-created',
       tournamentId: savedTournament._id.toString(),
       tournament: savedTournament,
@@ -173,20 +221,34 @@ export class TournamentsService {
   }
 
   async getTournamentsByEvent(eventId: string): Promise<any[]> {
-    const tournaments = await this.tournamentModel.find({ eventId })
-      .populate('organizerId', 'username email')
-      .sort({ createdAt: -1 });
-    
-    // Convert to plain objects and transform organizerId back to string
-    return tournaments.map(tournament => {
-      const tournamentObj: any = tournament.toObject();
-      
-      // Transform organizerId from populated object back to string ID
-      if (tournamentObj.organizerId && typeof tournamentObj.organizerId === 'object') {
-        tournamentObj.organizerId = tournamentObj.organizerId._id.toString();
+    try {
+      // First verify the event exists
+      const event = await this.eventModel.findById(eventId);
+      if (!event) {
+        throw new NotFoundException(`Event with ID ${eventId} not found`);
       }
-      return tournamentObj;
-    });
+
+      const tournaments = await this.tournamentModel.find({ eventId })
+        .populate('organizerId', 'username email')
+        .sort({ createdAt: -1 });
+      
+      // Convert to plain objects and transform organizerId back to string
+      return tournaments.map(tournament => {
+        const tournamentObj: any = tournament.toObject();
+        
+        // Transform organizerId from populated object back to string ID
+        if (tournamentObj.organizerId && typeof tournamentObj.organizerId === 'object') {
+          tournamentObj.organizerId = tournamentObj.organizerId._id.toString();
+        }
+        return tournamentObj;
+      });
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      console.error('Error fetching tournaments by event:', error);
+      throw new InternalServerErrorException('Failed to fetch tournaments for event');
+    }
   }
 
   async registerPlayer(tournamentId: string, userId: string, username: string): Promise<any> {
@@ -350,237 +412,173 @@ export class TournamentsService {
       throw new BadRequestException('Tournament needs at least 2 players to start');
     }
 
-    // Shuffle players and generate complete bracket
-    const shuffledPlayers = shufflePlayers(tournament.players);
-    const allRounds = generateSingleEliminationBracket(shuffledPlayers);
-    
-    tournament.rounds = allRounds;
-    tournament.isStarted = true;
+    // Initialize tournament based on type
+    if (tournament.type === TournamentType.SINGLE_ELIMINATION) {
+      // Existing single elimination logic
+      const shuffledPlayers = shufflePlayers(tournament.players);
+      const allRounds = generateSingleEliminationBracket(shuffledPlayers);
+      tournament.rounds = allRounds;
+    } else {
+      // Swiss tournament initialization
+      const shuffledPlayers = shufflePlayers(tournament.players);
+      // Initialize player scores
+      shuffledPlayers.forEach(player => {
+        player.points = 0;
+        player.wins = 0;
+        player.buchholzScore = 0;
+        player.pastOpponents = [];
+      });
+      // Generate first round pairings
+      const firstRound = generateSwissPairings(shuffledPlayers, 1);
+      tournament.rounds = [firstRound];
+      tournament.currentRound = 1;
+    }
 
+    tournament.isStarted = true;
     const savedTournament = await tournament.save();
 
-    // Broadcast tournament start to event participants and tournament participants
+    // Broadcast tournament start
     this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), {
       type: 'tournament-started',
       tournamentId: tournamentId,
       rounds: savedTournament.rounds,
-      totalRounds: calculateTotalRounds(shuffledPlayers.length),
-    });
-
-    this.webSocketGateway.broadcastTournamentToParticipants(tournamentId, {
-      type: 'tournament-started',
-      rounds: savedTournament.rounds,
-      totalRounds: calculateTotalRounds(shuffledPlayers.length),
+      totalRounds: tournament.type === TournamentType.SINGLE_ELIMINATION 
+        ? calculateTotalRounds(tournament.players.length)
+        : tournament.numRounds
     });
 
     return savedTournament;
   }
 
-  async reportResult(reportResultDto: ReportResultDto, reporterId: string): Promise<ITournament> {
+  async reportResult(reportResultDto: ReportResultDto, userId: string): Promise<ITournament> {
     const tournament = await this.tournamentModel.findById(reportResultDto.tournamentId);
     if (!tournament) {
       throw new NotFoundException('Tournament not found');
     }
 
-    if (!tournament.isStarted) {
-      throw new BadRequestException('Tournament has not started yet');
+    const currentRound = tournament.rounds.find(r => !r.isComplete);
+    if (!currentRound) {
+      throw new BadRequestException('No active round found');
     }
 
-    if (tournament.isFinished) {
-      throw new BadRequestException('Tournament has already finished');
-    }
-
-    // Find the match across all rounds, not just the current round
-    let match: ITournamentMatch | undefined;
-    let matchRound: ITournamentRound | undefined;
-    
-    for (const round of tournament.rounds) {
-      const foundMatch = round.matches.find(m => m.matchId === reportResultDto.matchId);
-      if (foundMatch) {
-        match = foundMatch;
-        matchRound = round;
-        break;
-      }
-    }
-    
-    if (!match || !matchRound) {
+    const match = currentRound.matches.find(m => m.matchId === reportResultDto.matchId);
+    if (!match) {
       throw new NotFoundException('Match not found');
     }
 
-    // Enhanced duplicate submission protection
-    if (match.status === 'completed') {
-      console.log('⚠️ Duplicate submission blocked: Match already completed', {
-        matchId: match.matchId,
-        currentStatus: match.status,
-        existingWinnerId: match.winnerId,
-        newWinnerId: reportResultDto.winnerId,
-        reporterId
-      });
-      throw new BadRequestException('Match has already been completed');
-    }
-
-    // Check if this exact result has already been submitted by this user
-    if (match.winnerId === reportResultDto.winnerId && 
-        match.loserId === reportResultDto.loserId && 
-        match.resultReportedBy?.includes(reporterId)) {
-      console.log('⚠️ Duplicate submission blocked: Same result already reported by this user', {
-        matchId: match.matchId,
-        winnerId: reportResultDto.winnerId,
-        reporterId
-      });
-      throw new BadRequestException('You have already reported this result');
-    }
-
-    // Validate that the reporter is one of the players (unless they're the organizer)
-    const isOrganizer = tournament.organizerId.toString() === reporterId;
-    const isPlayer = match.player1.id === reporterId || match.player2.id === reporterId;
-    
-    if (!isOrganizer && !isPlayer) {
-      throw new ForbiddenException('Only players in the match or the organizer can report results');
+    // Validate that the user can report this result
+    if (tournament.organizerId.toString() !== userId && 
+        match.player1.id !== userId && 
+        match.player2.id !== userId) {
+      throw new ForbiddenException('You cannot report this match result');
     }
 
     // Update match result
+    match.status = 'completed';
+    match.result = reportResultDto.result;
     match.winnerId = reportResultDto.winnerId;
     match.loserId = reportResultDto.loserId;
-    match.resultReportedBy = match.resultReportedBy || [];
-    
-    if (!match.resultReportedBy.includes(reporterId)) {
-      match.resultReportedBy.push(reporterId);
+
+    // Update player points for Swiss tournaments
+    if (tournament.type === TournamentType.SWISS) {
+      const winner = tournament.players.find(p => p.id === reportResultDto.winnerId);
+      const loser = tournament.players.find(p => p.id === reportResultDto.loserId);
+
+      if (reportResultDto.result === 'draw') {
+        winner.points = (winner.points || 0) + 0.5;
+        loser.points = (loser.points || 0) + 0.5;
+      } else {
+        winner.points = (winner.points || 0) + 1;
+        winner.wins = (winner.wins || 0) + 1;
+      }
+
+      // Update past opponents
+      winner.pastOpponents = [...(winner.pastOpponents || []), loser.id];
+      loser.pastOpponents = [...(loser.pastOpponents || []), winner.id];
     }
 
-    // Auto-confirm if organizer reports or if both players have reported the same result
-    if (isOrganizer) {
-      match.status = 'completed';
-      match.confirmedBy = reporterId;
-      console.log('✅ Match completed by organizer', {
-        matchId: match.matchId,
-        winnerId: match.winnerId,
-        reporterId
-      });
-    } else if (match.resultReportedBy.length >= 2) {
-      match.status = 'completed';
-      match.confirmedBy = reporterId;
-      console.log('✅ Match completed by both players', {
-        matchId: match.matchId,
-        winnerId: match.winnerId,
-        reportedBy: match.resultReportedBy
-      });
-    } else {
-      match.status = 'submitted';
-      console.log('📝 Match result submitted, awaiting confirmation', {
-        matchId: match.matchId,
-        winnerId: match.winnerId,
-        reporterId
-      });
+    // Check if current round is complete
+    const isRoundComplete = currentRound.matches.every(m => m.status === 'completed');
+    if (isRoundComplete) {
+      currentRound.isComplete = true;
+
+      // For Swiss tournaments, generate next round if not finished
+      if (tournament.type === TournamentType.SWISS && 
+          tournament.currentRound < tournament.numRounds) {
+        // Calculate Buchholz scores
+        tournament.players.forEach(player => {
+          player.buchholzScore = (player.pastOpponents || [])
+            .map(opponentId => {
+              const opponent = tournament.players.find(p => p.id === opponentId);
+              return opponent ? opponent.points || 0 : 0;
+            })
+            .reduce((sum, score) => sum + score, 0);
+        });
+
+        // Generate next round pairings
+        const nextRound = generateSwissPairings(tournament.players, tournament.currentRound + 1);
+        tournament.rounds.push(nextRound);
+        tournament.currentRound++;
+      } else if (tournament.type === TournamentType.SWISS && 
+                 tournament.currentRound === tournament.numRounds) {
+        tournament.isFinished = true;
+        // Set winner based on points and tiebreakers
+        const winner = [...tournament.players].sort((a, b) => {
+          if ((b.points || 0) !== (a.points || 0)) {
+            return (b.points || 0) - (a.points || 0);
+          }
+          if ((b.buchholzScore || 0) !== (a.buchholzScore || 0)) {
+            return (b.buchholzScore || 0) - (a.buchholzScore || 0);
+          }
+          return (b.wins || 0) - (a.wins || 0);
+        })[0];
+        tournament.winnerId = winner.id;
+      }
     }
 
-    const updatedTournament = await tournament.save();
+    const savedTournament = await tournament.save();
 
-    // Only check for round advancement if match was completed
-    if (match.status === 'completed') {
-      await this.checkAndGenerateNextRound(updatedTournament);
-    }
-
-    // Broadcast match result update
-    this.webSocketGateway.broadcastMatchUpdate(reportResultDto.tournamentId, {
+    // Broadcast result
+    this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), {
       type: 'match-result-reported',
-      matchId: reportResultDto.matchId,
-      match: match,
-      reportedBy: reporterId,
-    }, reporterId);
+      tournamentId: tournament.id,
+      matchId: match.matchId,
+      result: {
+        winnerId: match.winnerId,
+        loserId: match.loserId,
+        status: match.status
+      }
+    });
 
-    return updatedTournament;
+    return savedTournament;
   }
 
-  async confirmResult(confirmResultDto: ConfirmResultDto, confirmerId: string): Promise<ITournament> {
-    const tournament = await this.tournamentModel.findById(confirmResultDto.tournamentId);
+  async getStandings(tournamentId: string): Promise<TournamentPlayerDto[]> {
+    const tournament = await this.tournamentModel.findById(tournamentId);
     if (!tournament) {
       throw new NotFoundException('Tournament not found');
     }
 
-    // Find the match across all rounds, not just the current round
-    let match: ITournamentMatch | undefined;
-    let matchRound: ITournamentRound | undefined;
-    
-    for (const round of tournament.rounds) {
-      const foundMatch = round.matches.find(m => m.matchId === confirmResultDto.matchId);
-      if (foundMatch) {
-        match = foundMatch;
-        matchRound = round;
-        break;
-      }
-    }
-    
-    if (!match || !matchRound) {
-      throw new NotFoundException('Match not found');
+    if (tournament.type === TournamentType.SWISS) {
+      return calculateStandings(tournament.players).map(player => ({
+        id: player.id,
+        name: player.name,
+        points: player.points || 0,
+        wins: player.wins || 0,
+        buchholzScore: player.buchholzScore || 0,
+        rank: 0 // Will be calculated by the frontend
+      }));
     }
 
-    if (match.status === 'completed') {
-      throw new BadRequestException('Match has already been completed');
-    }
-
-    if (!match.winnerId || !match.loserId) {
-      throw new BadRequestException('Match result has not been reported yet');
-    }
-
-    // Validate that the confirmer is one of the players or the organizer
-    const isOrganizer = tournament.organizerId.toString() === confirmerId;
-    const isPlayer = match.player1.id === confirmerId || match.player2.id === confirmerId;
-    
-    if (!isOrganizer && !isPlayer) {
-      throw new ForbiddenException('Only players in the match or the organizer can confirm results');
-    }
-
-    match.status = 'completed';
-    match.confirmedBy = confirmerId;
-
-    const updatedTournament = await tournament.save();
-
-    // Check if round is complete and generate next round
-    await this.checkAndGenerateNextRound(updatedTournament);
-
-    return updatedTournament;
-  }
-
-  async overrideResult(overrideResultDto: OverrideResultDto, organizerId: string): Promise<ITournament> {
-    const tournament = await this.tournamentModel.findById(overrideResultDto.tournamentId);
-    if (!tournament) {
-      throw new NotFoundException('Tournament not found');
-    }
-
-    if (tournament.organizerId.toString() !== organizerId) {
-      throw new ForbiddenException('Only the tournament organizer can override results');
-    }
-
-    // Find the match across all rounds, not just the current round
-    let match: ITournamentMatch | undefined;
-    let matchRound: ITournamentRound | undefined;
-    
-    for (const round of tournament.rounds) {
-      const foundMatch = round.matches.find(m => m.matchId === overrideResultDto.matchId);
-      if (foundMatch) {
-        match = foundMatch;
-        matchRound = round;
-        break;
-      }
-    }
-    
-    if (!match || !matchRound) {
-      throw new NotFoundException('Match not found');
-    }
-
-    match.winnerId = overrideResultDto.winnerId;
-    match.loserId = overrideResultDto.loserId;
-    match.status = overrideResultDto.status || 'completed';
-    match.confirmedBy = organizerId;
-    match.resultReportedBy = [organizerId];
-
-    const updatedTournament = await tournament.save();
-
-    // Check if round is complete and generate next round
-    await this.checkAndGenerateNextRound(updatedTournament);
-
-    return updatedTournament;
+    // For single elimination, return players sorted by round elimination
+    return tournament.players.map(player => ({
+      id: player.id,
+      name: player.name,
+      points: player.points || 0,
+      wins: player.wins || 0,
+      buchholzScore: player.buchholzScore || 0,
+      rank: 0 // Will be calculated by the frontend
+    }));
   }
 
   async getTournamentById(tournamentId: string): Promise<ITournament> {

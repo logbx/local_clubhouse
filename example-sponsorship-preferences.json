@@ -1,0 +1,52 @@
+{
+  "sponsorId": "60d5ec49f1b2c73d4c8b4567",
+  "sponsorshipTypes": [
+    {
+      "type": "Location Hosting",
+      "tier": "Full Sponsorship",
+      "isActive": true,
+      "customDescription": "We have a 5000 sq ft event space available in downtown with full AV equipment and catering facilities. Perfect for conferences, workshops, and networking events."
+    },
+    {
+      "type": "Product Samples & Swag",
+      "tier": "Complimentary",
+      "isActive": true,
+      "customDescription": "We provide branded tech accessories, water bottles, and stickers. Great for welcome bags and giveaways."
+    },
+    {
+      "type": "Event Sponsorship Funds",
+      "tier": "Partial Subsidy",
+      "isActive": true,
+      "customDescription": "We can contribute $500-$2000 towards event costs depending on alignment with our mission and expected attendance."
+    },
+    {
+      "type": "Photography/Videography",
+      "tier": "Full Sponsorship",
+      "isActive": true,
+      "customDescription": "Professional event photography and videography services including live streaming capabilities. Full post-production included."
+    },
+    {
+      "type": "Technology / Equipment",
+      "tier": "Complimentary",
+      "isActive": true,
+      "customDescription": "Laptops, projectors, sound systems, and networking equipment available for loan during events."
+    },
+    {
+      "type": "Consulting / Workshops",
+      "tier": "Premium / Exclusive",
+      "isActive": true,
+      "customDescription": "Our team can provide workshops on entrepreneurship, technology trends, and business development. Includes Q&A sessions and networking opportunities."
+    },
+    {
+      "type": "Event Promotion",
+      "tier": "Complimentary",
+      "isActive": true,
+      "customDescription": "Social media promotion across our 15k+ followers, email newsletter inclusion, and website feature placement."
+    }
+  ],
+  "collaborationPreference": "Actively Collaborate",
+  "customNotes": "We're particularly interested in supporting events focused on technology, entrepreneurship, and sustainability. We prefer 2-3 weeks notice for most sponsorship requests and require detailed event information including expected attendance, target audience, and specific needs. For events over 200 attendees, we may request a meeting to discuss partnership details. We're also open to multi-event sponsorship packages for recurring events or event series.",
+  "isActive": true,
+  "createdAt": "2024-01-15T10:30:00.000Z",
+  "updatedAt": "2024-01-20T14:45:00.000Z"
+} 

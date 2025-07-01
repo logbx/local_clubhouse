@@ -1,55 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { TrophyIcon, UserPlusIcon, PlayIcon, UserIcon, XMarkIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { tournamentService, Tournament as BackendTournament } from '../services/tournament.service';
-import { log, LogCategory } from '../utils/logger';
+import { TournamentType, Tournament, TournamentPlayer, TournamentMatch, TournamentRound } from '../services/tournament.service';
+import { tournamentService } from '../services/tournament.service';
 import { webSocketService } from '../services/websocket.service';
-
-interface Player {
-  id: string;
-  name: string; // Display name (fullName for users, custom name for guests)
-  fullName?: string; // User's full name (for registered users)
-  username?: string; // User's username (for registered users)
-  userId?: string; // For registered users
-  isGuest?: boolean;
-  registeredAt?: string; // ISO date string
-}
+import { TrophyIcon, UserPlusIcon, PlayIcon, TrashIcon, EyeIcon, CogIcon, FireIcon, ExclamationTriangleIcon, UserIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import TournamentCreationForm from '../components/TournamentCreationForm';
+import { EventFeatures } from '../types/event';
+import { log, LogCategory } from '../utils/logger';
 
 interface RegisteredUser {
   userId: string;
   username: string;
   registeredAt: number;
-}
-
-interface Match {
-  id: string;
-  round: number;
-  player1: Player | null;
-  player2: Player | null;
-  winner: Player | null;
-  status: 'pending' | 'completed';
-}
-
-interface Tournament {
-  id: string;
-  name: string;
-  eventId: string;
-  createdBy: string; // User ID of the event creator
-  players: Player[];
-  registeredUsers: RegisteredUser[]; // Users who registered for the tournament
-  matches: Match[];
-  rounds: number;
-  status: 'not_created' | 'registration_open' | 'registration_closed' | 'active' | 'completed';
-  winner: Player | null;
-  createdAt: number;
-  registrationOpenedAt?: number;
-  registrationClosedAt?: number;
-  startedAt?: number;
-  maxPlayers?: number;
-  isStarted?: boolean;
-  isFinished?: boolean;
-  registrationOpen?: boolean; // Add this field
 }
 
 const SingleEliminationTournament: React.FC = () => {
@@ -71,7 +34,7 @@ const SingleEliminationTournament: React.FC = () => {
   const isEventCreator = user && eventCreatorId && user.id === eventCreatorId;
 
   // Check if current user is registered for the tournament
-  const isUserRegistered = tournament && user && tournament.registeredUsers.some(ru => ru.userId === user.id);
+  const isUserRegistered = tournament && user && tournament.players.some(p => p.userId === user.id);
 
   // Function to find and consolidate all tournament data for this event
   const findAndConsolidateTournamentData = (eventId: string): Tournament | null => {
@@ -143,35 +106,44 @@ const SingleEliminationTournament: React.FC = () => {
       
       // Find the tournament with the most registrations
       const tournamentWithMostRegistrations = tournaments.reduce((prev, current) => {
-        const prevCount = prev.registeredUsers?.length || 0;
-        const currentCount = current.registeredUsers?.length || 0;
+        const prevCount = prev.players?.length || 0;
+        const currentCount = current.players?.length || 0;
         return currentCount > prevCount ? current : prev;
       });
       
       // Merge all registrations
-      const allRegistrations: RegisteredUser[] = [];
+      const allPlayers: TournamentPlayer[] = [];
       tournaments.forEach(tournament => {
-        if (tournament.registeredUsers) {
-          allRegistrations.push(...tournament.registeredUsers);
+        if (tournament.players) {
+          allPlayers.push(...tournament.players);
         }
       });
       
       // Remove duplicates
-      const uniqueRegistrations = allRegistrations.filter((user, index, array) => 
-        array.findIndex(u => u.userId === user.userId) === index
+      const uniquePlayers = allPlayers.filter((player, index, array) => 
+        array.findIndex(p => p.id === player.id) === index
       );
       
       consolidatedTournament = {
         ...tournamentWithMostRegistrations,
-        registeredUsers: uniqueRegistrations,
+        players: uniquePlayers.map(p => ({
+          ...p,
+          isGuest: p.isGuest || false
+        })),
         eventId: eventId,
-        createdBy: tournamentWithMostRegistrations.createdBy || eventCreatorId
+        organizerId: tournamentWithMostRegistrations.organizerId || eventCreatorId,
+        type: TournamentType.SINGLE_ELIMINATION,
+        numRounds: Math.ceil(Math.log2(uniquePlayers.length)),
+        currentRound: 0,
+        rounds: [] as TournamentRound[],
+        createdAt: new Date(),
+        updatedAt: new Date()
       };
       
       log.debug(LogCategory.TOURNAMENT, 'Tournament consolidation complete', {
         originalCount: tournaments.length,
-        totalRegistrations: allRegistrations.length,
-        uniqueRegistrations: uniqueRegistrations.length
+        totalPlayers: allPlayers.length,
+        uniquePlayers: uniquePlayers.length
       });
     }
     
@@ -350,7 +322,7 @@ const SingleEliminationTournament: React.FC = () => {
   }, [eventId]);
 
   // Create tournament using backend API
-  const createTournament = async () => {
+  const handleCreateTournament = async () => {
     if (!eventId || !eventTitle) return;
 
     log.info(LogCategory.TOURNAMENT, 'Creating new tournament via backend API', {
@@ -387,69 +359,30 @@ const SingleEliminationTournament: React.FC = () => {
         return;
       }
 
+      const type = TournamentType.SINGLE_ELIMINATION; // Always enforce single elimination type in this component
+
       // Create tournament via backend API
       const backendTournament = await tournamentService.createTournament(
-        `${eventTitle} Tournament`,
         eventId,
-        32 // Default max players
+        `${eventTitle} Tournament`,
+        32, // Default max players
+        type
       );
       
       log.info(LogCategory.TOURNAMENT, 'Tournament created successfully via backend', { backendTournament });
       
-      // Convert backend tournament to frontend format
-      const frontendTournament: Tournament = {
-        id: backendTournament._id || backendTournament.id,
-        name: backendTournament.name,
-        eventId: backendTournament.eventId,
-        createdBy: backendTournament.organizerId,
-        players: backendTournament.players.map(p => ({
-          id: p.id,
-          name: p.name,
-          fullName: p.fullName,
-          username: p.username,
-          userId: p.userId,
-          isGuest: p.isGuest,
-          registeredAt: p.registeredAt
-        })),
-        registeredUsers: backendTournament.players
-          .filter(p => !p.isGuest && p.userId)
-          .map(p => ({
-            userId: p.userId!,
-            username: p.name,
-            registeredAt: new Date(backendTournament.createdAt).getTime()
-          })),
-        matches: [],
-        rounds: backendTournament.rounds.length,
-        status: 'registration_open',
-        winner: null,
-        createdAt: new Date(backendTournament.createdAt).getTime(),
-        maxPlayers: backendTournament.maxPlayers,
-        isStarted: backendTournament.isStarted,
-        isFinished: backendTournament.isFinished,
-        registrationOpen: backendTournament.registrationOpen
-      };
-
-      // Update state
-      setTournament(frontendTournament);
+      // Navigate to the appropriate tournament management page
+      const tournamentId = backendTournament.id;
+      if (!tournamentId) {
+        throw new Error('Tournament ID not found in response');
+      }
+      
+      navigate(`/tournament/single-elimination/${tournamentId}/manage?eventId=${eventId}&eventTitle=${encodeURIComponent(eventTitle)}&creatorId=${eventCreatorId}`);
       
       log.info(LogCategory.TOURNAMENT, 'Tournament created and state updated');
     } catch (error) {
       log.error(LogCategory.TOURNAMENT, 'Failed to create tournament', error);
-      
-      // Show more specific error messages
-      if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as any;
-        if (axiosError.response?.data?.message) {
-          alert(`Failed to create tournament: ${axiosError.response.data.message}`);
-          return;
-        }
-      }
-      
-      if (error instanceof Error) {
-        alert(`Failed to create tournament: ${error.message}`);
-      } else {
       alert('Failed to create tournament. Please try again.');
-      }
     }
   };
 
@@ -674,7 +607,7 @@ const SingleEliminationTournament: React.FC = () => {
   const convertRegistrationsToPlayers = () => {
     if (!tournament) return;
     
-    const players: Player[] = tournament.registeredUsers.map(user => ({
+    const players: TournamentPlayer[] = tournament.registeredUsers.map(user => ({
       id: `player_${user.userId}`,
       name: user.username,
       userId: user.userId
@@ -896,7 +829,7 @@ const SingleEliminationTournament: React.FC = () => {
     if (allPlayers.length < 2) return;
 
     const rounds = Math.ceil(Math.log2(allPlayers.length));
-    const matches: Match[] = [];
+    const matches: any[] = [];
     let matchId = 1;
 
     // First round
@@ -950,7 +883,7 @@ const SingleEliminationTournament: React.FC = () => {
   };
 
   // Set match winner
-  const setMatchWinner = (matchId: string, winner: Player) => {
+  const setMatchWinner = (matchId: string, winner: TournamentPlayer) => {
     if (!tournament) return;
 
     const updatedMatches = tournament.matches.map(match => {
@@ -1056,7 +989,8 @@ const SingleEliminationTournament: React.FC = () => {
           createdAt: new Date(backendTournament.createdAt).getTime(),
           maxPlayers: backendTournament.maxPlayers,
           isStarted: backendTournament.isStarted,
-          isFinished: backendTournament.isFinished
+          isFinished: backendTournament.isFinished,
+          registrationOpen: backendTournament.registrationOpen
         };
         
         setTournament(frontendTournament);
@@ -1170,9 +1104,10 @@ const SingleEliminationTournament: React.FC = () => {
       // Create tournament in backend
       log.info(LogCategory.TOURNAMENT, 'Creating tournament in backend via migration');
       const backendTournament = await tournamentService.createTournament(
-        localTournamentData.name,
         eventId,
-        localTournamentData.maxPlayers || 32
+        localTournamentData.name,
+        localTournamentData.maxPlayers || 32,
+        TournamentType.SINGLE_ELIMINATION
       );
       
       log.info(LogCategory.TOURNAMENT, 'Tournament created in backend', { backendTournament });
@@ -1222,18 +1157,17 @@ const SingleEliminationTournament: React.FC = () => {
           <div className="max-w-4xl mx-auto text-center">
             <TrophyIcon className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              Single Elimination Tournament
+              {searchParams.get('feature') === EventFeatures.SWISS_TOURNAMENT ? 'Swiss Tournament' : 'Single Elimination Tournament'}
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mb-8">
               Create a tournament for "{eventTitle}"
             </p>
-            <button
-              onClick={createTournament}
-              className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 flex items-center justify-center mx-auto"
-            >
-              <TrophyIcon className="h-5 w-5 mr-2" />
-              Create Tournament
-            </button>
+            <TournamentCreationForm
+              eventId={eventId}
+              eventFeature={searchParams.get('feature') as EventFeatures || EventFeatures.SINGLE_ELIMINATION_TOURNAMENT}
+              onTournamentCreated={handleCreateTournament}
+              defaultName={`${eventTitle} Tournament`}
+            />
           </div>
         </div>
       );
@@ -1325,17 +1259,8 @@ const SingleEliminationTournament: React.FC = () => {
     }
   }
 
-  // Tournament exists - show appropriate view based on status and user role
-  log.debug(LogCategory.TOURNAMENT, 'Tournament exists, checking view conditions', {
-    tournamentId: tournament.id,
-    isEventCreator,
-    status: tournament.status,
-    isUserRegistered
-  });
-
-  if (!isEventCreator && tournament.status === 'registration_open') {
-    log.debug(LogCategory.TOURNAMENT, 'Showing registration view for non-creator');
-    // Non-creator registration view when registration is open
+  // Show registration page only when registration is open and user is not registered
+  if (!isEventCreator && tournament.status === 'registration_open' && !isUserRegistered) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
         <div className="max-w-4xl mx-auto">
@@ -1543,6 +1468,7 @@ const SingleEliminationTournament: React.FC = () => {
     );
   }
 
+  // Show tournament view for registered players, event creators, or when tournament is active/completed
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
       <div className="max-w-6xl mx-auto">
@@ -1555,16 +1481,6 @@ const SingleEliminationTournament: React.FC = () => {
           <p className="text-gray-600 dark:text-gray-400">
             Status: {tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)}
           </p>
-          {tournament.winner && (
-            <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-              <div className="flex items-center justify-center">
-                <TrophyIcon className="h-6 w-6 text-yellow-500 mr-2" />
-                <span className="text-lg font-semibold text-yellow-700 dark:text-yellow-300">
-                  Winner: {tournament.winner.name}
-                </span>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Tournament Management for Event Creators */}
@@ -1828,7 +1744,7 @@ const SingleEliminationTournament: React.FC = () => {
                       alert('Error: Tournament ID is missing. Please refresh the page and try again.');
                       return;
                     }
-                    navigate(`/tournament/${tournament.id}/results`);
+                    navigate(`/tournament/single-elimination/${tournament.id}/results`);
                   }}
                   className="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 flex items-center justify-center"
                 >
@@ -1889,7 +1805,7 @@ const SingleEliminationTournament: React.FC = () => {
                       Submit your match results, confirm opponent results, and track your tournament progress.
                     </p>
                     <button
-                      onClick={() => navigate(`/tournament/${tournament.id}/results`)}
+                      onClick={() => navigate(`/tournament/single-elimination/${tournament.id}/results`)}
                       className="w-full px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 flex items-center justify-center"
                     >
                       <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

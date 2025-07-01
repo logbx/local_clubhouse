@@ -96,6 +96,12 @@ export default function Navbar() {
                       Clubs
                     </Link>
                     <Link
+                      to="/sponsors"
+                      className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
+                    >
+                      Sponsors
+                    </Link>
+                    <Link
                       to="/events"
                       className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
                     >
@@ -172,6 +178,12 @@ export default function Navbar() {
                   className="block rounded-md px-3 py-2 text-base font-medium text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-200"
                 >
                   Clubs
+                </Link>
+                <Link
+                  to="/sponsors"
+                  className="block rounded-md px-3 py-2 text-base font-medium text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-200"
+                >
+                  Sponsors
                 </Link>
                 <Link
                   to="/events"

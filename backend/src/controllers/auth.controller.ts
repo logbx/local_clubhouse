@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { AuthService } from '../services/auth.service';
 
 export class AuthController {
-  static async register(req: Request, res: Response) {
+  static async register(req: Request, res: Response): Promise<Response> {
     try {
       const { username, email, password } = req.body;
 
@@ -17,7 +17,7 @@ export class AuthController {
         password,
       });
 
-      res.status(201).json({
+      return res.status(201).json({
         message: 'Registration successful',
         user: {
           id: user._id,
@@ -30,11 +30,11 @@ export class AuthController {
       });
     } catch (error: any) {
       console.error('Registration error:', error);
-      res.status(400).json({ error: error.message });
+      return res.status(400).json({ error: error.message });
     }
   }
 
-  static async login(req: Request, res: Response) {
+  static async login(req: Request, res: Response): Promise<Response> {
     try {
       const { email, password } = req.body;
 
@@ -51,7 +51,7 @@ export class AuthController {
         user.roles && 
         user.roles.length > 0;
 
-      res.json({
+      return res.json({
         message: 'Login successful',
         user: {
           id: user._id,
@@ -67,7 +67,7 @@ export class AuthController {
         token,
       });
     } catch (error: any) {
-      res.status(401).json({ error: error.message });
+      return res.status(401).json({ error: error.message });
     }
   }
 } 

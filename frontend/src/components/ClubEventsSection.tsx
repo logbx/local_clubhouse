@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Event, EventStatus, EventVisibility, EventFeatures } from '../types/event';
 import { eventApi } from '../services/api';
+import { tournamentService, Tournament } from '../services/tournament.service';
 import { format } from 'date-fns';
-import { PlusIcon, CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, TrashIcon, UserIcon, TrophyIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, TrashIcon, UserIcon, TrophyIcon, CurrencyDollarIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import CreateEventModal from './CreateEventModal';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { log, LogCategory } from '../utils/logger';
+import { webSocketService } from '../services/websocket.service';
 
 interface ClubEventsSectionProps {
   clubId: string;
@@ -15,6 +17,8 @@ interface ClubEventsSectionProps {
   isAdmin: boolean;
   isMember: boolean;
   initialTab?: EventStatus;
+  showDrafts?: boolean;
+  isSponsorship?: boolean;
 }
 
 const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({ 
@@ -22,7 +26,9 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
   clubUsername, 
   isAdmin, 
   isMember,
-  initialTab = EventStatus.LIVE
+  initialTab = EventStatus.LIVE,
+  showDrafts = isAdmin,
+  isSponsorship = false
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -33,6 +39,329 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [rsvpLoading, setRsvpLoading] = useState<{ [key: string]: boolean }>({});
+  const [eventTournaments, setEventTournaments] = useState<Record<string, Tournament[]>>({});
+  const [frontendTournaments, setFrontendTournaments] = useState<Record<string, any>>({});
+
+  // Fetch events for this club
+  const { 
+    data: allEvents, 
+    isLoading, 
+    refetch: refetchEvents 
+  } = useQuery({
+    queryKey: ['club-events', clubId],
+    queryFn: async () => {
+      // Get all events and filter for club events
+      const events = await eventApi.getEvents();
+      return events.filter((event: Event) => {
+        if (isSponsorship) {
+          // For sponsors, show events they're tagged in, mentioned in, or created
+          const isTagged = event.tags?.some(tag => 
+            tag.toLowerCase() === clubUsername.toLowerCase()
+          );
+          
+          const isMentioned = event.description?.toLowerCase().includes(clubUsername.toLowerCase());
+          
+          const isCreator = event.creator?.id === user?.id;
+          
+          return isTagged || isMentioned || isCreator;
+        } else {
+          // For clubs, show events they created or are visible to them
+          return event.clubId === clubId || 
+            event.clubUsername === clubUsername ||
+            (event.visibility === EventVisibility.CLUB && event.creator.id === user?.id);
+        }
+      });
+    },
+    enabled: !!clubId && !!user,
+  });
+
+  // Filter events by status and visibility
+  const filteredEvents = allEvents?.filter((event: Event) => {
+    // Status filter
+    if (event.status !== activeTab) return false;
+    
+    // Only show DRAFT events to admins if showDrafts is true
+    if (event.status === EventStatus.DRAFT && (!isAdmin || !showDrafts)) return false;
+    
+    // For sponsors, show all events that match the filter criteria
+    if (isSponsorship) {
+      return true;
+    }
+    
+    // For clubs, apply visibility filter
+    if (event.visibility === EventVisibility.CLUB) {
+      return isMember; // Only show club events to members
+    } else if (event.visibility === EventVisibility.PRIVATE) {
+      return event.creator.id === user?.id || event.invitedUsers?.includes(user?.id || '');
+    }
+    
+    return true; // Public events are visible to all
+  }) || [];
+
+  // Load frontend tournaments from localStorage
+  useEffect(() => {
+    const loadFrontendTournaments = () => {
+      const savedTournaments = localStorage.getItem('frontend_tournaments');
+      if (savedTournaments) {
+        try {
+          const tournaments = JSON.parse(savedTournaments);
+          log.debug(LogCategory.TOURNAMENT, 'Loading tournaments from localStorage', { count: Object.keys(tournaments).length });
+          setFrontendTournaments(tournaments);
+        } catch (error) {
+          log.error(LogCategory.TOURNAMENT, 'Failed to load frontend tournaments', error);
+        }
+      }
+    };
+
+    loadFrontendTournaments();
+
+    const handleFocus = () => {
+      log.debug(LogCategory.TOURNAMENT, 'Window focus - reloading tournaments');
+      loadFrontendTournaments();
+    };
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'frontend_tournaments') {
+        log.debug(LogCategory.TOURNAMENT, 'Storage event - reloading tournaments');
+        loadFrontendTournaments();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
+  // WebSocket integration for real-time tournament updates
+  useEffect(() => {
+    if (!allEvents || allEvents.length === 0) return;
+
+    const eventIds = allEvents.map((event: Event) => event.id);
+    eventIds.forEach((eventId: string) => {
+      webSocketService.joinEventChat(eventId);
+    });
+
+    const handleTournamentUpdate = (data: any) => {
+      console.log('🔔 ClubEventsSection WebSocket tournament update received:', data);
+      
+      const relevantEventId = eventIds.find((eventId: string) => 
+        data.eventId === eventId || 
+        (eventTournaments[eventId] && eventTournaments[eventId].some(t => t.id === data.tournamentId))
+      );
+
+      if (relevantEventId && (
+        data.type === 'registration-opened' || 
+        data.type === 'registration-closed' || 
+        data.type === 'player-registered' || 
+        data.type === 'guest-player-added' ||
+        data.type === 'player-removed' ||
+        data.type === 'tournament-started' ||
+        data.type === 'tournament-created' ||
+        data.type === 'tournament-finished'
+      )) {
+        console.log('🔄 ClubEventsSection refreshing tournament data for event:', relevantEventId);
+        
+        const refreshEventTournaments = async () => {
+          try {
+            const tournaments = await tournamentService.getTournamentsByEvent(relevantEventId);
+            setEventTournaments(prev => ({
+              ...prev,
+              [relevantEventId]: tournaments
+            }));
+            
+            const allTournaments = JSON.parse(localStorage.getItem('frontend_tournaments') || '{}');
+            if (tournaments.length > 0) {
+              const tournament = tournaments[0];
+              const frontendTournament = {
+                id: tournament.id,
+                name: tournament.name,
+                status: tournament.isFinished 
+                  ? 'completed' 
+                  : tournament.isStarted 
+                    ? 'active' 
+                    : tournament.registrationOpen === false
+                      ? 'registration_closed'
+                      : 'registration_open',
+                players: tournament.players,
+                playerCount: tournament.players.length,
+                registeredUserCount: tournament.players.filter(p => !p.isGuest).length,
+                registeredUsers: tournament.players.filter(p => !p.isGuest),
+                winner: tournament.winnerId ? tournament.players.find(p => p.id === tournament.winnerId) : null,
+                createdAt: new Date(tournament.createdAt).getTime(),
+                startedAt: tournament.isStarted ? new Date(tournament.createdAt).getTime() : undefined,
+                createdBy: tournament.organizerId,
+                registrationOpen: tournament.registrationOpen
+              };
+              allTournaments[relevantEventId] = frontendTournament;
+            } else {
+              delete allTournaments[relevantEventId];
+            }
+            localStorage.setItem('frontend_tournaments', JSON.stringify(allTournaments));
+            setFrontendTournaments(allTournaments);
+          } catch (error) {
+            console.error('❌ Error refreshing tournament data:', error);
+          }
+        };
+        
+        refreshEventTournaments();
+      }
+    };
+
+    webSocketService.onTournamentUpdate(handleTournamentUpdate);
+
+    return () => {
+      eventIds.forEach((eventId: string) => {
+        webSocketService.leaveEventChat(eventId);
+      });
+      webSocketService.removeTournamentListeners();
+    };
+  }, [allEvents, eventTournaments]);
+
+  // Load tournament data for each event
+  useEffect(() => {
+    const loadTournamentData = async () => {
+      if (!allEvents || allEvents.length === 0) return;
+      
+      const tournamentPromises = allEvents.map(async (event: any) => {
+        try {
+          const tournaments = await tournamentService.getTournamentsByEvent(event.id);
+          return { eventId: event.id, tournaments };
+        } catch {
+          return { eventId: event.id, tournaments: [] };
+        }
+      });
+
+      const results = await Promise.all(tournamentPromises);
+      const tournamentMap: Record<string, Tournament[]> = {};
+      results.forEach(result => {
+        tournamentMap[result.eventId] = result.tournaments;
+      });
+      
+      setEventTournaments(tournamentMap);
+    };
+
+    loadTournamentData();
+  }, [allEvents]);
+
+  const getFrontendTournament = (eventId: string) => {
+    const tournaments = eventTournaments[eventId];
+    if (!tournaments || tournaments.length === 0) return null;
+    
+    const tournament = tournaments[0];
+    
+    return {
+      id: tournament.id,
+      name: tournament.name,
+      status: tournament.isFinished 
+        ? 'completed' 
+        : tournament.isStarted 
+          ? 'active' 
+          : tournament.registrationOpen === false
+            ? 'registration_closed'
+            : 'registration_open',
+      players: tournament.players,
+      playerCount: tournament.players.length,
+      registeredUserCount: tournament.players.filter(p => !p.isGuest).length,
+      registeredUsers: tournament.players.filter(p => !p.isGuest),
+      winner: tournament.winnerId ? tournament.players.find(p => p.id === tournament.winnerId) : null,
+      createdAt: new Date(tournament.createdAt).getTime(),
+      startedAt: tournament.isStarted ? new Date(tournament.createdAt).getTime() : undefined,
+      createdBy: tournament.organizerId,
+      registrationOpen: tournament.registrationOpen
+    };
+  };
+
+  const handleCreateTournament = async (eventId: string) => {
+    log.info(LogCategory.TOURNAMENT, 'Creating tournament for event', { eventId });
+    
+    try {
+      const event = allEvents?.find((e: Event) => e.id === eventId);
+      log.debug(LogCategory.TOURNAMENT, 'Found event for tournament', { eventTitle: event?.title });
+      
+      const eventTitle = event?.title || 'Event';
+      const creatorId = event?.creator?.id || event?.creatorId || '';
+      const feature = event?.features?.includes(EventFeatures.SWISS_TOURNAMENT) 
+        ? EventFeatures.SWISS_TOURNAMENT 
+        : EventFeatures.SINGLE_ELIMINATION_TOURNAMENT;
+      
+      if (feature === EventFeatures.SWISS_TOURNAMENT) {
+        navigate(`/tournament/swiss?eventId=${eventId}&eventTitle=${encodeURIComponent(eventTitle)}&creatorId=${creatorId}&feature=${feature}`);
+      } else {
+        navigate(`/tournament/single-elimination?eventId=${eventId}&eventTitle=${encodeURIComponent(eventTitle)}&creatorId=${creatorId}&feature=${feature}`);
+      }
+    } catch (error) {
+      log.error(LogCategory.TOURNAMENT, 'Failed to navigate to tournament creation', error);
+      alert('Failed to navigate to tournament creation. Please try again.');
+    }
+  };
+
+  const getTournamentButtonInfo = (event: Event) => {
+    const tournament = getFrontendTournament(event.id);
+    const isCreator = canEditEvent(event);
+    const tournamentType = event.features?.includes(EventFeatures.SWISS_TOURNAMENT) ? 'swiss' : 'single-elimination';
+    
+    if (!tournament) {
+      return isCreator 
+        ? { text: 'Create Tournament', action: () => navigate(`/tournament/${tournamentType}?eventId=${event.id}&eventTitle=${encodeURIComponent(event.title)}&creatorId=${event.creator?.id || event.creatorId}&feature=${event.features?.includes(EventFeatures.SWISS_TOURNAMENT) ? EventFeatures.SWISS_TOURNAMENT : EventFeatures.SINGLE_ELIMINATION_TOURNAMENT}`), disabled: false }
+        : { text: 'No Tournament', action: () => {}, disabled: true };
+    }
+
+    const tournamentId = tournament.id;
+    if (!tournamentId) {
+      return { text: 'Invalid Tournament', action: () => {}, disabled: true };
+    }
+
+    switch (tournament.status) {
+      case 'not_created':
+        return isCreator 
+          ? { text: 'Create Tournament', action: () => navigate(`/tournament/${tournamentType}?eventId=${event.id}&eventTitle=${encodeURIComponent(event.title)}&creatorId=${event.creator?.id || event.creatorId}&feature=${event.features?.includes(EventFeatures.SWISS_TOURNAMENT) ? EventFeatures.SWISS_TOURNAMENT : EventFeatures.SINGLE_ELIMINATION_TOURNAMENT}`), disabled: false }
+          : { text: 'No Tournament', action: () => {}, disabled: true };
+      
+      case 'registration_open':
+        if (isCreator) {
+          return { text: 'Manage Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/manage`), disabled: false };
+        } else {
+          const isParticipant = user && tournament.players?.some((p: any) => p.userId === user.id);
+          return isParticipant
+            ? { text: 'Tournament Ready', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}`), disabled: false }
+            : { text: 'Join Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}`), disabled: false };
+        }
+      
+      case 'registration_closed':
+        if (isCreator) {
+          return { text: 'Start Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/manage`), disabled: false };
+        } else {
+          const isParticipant = user && tournament.players?.some((p: any) => p.userId === user.id);
+          return isParticipant
+            ? { text: 'Tournament Ready', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}`), disabled: false }
+            : { text: 'Registration Closed', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}`), disabled: false };
+        }
+      
+      case 'active':
+        if (isCreator) {
+          return { text: 'Manage Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/manage`), disabled: false };
+        } else {
+          const isParticipant = user && tournament.players?.some((p: any) => p.userId === user.id);
+          return isParticipant
+            ? { text: 'Tournament Live', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/results`), disabled: false }
+            : { text: 'View Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/results`), disabled: false };
+        }
+      
+      case 'completed':
+        if (isCreator) {
+          return { text: 'Manage Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/manage`), disabled: false };
+        } else {
+          return { text: 'View Results', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/results`), disabled: false };
+        }
+      
+      default:
+        return { text: 'View Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}`), disabled: false };
+    }
+  };
 
   // Ensure non-admin users can't access DRAFT tab
   useEffect(() => {
@@ -45,43 +374,6 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
-
-  // Fetch events for this club
-  const { 
-    data: allEvents, 
-    isLoading, 
-    refetch: refetchEvents 
-  } = useQuery({
-    queryKey: ['club-events', clubId],
-    queryFn: async () => {
-      // Get all events and filter for club events
-      const events = await eventApi.getEvents();
-      return events.filter((event: Event) => 
-        event.clubId === clubId || 
-        event.clubUsername === clubUsername ||
-        (event.visibility === EventVisibility.CLUB && event.creator.id === user?.id)
-      );
-    },
-    enabled: !!clubId && !!user,
-  });
-
-  // Filter events by status and visibility
-  const filteredEvents = allEvents?.filter((event: Event) => {
-    // Status filter
-    if (event.status !== activeTab) return false;
-    
-    // Only show DRAFT events to admins
-    if (event.status === EventStatus.DRAFT && !isAdmin) return false;
-    
-    // Visibility filter - only show events user can see
-    if (event.visibility === EventVisibility.CLUB) {
-      return isMember; // Only show club events to members
-    } else if (event.visibility === EventVisibility.PRIVATE) {
-      return event.creator.id === user?.id || event.invitedUsers?.includes(user?.id || '');
-    }
-    
-    return true; // Public events are visible to all
-  }) || [];
 
   const deleteMutation = useMutation({
     mutationFn: async (eventId: string) => {
@@ -169,7 +461,9 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Club Events</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+          {isSponsorship ? 'Sponsored Events' : 'Club Events'}
+        </h2>
         {isAdmin && (
           <button
             type="button"
@@ -186,10 +480,10 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
       </div>
 
       {/* Quick Stats */}
-      <div className={`grid grid-cols-1 ${isAdmin ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>
+      <div className={`grid grid-cols-1 ${showDrafts ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>
         {[
-          // Only show Draft Events to admins
-          ...(isAdmin ? [{
+          // Only show Draft Events if showDrafts is true
+          ...(showDrafts ? [{
             id: 'draft',
             title: 'Draft Events',
             count: allEvents?.filter((e: Event) => e.status === EventStatus.DRAFT).length || 0,
@@ -221,8 +515,8 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
       <div className="border-b border-gray-200/50 dark:border-gray-700/50">
         <nav className="-mb-px flex space-x-8">
           {[
-            // Only show Draft tab to admins
-            ...(isAdmin ? [EventStatus.DRAFT] : []),
+            // Only show Draft tab if showDrafts is true
+            ...(showDrafts ? [EventStatus.DRAFT] : []),
             EventStatus.LIVE,
             EventStatus.PAST
           ].map((status) => (
@@ -322,10 +616,10 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
                     </div>
                     
                     {/* Tournament */}
-                    {(event.features && event.features.includes(EventFeatures.SINGLE_ELIMINATION_TOURNAMENT)) && (
+                    {(event.features && (event.features.includes(EventFeatures.SINGLE_ELIMINATION_TOURNAMENT) || event.features.includes(EventFeatures.SWISS_TOURNAMENT))) && (
                       <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                         <TrophyIcon className="h-4 w-4 mr-2" />
-                        Tournament: Single Elimination
+                        Tournament: {event.features.includes(EventFeatures.SWISS_TOURNAMENT) ? 'Swiss' : 'Single Elimination'}
                       </div>
                     )}
                     
@@ -369,18 +663,36 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
                   </div>
                   
                   <div className="mt-6 space-y-3">
-                    {canEditEvent(event) ? (
-                      <>
-                        <button
-                          type="button"
-                          className="btn btn-secondary flex-1"
-                          onClick={() => {
-                            setSelectedEvent({ ...event, id: event.id });
-                            setIsCreateModalOpen(true);
-                          }}
-                        >
-                          Edit
-                        </button>
+                    <div className="flex space-x-3">
+                      {canEditEvent(event) ? (
+                        <>
+                          <button
+                            type="button"
+                            className="btn btn-secondary flex-1"
+                            onClick={() => {
+                              setSelectedEvent({ ...event, id: event.id });
+                              setIsCreateModalOpen(true);
+                            }}
+                          >
+                            {event.status === EventStatus.DRAFT ? 'Make Live' : 'Edit'}
+                          </button>
+                          <button 
+                            type="button"
+                            className="btn btn-primary flex-1"
+                            onClick={() => navigate(`/event/${event.id}`)}
+                          >
+                            View Details
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-danger p-2"
+                            onClick={() => handleDeleteClick(event)}
+                            title="Delete Event"
+                          >
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
+                        </>
+                      ) : (
                         <button 
                           type="button"
                           className="btn btn-primary flex-1"
@@ -388,23 +700,48 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
                         >
                           View Details
                         </button>
-                        <button
-                          type="button"
-                          className="btn btn-danger p-2"
-                          onClick={() => handleDeleteClick(event)}
-                          title="Delete Event"
-                        >
-                          <TrashIcon className="h-5 w-5" />
-                        </button>
-                      </>
-                    ) : (
-                      <button 
-                        type="button"
-                        className="btn btn-primary flex-1"
-                        onClick={() => navigate(`/event/${event.id}`)}
-                      >
-                        View Details
-                      </button>
+                      )}
+                    </div>
+
+                    {/* Tournament Actions */}
+                    {(event.features && (event.features.includes(EventFeatures.SINGLE_ELIMINATION_TOURNAMENT) || event.features.includes(EventFeatures.SWISS_TOURNAMENT))) && (
+                      function() {
+                        const buttonInfo = getTournamentButtonInfo(event);
+                        const tournamentType = event.features.includes(EventFeatures.SWISS_TOURNAMENT) ? 'swiss' : 'single-elimination';
+                        const frontendTournament = getFrontendTournament(event.id);
+                        return (
+                          <button
+                            type="button"
+                            className={`w-full px-4 py-2 font-medium rounded-md transition-all duration-200 flex items-center justify-center ${
+                              buttonInfo.disabled 
+                                ? 'bg-gray-400 text-gray-700 cursor-not-allowed dark:bg-gray-600 dark:text-gray-400'
+                                : 'bg-blue-800 text-white hover:bg-blue-900 dark:bg-blue-700 dark:hover:bg-blue-800'
+                            }`}
+                            onClick={() => {
+                              if (buttonInfo.action && frontendTournament) {
+                                const url = buttonInfo.action.toString();
+                                if (url.includes('/tournament/')) {
+                                  if (url.includes('/results')) {
+                                    navigate(`/tournament/${tournamentType}/${frontendTournament.id}/results`);
+                                  } else if (url.includes('/manage')) {
+                                    navigate(`/tournament/${tournamentType}/${frontendTournament.id}/manage`);
+                                  } else {
+                                    navigate(`/tournament/${tournamentType}?eventId=${event.id}&eventTitle=${encodeURIComponent(event.title)}&creatorId=${event.creator?.id || event.creatorId}&feature=${event.features?.includes(EventFeatures.SWISS_TOURNAMENT) ? EventFeatures.SWISS_TOURNAMENT : EventFeatures.SINGLE_ELIMINATION_TOURNAMENT}`);
+                                  }
+                                } else {
+                                  handleCreateTournament(event.id);
+                                }
+                              } else {
+                                handleCreateTournament(event.id);
+                              }
+                            }}
+                            disabled={buttonInfo.disabled}
+                          >
+                            <TrophyIcon className="h-4 w-4 mr-2" />
+                            {buttonInfo.text}
+                          </button>
+                        );
+                      }()
                     )}
                   </div>
                 </div>

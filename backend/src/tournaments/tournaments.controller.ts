@@ -21,12 +21,14 @@ import {
   RemovePlayerDto, 
   ReportResultDto, 
   ConfirmResultDto, 
-  OverrideResultDto 
+  OverrideResultDto,
+  TournamentPlayerDto
 } from './dto/tournament.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Event, EventDocument } from '../events/schemas/event.schema';
 import { Public } from '../auth/decorators/public.decorator';
+import { TournamentType } from '../models/tournament.model';
 
 interface AuthenticatedRequest {
   user: {
@@ -60,62 +62,28 @@ export class TournamentsController {
 
   @Post('create')
   @HttpCode(HttpStatus.CREATED)
-  // @UseGuards(AuthGuard('jwt')) // Temporarily removed for testing
-  async createTournament(@Body() createTournamentDto: CreateTournamentDto, @Request() req: AuthenticatedRequest) {
-    console.log('🎯 Tournament creation endpoint hit!', {
-      body: createTournamentDto,
-      hasUser: !!req.user
-    });
-    
-    try {
-      console.log('🔍 Extracting user ID from request...');
-      console.log('📋 req.user:', req.user);
-      
-      // For testing, use a dummy user ID
-      const userId = req.user?.sub || req.user?._id || req.user?.id || 'test-user-id';
-      console.log('👤 Extracted userId:', userId);
-      
-      if (!userId) {
-        console.log('❌ No user ID found in request');
-        throw new BadRequestException('User ID not found in request');
+  async createTournament(
+    @Body() createTournamentDto: CreateTournamentDto,
+    @Request() req: AuthenticatedRequest
+  ) {
+    // Validate Swiss tournament requirements
+    if (createTournamentDto.type === TournamentType.SWISS) {
+      if (!createTournamentDto.numRounds) {
+        throw new BadRequestException('Number of rounds is required for Swiss tournaments');
       }
-      
-      console.log('🏁 Calling tournamentsService.createTournament...');
-      const tournament = await this.tournamentsService.createTournament(
-        createTournamentDto, 
-        userId
-      );
-      
-      console.log('✅ Tournament created successfully:', tournament);
-      const response = {
-        success: true,
-        message: 'Tournament created successfully',
-        data: tournament,
-      };
-      console.log('📤 Sending response:', response);
-      return response;
-    } catch (error) {
-      console.log('💥 Error in createTournament controller:', error);
-      console.log('🔍 Error details:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
-      throw error;
+      if (createTournamentDto.numRounds < 1 || createTournamentDto.numRounds > 10) {
+        throw new BadRequestException('Number of rounds must be between 1 and 10');
+      }
     }
+
+    const tournament = await this.tournamentsService.createTournament(createTournamentDto, req.user.sub);
+    return { data: tournament };
   }
 
   @Get('event/:eventId')
-  async getTournamentsByEvent(@Param('eventId') eventId: string) {
-    try {
-      const tournaments = await this.tournamentsService.getTournamentsByEvent(eventId);
-      return {
-        success: true,
-        data: tournaments,
-      };
-    } catch (error) {
-      throw error;
-    }
+  async getTournamentByEvent(@Param('eventId') eventId: string) {
+    const tournaments = await this.tournamentsService.getTournamentsByEvent(eventId);
+    return { data: tournaments };
   }
 
   @Get('debug/available-events')
@@ -207,15 +175,8 @@ export class TournamentsController {
 
   @Get(':id')
   async getTournament(@Param('id') id: string) {
-    try {
-      const tournament = await this.tournamentsService.getTournament(id);
-      return {
-        success: true,
-        data: tournament,
-      };
-    } catch (error) {
-      throw error;
-    }
+    const tournament = await this.tournamentsService.getTournament(id);
+    return { data: tournament };
   }
 
   @Get(':id/enhanced')
@@ -293,67 +254,28 @@ export class TournamentsController {
 
   @Post(':id/start')
   @HttpCode(HttpStatus.OK)
-  async startTournament(@Param('id') tournamentId: string, @Request() req: AuthenticatedRequest) {
-    try {
-      const userId = req.user.sub || req.user._id || req.user.id;
-      if (!userId) {
-        throw new BadRequestException('User ID not found in request');
-      }
-      const tournament = await this.tournamentsService.startTournament(
-        tournamentId, 
-        userId
-      );
-      return {
-        success: true,
-        message: 'Tournament started successfully',
-        data: tournament,
-      };
-    } catch (error) {
-      throw error;
-    }
+  async startTournament(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest
+  ) {
+    return this.tournamentsService.startTournament(id, req.user.sub);
   }
 
-  @Post('report-result')
-  @HttpCode(HttpStatus.OK)
-  async reportResult(@Body() reportResultDto: ReportResultDto, @Request() req: AuthenticatedRequest) {
-    console.log('🎯 REPORT RESULT ENDPOINT HIT!', {
-      timestamp: new Date().toISOString(),
-      body: reportResultDto,
-      hasUser: !!req.user,
-      userInfo: req.user ? {
-        sub: req.user.sub,
-        id: req.user.id,
-        _id: req.user._id
-      } : null
-    });
-    
-    try {
-      const userId = req.user.sub || req.user._id || req.user.id;
-      if (!userId) {
-        console.log('❌ No user ID found in request');
-        throw new BadRequestException('User ID not found in request');
-      }
-      
-      console.log('🔄 Calling tournamentsService.reportResult with:', {
-        reportResultDto,
-        userId
-      });
-      
-      const tournament = await this.tournamentsService.reportResult(
-        reportResultDto, 
-        userId
-      );
-      
-      console.log('✅ Match result reported successfully');
-      return {
-        success: true,
-        message: 'Match result reported successfully',
-        data: tournament,
-      };
-    } catch (error) {
-      console.log('💥 Error in reportResult controller:', error);
-      throw error;
-    }
+  @Post(':id/report-result')
+  async reportResult(
+    @Param('id') id: string,
+    @Body() reportResultDto: ReportResultDto,
+    @Request() req: AuthenticatedRequest
+  ) {
+    return this.tournamentsService.reportResult({
+      ...reportResultDto,
+      tournamentId: id
+    }, req.user.sub);
+  }
+
+  @Get(':id/standings')
+  async getStandings(@Param('id') id: string): Promise<TournamentPlayerDto[]> {
+    return this.tournamentsService.getStandings(id);
   }
 
   @Post('confirm-result')

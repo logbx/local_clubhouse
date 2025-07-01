@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { tournamentService, Tournament } from '../services/tournament.service';
+import { tournamentService, Tournament, TournamentMatch, TournamentType } from '../services/tournament.service';
 import { webSocketService } from '../services/websocket.service';
 import { TrophyIcon, UserPlusIcon, PlayIcon, TrashIcon, EyeIcon, CogIcon, FireIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import TournamentSetup from '../components/TournamentSetup';
 import TournamentBracket from '../components/TournamentBracket';
+import SwissTournamentPairings from '../components/SwissTournamentPairings';
+import SwissTournamentStandings from '../components/SwissTournamentStandings';
+import { toast } from 'react-hot-toast';
+import { MatchResultModal } from '../components/MatchResultModal';
 
 const TournamentManagePage: React.FC = () => {
-  const { tournamentId } = useParams<{ tournamentId: string }>();
+  const { tournamentId } = useParams();
   const [searchParams] = useSearchParams();
   const eventId = searchParams.get('eventId');
   const eventTitle = searchParams.get('eventTitle') || '';
@@ -17,52 +21,58 @@ const TournamentManagePage: React.FC = () => {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'setup' | 'bracket' | 'players' | 'live'>('setup');
+  const [activeTab, setActiveTab] = useState<'setup' | 'players' | 'rounds' | 'live'>('setup');
   const [guestName, setGuestName] = useState('');
   const [addingGuest, setAddingGuest] = useState(false);
   const [creating, setCreating] = useState(false);
   const [tournamentName, setTournamentName] = useState<string>(() => searchParams.get('eventTitle') || '');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [selectedMatch, setSelectedMatch] = useState<TournamentMatch | null>(null);
+  const [showResultModal, setShowResultModal] = useState(false);
 
   // If no tournamentId but eventId is provided, show creation interface
   const isCreating = !tournamentId && eventId;
 
-  useEffect(() => {
-    const fetchTournament = async () => {
-      if (!tournamentId) {
-        setLoading(false);
-        return;
-      }
-      
-      try {
-        const data = await tournamentService.getTournament(tournamentId);
-        setTournament(data);
+  const loadTournament = async () => {
+    if (!tournamentId) return null;
+    
+    try {
+      setLoading(true);
+      const tournamentData = await tournamentService.getTournament(tournamentId);
+      if (tournamentData) {
+        setTournament(tournamentData);
         
         // Auto-select appropriate tab based on tournament state
-        if (data.isStarted) {
+        if (tournamentData.isStarted) {
           setActiveTab('live');
-        } else if (data.players.length > 0) {
+        } else if (tournamentData.players.length > 0) {
           setActiveTab('players');
         } else {
           setActiveTab('setup');
         }
-      } catch (err) {
-        console.error('Failed to fetch tournament:', err);
-        setError('Failed to load tournament');
-      } finally {
-        setLoading(false);
       }
-    };
+      return tournamentData;
+    } catch (error) {
+      console.error('Error loading tournament:', error);
+      setError('Failed to load tournament');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchTournament();
+  useEffect(() => {
+    if (tournamentId) {
+      loadTournament().catch(console.error);
+    }
   }, [tournamentId]);
 
   // WebSocket handling for real-time updates
   useEffect(() => {
-    if (!tournament?.eventId) return;
+    if (!tournament?.eventId) return undefined;
 
-    // Join the event room to receive tournament updates
+    // Join event chat synchronously since it doesn't return a promise
     webSocketService.joinEventChat(tournament.eventId);
 
     const handleTournamentUpdate = (data: any) => {
@@ -70,25 +80,19 @@ const TournamentManagePage: React.FC = () => {
       
       if (data.type === 'registration-opened' || data.type === 'registration-closed' || 
           data.type === 'player-registered' || data.type === 'guest-player-added' ||
-          data.type === 'player-removed' || data.type === 'tournament-started') {
-        // Refresh tournament data when registration status or players change
-        const refreshTournament = async () => {
-          try {
-            if (tournamentId) {
-              const updatedTournament = await tournamentService.getTournament(tournamentId);
-              setTournament(updatedTournament);
-            }
-          } catch (error) {
-            console.error('❌ Error refreshing tournament data:', error);
-          }
-        };
-        refreshTournament();
+          data.type === 'player-removed' || data.type === 'tournament-started' ||
+          data.type === 'match-result-submitted' || data.type === 'round-started') {
+        // Call loadTournament and handle any errors
+        void loadTournament().catch(error => {
+          console.error('Failed to refresh tournament:', error);
+        });
       }
     };
 
-    // Subscribe to WebSocket tournament updates
+    // Set up tournament update listener
     webSocketService.onTournamentUpdate(handleTournamentUpdate);
 
+    // Cleanup function
     return () => {
       webSocketService.removeTournamentListeners();
     };
@@ -106,16 +110,15 @@ const TournamentManagePage: React.FC = () => {
       });
 
       const newTournament = await tournamentService.createTournament(
-        `${tournamentName} Tournament`,
         eventId,
-        32
+        `${tournamentName} Tournament`,
+        32,
+        TournamentType.SINGLE_ELIMINATION,
+        3
       );
 
       console.log('✅ Tournament created successfully:', newTournament);
-      
-      // Navigate to the same page but with the new tournament ID
       navigate(`/tournament/${newTournament.id}/manage`, { replace: true });
-      
     } catch (err) {
       console.error('❌ Failed to create tournament:', err);
       setError('Failed to create tournament. Please try again.');
@@ -128,9 +131,11 @@ const TournamentManagePage: React.FC = () => {
     if (!tournamentId) return;
 
     try {
-      const updatedTournament = await tournamentService.startTournament(tournamentId);
-      setTournament(updatedTournament);
-      setActiveTab('live');
+      await tournamentService.startTournament(tournamentId);
+      const updatedTournament = await loadTournament();
+      if (updatedTournament) {
+        setTournament(updatedTournament);
+      }
     } catch (err) {
       console.error('Failed to start tournament:', err);
       alert('Failed to start tournament. Please try again.');
@@ -203,6 +208,85 @@ const TournamentManagePage: React.FC = () => {
     } catch (err) {
       console.error('Failed to close registration:', err);
       alert('Failed to close registration. Please try again.');
+    }
+  };
+
+  const handleMatchResult = async (winnerId: string | null, loserId: string | null, isDraw: boolean = false, notes?: string) => {
+    if (!tournament || !selectedMatch) return;
+
+    try {
+      await tournamentService.submitMatchResult(tournament.id, selectedMatch.matchId, winnerId, loserId, isDraw, notes);
+      toast.success('Match result submitted successfully!');
+      await loadTournament();
+      setShowResultModal(false);
+    } catch (error) {
+      console.error('Error submitting match result:', error);
+      toast.error('Failed to submit match result');
+    }
+  };
+
+  const handlePlayerMatchResult = async (match: TournamentMatch, result: 'win' | 'loss' | 'draw') => {
+    if (!tournament || !user) return;
+
+    const isOrganizer = tournament.organizerId === user.id;
+    const isPlayer1 = match.player1.id === user.id;
+    const isPlayer2 = match.player2.id === user.id;
+    const isParticipant = isPlayer1 || isPlayer2;
+
+    try {
+      let winnerId: string | null = null;
+      let loserId: string | null = null;
+      let isDraw = false;
+
+      if (result === 'draw') {
+        isDraw = true;
+      } else {
+        // Handle win/loss
+        if (isOrganizer) {
+          // Organizer is setting explicit winner/loser
+          winnerId = result === 'win' ? match.player1.id : match.player2.id;
+          loserId = result === 'win' ? match.player2.id : match.player1.id;
+        } else if (isParticipant) {
+          // Player is reporting their own result
+          winnerId = result === 'win' ? user.id : (isPlayer1 ? match.player2.id : match.player1.id);
+          loserId = result === 'win' ? (isPlayer1 ? match.player2.id : match.player1.id) : user.id;
+        } else {
+          toast.error('You are not authorized to report this match result');
+          return;
+        }
+      }
+
+      await tournamentService.submitMatchResult(tournament.id, match.matchId, winnerId, loserId, isDraw);
+      toast.success(
+        isOrganizer && match.status !== 'pending'
+          ? 'Match result overridden successfully!'
+          : 'Match result submitted successfully!'
+      );
+      await loadTournament();
+      setShowResultModal(false);
+    } catch (error) {
+      console.error('Error submitting match result:', error);
+      toast.error('Failed to submit match result');
+    }
+  };
+
+  const openMatchResultModal = (match: TournamentMatch) => {
+    setSelectedMatch(match);
+    setShowResultModal(true);
+  };
+
+  const handleStartNextRound = async () => {
+    if (!tournamentId || !tournament) return;
+
+    try {
+      await tournamentService.startNextRound(tournamentId);
+      const updatedTournament = await loadTournament();
+      if (updatedTournament) {
+        setTournament(updatedTournament);
+      }
+    } catch (err) {
+      console.error('Failed to start next round:', err);
+      alert('Failed to start next round. Please try again.');
     }
   };
 
@@ -424,7 +508,7 @@ const TournamentManagePage: React.FC = () => {
             {[
               { id: 'setup', label: 'Setup', icon: CogIcon },
               { id: 'players', label: 'Players', icon: UserPlusIcon },
-              { id: 'bracket', label: 'Bracket', icon: TrophyIcon },
+              { id: 'rounds', label: 'Rounds', icon: TrophyIcon },
               { id: 'live', label: 'Live Management', icon: FireIcon },
             ].map(({ id, label, icon: Icon }) => (
               <button
@@ -668,6 +752,59 @@ const TournamentManagePage: React.FC = () => {
           </div>
         )}
 
+        {activeTab === 'rounds' && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Tournament Rounds</h2>
+              
+              {tournament.isStarted && !tournament.isFinished && (tournament.currentRound || 0) < (tournament.numRounds || 3) && (
+                <button
+                  onClick={handleStartNextRound}
+                  className="btn btn-primary"
+                >
+                  <PlayIcon className="h-4 w-4 mr-2" />
+                  Start Round {(tournament.currentRound || 0) + 1}
+                </button>
+              )}
+            </div>
+
+            {/* Tournament Standings */}
+            <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6 mb-8">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Current Standings</h3>
+              <SwissTournamentStandings
+                players={tournament.players}
+                isFinished={tournament.isFinished}
+              />
+            </div>
+
+            {/* Rounds List */}
+            <div className="space-y-8">
+              {tournament.rounds.map((round, index) => (
+                <div key={index} className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Round {round.roundNumber} {round.isComplete ? '(Complete)' : '(In Progress)'}
+                    </h3>
+                    {round.byePlayers && round.byePlayers.length > 0 && (
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        Bye: {round.byePlayers.map(p => p.name).join(', ')}
+                      </div>
+                    )}
+                  </div>
+                  <SwissTournamentPairings
+                    round={round}
+                    currentRound={tournament.currentRound || 1}
+                    totalRounds={tournament.numRounds || 3}
+                    onReportResult={(match, result) => openMatchResultModal(match)}
+                    isOrganizer={tournament.organizerId === user?.id}
+                    allowDraws={true}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {activeTab === 'live' && (
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Live Tournament Management</h2>
@@ -721,14 +858,14 @@ const TournamentManagePage: React.FC = () => {
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
                   <div className="flex flex-wrap gap-3">
                     <button
-                      onClick={() => navigate(`/tournament/${tournamentId}/results`)}
+                      onClick={() => navigate(`/tournament/${tournament?.type === TournamentType.SWISS ? 'swiss' : 'single-elimination'}/${tournamentId}/results`)}
                       className="btn btn-primary"
                     >
                       <EyeIcon className="h-4 w-4 mr-2" />
                       View Results Page
                     </button>
                     <button
-                      onClick={() => navigate(`/tournament/${tournamentId}`)}
+                      onClick={() => navigate(`/tournament/${tournament?.type === TournamentType.SWISS ? 'swiss' : 'single-elimination'}/${tournamentId}`)}
                       className="btn btn-secondary"
                     >
                       <TrophyIcon className="h-4 w-4 mr-2" />
@@ -752,37 +889,6 @@ const TournamentManagePage: React.FC = () => {
                   />
                 </div>
               </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'bracket' && (
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Tournament Bracket</h2>
-            
-            {!tournament.isStarted ? (
-              <div className="text-center py-12">
-                <TrophyIcon className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Tournament Not Started</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Start the tournament to generate the bracket and begin matches.
-                </p>
-                {canStartTournament && (
-                  <button
-                    onClick={handleStartTournament}
-                    className="mt-4 btn btn-success"
-                  >
-                    <PlayIcon className="h-4 w-4 mr-2" />
-                    Start Tournament
-                  </button>
-                )}
-              </div>
-            ) : (
-              <TournamentBracket 
-                tournament={tournament} 
-                onTournamentUpdate={setTournament}
-                isManageMode={true}
-              />
             )}
           </div>
         )}
@@ -834,6 +940,50 @@ const TournamentManagePage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Match Result Modal */}
+      {selectedMatch && (
+        <MatchResultModal
+          isOpen={showResultModal}
+          onClose={() => {
+            setShowResultModal(false);
+            setSelectedMatch(null);
+          }}
+          match={selectedMatch}
+          currentUserId={user?.id || ''}
+          isCreator={tournament?.organizerId === user?.id}
+          onSubmitResult={handleMatchResult}
+          onConfirmResult={async () => {
+            if (!tournament || !selectedMatch) return;
+            await tournamentService.confirmMatchResult(tournament.id, selectedMatch.matchId);
+            toast.success('Match result confirmed!');
+            await loadTournament();
+            setShowResultModal(false);
+          }}
+          onDisputeResult={async (reason) => {
+            if (!tournament || !selectedMatch) return;
+            await tournamentService.disputeMatchResult(tournament.id, selectedMatch.matchId, reason);
+            toast.success('Match result disputed');
+            await loadTournament();
+            setShowResultModal(false);
+          }}
+          onResolveDispute={async (winnerId, loserId, isDraw, notes) => {
+            if (!tournament || !selectedMatch) return;
+            await tournamentService.resolveMatchDispute(tournament.id, selectedMatch.matchId, winnerId, loserId, isDraw, notes);
+            toast.success('Dispute resolved');
+            await loadTournament();
+            setShowResultModal(false);
+          }}
+          onForfeit={async (forfeitingPlayerId) => {
+            if (!tournament || !selectedMatch) return;
+            await tournamentService.forfeitMatch(tournament.id, selectedMatch.matchId, forfeitingPlayerId);
+            toast.success('Match forfeited');
+            await loadTournament();
+            setShowResultModal(false);
+          }}
+          isSingleElimination={tournament?.type === TournamentType.SINGLE_ELIMINATION}
+        />
       )}
     </div>
   );

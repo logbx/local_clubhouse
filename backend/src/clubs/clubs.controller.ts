@@ -14,7 +14,7 @@ import {
   HttpCode
 } from '@nestjs/common';
 import { ClubsService } from './clubs.service';
-import { CreateClubDto, UpdateClubDto, AddClubCommentDto, ChatMessageDto, UpdateMemberRoleDto, UpdateClubProfileDto, DeleteCommentDto, CreateClubGroupChatDto, UpdateClubGroupChatDto, AddGroupChatMemberDto, GroupChatMessageDto } from './dto/club.dto';
+import { CreateClubDto, UpdateClubDto, AddClubCommentDto, ChatMessageDto, UpdateMemberRoleDto, UpdateClubProfileDto, CreateClubGroupChatDto, UpdateClubGroupChatDto, AddGroupChatMemberDto, GroupChatMessageDto } from './dto/club.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Public } from '../auth/decorators/public.decorator';
 import { ClubAdminGuard } from './guards/club-admin.guard';

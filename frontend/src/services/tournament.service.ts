@@ -1,5 +1,10 @@
 import { api } from './api';
 
+export enum TournamentType {
+  SINGLE_ELIMINATION = 'single_elimination',
+  SWISS = 'swiss'
+}
+
 export interface TournamentPlayer {
   id: string;
   name: string;
@@ -10,6 +15,11 @@ export interface TournamentPlayer {
   hasConfirmedWin?: boolean;
   hasReported?: boolean;
   registeredAt?: string;
+  // Swiss tournament specific fields
+  points?: number;
+  wins?: number;
+  buchholzScore?: number;
+  pastOpponents?: string[];
 }
 
 export interface MatchResult {
@@ -29,23 +39,36 @@ export interface MatchResult {
 export interface TournamentMatch {
   matchId: string;
   roundNumber: number;
-  player1: TournamentPlayer;
-  player2: TournamentPlayer;
-  winnerId?: string;
-  loserId?: string;
-  status: 'pending' | 'submitted' | 'confirmed' | 'disputed' | 'completed' | 'forfeit';
-  result?: MatchResult;
-  resultHistory?: MatchResult[];
+  player1: {
+    id: string;
+    userId: string;
+    name: string;
+    fullName?: string;
+    isGuest?: boolean;
+  };
+  player2: {
+    id: string;
+    userId: string;
+    name: string;
+    fullName?: string;
+    isGuest?: boolean;
+  };
+  status: 'pending' | 'submitted' | 'disputed' | 'completed' | 'forfeit';
+  winnerId?: string | null;
+  loserId?: string | null;
+  isDraw?: boolean;
+  result?: {
+    winnerId?: string | null;
+    loserId?: string | null;
+    isDraw?: boolean;
+    submittedAt: string;
+    notes?: string;
+    status?: string;
+    disputeReason?: string;
+    disputedAt?: string;
+    resolvedAt?: string;
+  };
   resultReportedBy?: string[];
-  disputeReason?: string;
-  disputedBy?: string;
-  disputedAt?: string;
-  resolvedBy?: string;
-  resolutionNotes?: string;
-  canSubmitResult: boolean;
-  requiresCreatorDecision: boolean;
-  createdAt: string;
-  completedAt?: string;
 }
 
 export interface TournamentRound {
@@ -73,91 +96,39 @@ export interface Tournament {
   winnerId?: string;
   createdAt: Date;
   updatedAt: Date;
+  type: TournamentType;
+  numRounds?: number; // Optional for single elimination
+  currentRound?: number; // Optional for single elimination
+  byePlayers?: TournamentPlayer[];
+  standings?: TournamentPlayer[];
+  // Frontend-specific fields
+  status?: 'registration_open' | 'registration_closed' | 'active' | 'completed';
+  registeredUsers?: Array<{
+    userId: string;
+    username: string;
+    registeredAt: number;
+  }>;
 }
 
-class TournamentService {
-  async createTournament(name: string, eventId: string, maxPlayers: number): Promise<Tournament> {
-    // Creating tournament: ${name} for event ${eventId}
-    
+export class TournamentService {
+  async createTournament(
+    eventId: string,
+    name: string,
+    maxPlayers: number,
+    type: TournamentType,
+    numRounds?: number
+  ): Promise<Tournament> {
     try {
-      // Check if we have authentication token
-      const token = localStorage.getItem('accessToken');
-      if (!token) {
-        throw new Error('No authentication token found. Please log in again.');
-      }
-
       const response = await api.post('/api/tournaments/create', {
-        name,
         eventId,
+        name,
         maxPlayers,
+        type,
+        numRounds: type === TournamentType.SWISS ? numRounds : undefined
       });
-      
-      console.log('✅ Tournament creation successful:', response.data);
       return response.data.data;
-    } catch (error: any) {
-      console.error('❌ Error creating tournament:', error);
-      
-      // Enhanced error logging
-      const errorDetails = {
-        message: error?.message,
-        status: error?.response?.status,
-        statusText: error?.response?.statusText,
-        data: error?.response?.data,
-        url: error?.config?.url,
-        method: error?.config?.method,
-        headers: error?.config?.headers,
-        isAuthError: error?.response?.status === 401,
-        isNetworkError: !error?.response,
-        fullRequestConfig: error?.config
-      };
-      
-      console.error('📊 Detailed error info:', errorDetails);
-      
-      // Log the exact request that was made
-      if (error?.config) {
-        console.error('🔍 Exact request that failed:', {
-          method: error.config.method?.toUpperCase(),
-          url: error.config.url,
-          baseURL: error.config.baseURL,
-          fullURL: `${error.config.baseURL}${error.config.url}`,
-          headers: error.config.headers,
-          data: error.config.data
-        });
-      }
-      
-      // Handle specific error cases
-      if (error?.response?.status === 401) {
-        console.warn('🔑 Authentication failed - redirecting to login');
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
-        throw new Error('Session expired. Please log in again.');
-      }
-      
-      if (error?.response?.status === 404) {
-        console.warn('🔍 Tournament API endpoint not found');
-        console.error('🚨 This should not happen if backend is running correctly!');
-        
-        // Let's test connectivity right now
-        try {
-          const healthCheck = await fetch(`${api.defaults.baseURL}/api/health`);
-          console.log('🏥 Health check status:', healthCheck.status);
-          if (healthCheck.ok) {
-            console.error('🤔 Backend is healthy but tournament endpoint returned 404');
-            console.error('💡 This suggests a routing or middleware issue');
-          }
-        } catch (healthError) {
-          console.error('🚫 Backend health check failed:', healthError);
-        }
-        
-        throw new Error('Tournament service unavailable. Please try again later.');
-      }
-      
-      if (!error?.response) {
-        console.warn('🌐 Network error detected');
-        throw new Error('Network error. Please check your connection and try again.');
-      }
-      
+    } catch (error) {
+      console.error('Error creating tournament:', error);
       throw error;
     }
   }
@@ -194,9 +165,9 @@ class TournamentService {
 
   async addGuestPlayer(tournamentId: string, name: string): Promise<Tournament> {
     try {
-      const response = await api.post('/api/tournaments/add-guest', {
+      const response = await api.post(`/api/tournaments/add-guest`, { 
         tournamentId,
-        name,
+        name 
       });
       return response.data.data;
     } catch (error) {
@@ -207,11 +178,11 @@ class TournamentService {
 
   async removePlayer(tournamentId: string, playerId: string): Promise<Tournament> {
     try {
-      const response = await api.delete('/api/tournaments/remove-player', {
+      const response = await api.delete(`/api/tournaments/remove-player`, {
         data: {
           tournamentId,
-          playerId,
-        },
+          playerId
+        }
       });
       return response.data.data;
     } catch (error) {
@@ -220,14 +191,8 @@ class TournamentService {
     }
   }
 
-  async startTournament(tournamentId: string): Promise<Tournament> {
-    try {
-      const response = await api.post(`/api/tournaments/${tournamentId}/start`);
-      return response.data.data;
-    } catch (error) {
-      console.error('Error starting tournament:', error);
-      throw error;
-    }
+  async startTournament(tournamentId: string): Promise<void> {
+    await api.post(`/api/tournaments/${tournamentId}/start`);
   }
 
   async reportMatchResult(
@@ -238,7 +203,6 @@ class TournamentService {
   ): Promise<Tournament> {
     try {
       console.log('🏓 Reporting match result:', { tournamentId, matchId, winnerId, loserId });
-      // Use the correct report-result endpoint (cache issues now prevented)
       const response = await api.post(`/api/tournaments/report-result`, {
         tournamentId,
         matchId,
@@ -317,60 +281,6 @@ class TournamentService {
     }
   }
 
-  // Match Result Operations
-  async submitMatchResult(
-    tournamentId: string, 
-    matchId: string, 
-    winnerId: string, 
-    loserId: string,
-    notes?: string
-  ): Promise<Tournament> {
-    try {
-      console.log('🎯 Frontend submitMatchResult called with:', {
-        tournamentId,
-        matchId,
-        winnerId,
-        loserId,
-        notes,
-        timestamp: new Date().toISOString()
-      });
-      
-      const requestData = {
-        tournamentId,
-        matchId,
-        winnerId,
-        loserId,
-        notes,
-      };
-      
-      console.log('📤 Making POST request to /api/tournaments/submit-result with data:', requestData);
-      console.log('🌐 API base URL:', api.defaults.baseURL);
-      console.log('🔑 Auth token exists:', !!localStorage.getItem('accessToken'));
-      
-      const response = await api.post('/api/tournaments/submit-result', requestData);
-      
-      console.log('✅ Submit result response received:', response.data);
-      return response.data.data;
-    } catch (error) {
-      console.error('❌ Error submitting match result:', error);
-      
-      // Add more detailed error logging
-      if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as any;
-        console.error('📋 Detailed error info:', {
-          status: axiosError.response?.status,
-          statusText: axiosError.response?.statusText,
-          data: axiosError.response?.data,
-          url: axiosError.config?.url,
-          method: axiosError.config?.method,
-          baseURL: axiosError.config?.baseURL
-        });
-      }
-      
-      throw error;
-    }
-  }
-
   async disputeMatchResult(
     tournamentId: string, 
     matchId: string, 
@@ -390,43 +300,49 @@ class TournamentService {
   }
 
   async resolveMatchDispute(
+    tournamentId: string,
+    matchId: string,
+    winnerId: string | null,
+    loserId: string | null,
+    isDraw: boolean = false,
+    notes?: string
+  ): Promise<void> {
+    await api.post(`/api/tournaments/${tournamentId}/matches/${matchId}/resolve-dispute`, {
+      winnerId,
+      loserId,
+      isDraw,
+      notes
+    });
+  }
+
+  async submitMatchResult(
     tournamentId: string, 
     matchId: string, 
-    winnerId: string, 
-    loserId: string,
+    winnerId: string | null, 
+    loserId: string | null, 
+    isDraw: boolean = false,
     notes?: string
-  ): Promise<Tournament> {
-    try {
-      const response = await api.post('/api/tournaments/resolve-dispute', {
-        tournamentId,
-        matchId,
-        winnerId,
-        loserId,
-        notes,
-      });
-      return response.data.data;
-    } catch (error) {
-      console.error('Error resolving match dispute:', error);
-      throw error;
-    }
+  ): Promise<void> {
+    await api.post(`/api/tournaments/${tournamentId}/matches/${matchId}/result`, {
+      winnerId,
+      loserId,
+      isDraw,
+      notes
+    });
   }
 
   async forfeitMatch(
-    tournamentId: string, 
-    matchId: string, 
+    tournamentId: string,
+    matchId: string,
     forfeitingPlayerId: string
-  ): Promise<Tournament> {
-    try {
-      const response = await api.post('/api/tournaments/forfeit-match', {
-        tournamentId,
-        matchId,
-        forfeitingPlayerId
-      });
-      return response.data.data;
-    } catch (error) {
-      console.error('Error forfeiting match:', error);
-      throw error;
-    }
+  ): Promise<void> {
+    await api.post(`/api/tournaments/${tournamentId}/matches/${matchId}/forfeit`, {
+      forfeitingPlayerId
+    });
+  }
+
+  async startNextRound(tournamentId: string): Promise<void> {
+    await api.post(`/api/tournaments/${tournamentId}/next-round`);
   }
 }
 

@@ -1,14 +1,17 @@
-import { Controller, Get, Post, Delete, Param, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body, UseGuards, Request, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AppWebSocketGateway } from '../websocket/websocket.gateway';
+import { EventSubGroup, EventSubGroupDocument } from '../models/eventSubGroup.model';
+import { EventSubGroupMessage, EventSubGroupMessageDocument } from '../models/eventSubGroupMessage.model';
+import { User, UserDocument } from '../users/schemas/user.schema';
+import { IEvent } from '../models/event.model';
 
 interface AuthenticatedRequest {
   user: {
     sub: string;
     email: string;
-    _id?: string;
     id?: string;
   };
 }
@@ -62,7 +65,7 @@ export class EventSubGroupsController {
         return [];
       }
 
-      const userId = req.user.sub || req.user._id || req.user.id;
+      const userId = req.user.sub || req.user.id;
       console.log('[DEBUG] Fetching sub-groups for eventId:', eventId, 'userId:', userId);
       
       // First, let's see ALL sub-groups for this event for debugging
@@ -103,7 +106,7 @@ export class EventSubGroupsController {
   @Get('user-subgroups')
   async getUserSubGroups(@Request() req: AuthenticatedRequest) {
     try {
-      const userId = req.user.sub || req.user._id || req.user.id;
+      const userId = req.user.sub || req.user.id;
       
       const subGroups = await this.eventSubGroupModel
         .find({ 
@@ -139,7 +142,7 @@ export class EventSubGroupsController {
     @Request() req: AuthenticatedRequest
   ) {
     try {
-      const userId = req.user.sub || req.user._id || req.user.id;
+      const userId = req.user.sub || req.user.id;
       console.log('[DEBUG] Creating sub-group for eventId:', subGroupData.eventId, 'userId:', userId);
       console.log('[DEBUG] Sub-group data:', subGroupData);
       
@@ -213,7 +216,7 @@ export class EventSubGroupsController {
     @Request() req: AuthenticatedRequest
   ) {
     try {
-      const userId = req.user.sub || req.user._id || req.user.id;
+      const userId = req.user.sub || req.user.id;
       const subGroup = await this.eventSubGroupModel.findById(subGroupId);
       if (!subGroup) {
         throw new Error('Sub-group not found');
@@ -235,7 +238,7 @@ export class EventSubGroupsController {
         throw new Error('Invalid subGroupId provided');
       }
       
-      const userId = req.user.sub || req.user._id || req.user.id;
+      const userId = req.user.sub || req.user.id;
       
       // Check if user is a member of the sub-group
       const subGroup = await this.eventSubGroupModel.findById(subGroupId);
@@ -288,7 +291,7 @@ export class EventSubGroupsController {
         throw new Error('Invalid subGroupId provided');
       }
       
-      const userId = req.user.sub || req.user._id || req.user.id;
+      const userId = req.user.sub || req.user.id;
       
       // Check if user is a member of the sub-group
       const subGroup = await this.eventSubGroupModel.findById(subGroupId);
