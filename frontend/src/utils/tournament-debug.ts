@@ -1,4 +1,4 @@
-import { tournamentService } from '../services/tournament.service';
+import { tournamentService, TournamentType } from '../services/tournament.service';
 import { log, LogCategory } from './logger';
 
 interface TournamentTestConfig {
@@ -52,7 +52,7 @@ export class TournamentDebugger {
     // Step 4: Attempt tournament creation
     try {
       const tournamentName = `${eventTitle} Tournament`;
-      const result = await tournamentService.createTournament(tournamentName, eventId, maxPlayers);
+      const result = await tournamentService.createTournament(eventId, tournamentName, maxPlayers, TournamentType.SINGLE_ELIMINATION);
       
       log.info(LogCategory.TOURNAMENT, '🎉 Tournament creation successful!', result);
       return result;

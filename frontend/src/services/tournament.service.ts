@@ -146,10 +146,10 @@ export class TournamentService {
   async getTournamentsByEvent(eventId: string): Promise<Tournament[]> {
     try {
       const response = await api.get(`/api/tournaments/event/${eventId}`);
-      return response.data.data;
+      return response.data.data || [];
     } catch (error) {
       console.error('Error fetching tournaments by event:', error);
-      throw error;
+      return [];
     }
   }
 
@@ -233,18 +233,38 @@ export class TournamentService {
   async overrideMatchResult(
     tournamentId: string, 
     matchId: string, 
-    winnerId: string, 
-    loserId: string,
-    status?: 'completed' | 'forfeit'
+    winnerId: string | null, 
+    loserId: string | null,
+    status?: 'completed' | 'forfeit',
+    result?: 'win' | 'loss' | 'draw',
+    reason?: string
   ): Promise<Tournament> {
     try {
-      const response = await api.post('/api/tournaments/override-result', {
+      const payload: any = {
         tournamentId,
         matchId,
-        winnerId,
-        loserId,
         status,
-      });
+      };
+
+      // Only include winnerId and loserId if they are not null
+      if (winnerId !== null) {
+        payload.winnerId = winnerId;
+      }
+      if (loserId !== null) {
+        payload.loserId = loserId;
+      }
+
+      // Include result if specified
+      if (result !== undefined) {
+        payload.result = result;
+      }
+
+      // Include reason if specified
+      if (reason !== undefined) {
+        payload.reason = reason;
+      }
+
+      const response = await api.post('/api/tournaments/override-result', payload);
       return response.data.data;
     } catch (error) {
       console.error('Error overriding match result:', error);
@@ -306,13 +326,14 @@ export class TournamentService {
     loserId: string | null,
     isDraw: boolean = false,
     notes?: string
-  ): Promise<void> {
-    await api.post(`/api/tournaments/${tournamentId}/matches/${matchId}/resolve-dispute`, {
+  ): Promise<Tournament> {
+    const response = await api.post(`/api/tournaments/${tournamentId}/matches/${matchId}/resolve-dispute`, {
       winnerId,
       loserId,
       isDraw,
       notes
     });
+    return response.data.data;
   }
 
   async submitMatchResult(
@@ -322,13 +343,21 @@ export class TournamentService {
     loserId: string | null, 
     isDraw: boolean = false,
     notes?: string
-  ): Promise<void> {
-    await api.post(`/api/tournaments/${tournamentId}/matches/${matchId}/result`, {
-      winnerId,
-      loserId,
-      isDraw,
-      notes
-    });
+  ): Promise<Tournament> {
+    try {
+      const response = await api.post('/api/tournaments/submit-result', {
+        tournamentId,
+        matchId,
+        winnerId,
+        loserId,
+        result: isDraw ? 'draw' : 'win',
+        notes
+      });
+      return response.data.data;
+    } catch (error) {
+      console.error('Error submitting match result:', error);
+      throw error;
+    }
   }
 
   async forfeitMatch(

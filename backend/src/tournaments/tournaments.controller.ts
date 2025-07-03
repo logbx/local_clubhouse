@@ -49,15 +49,52 @@ export class TournamentsController {
   ) {}
 
   // Temporary test endpoint without auth guard
+  @Public()
   @Post('test-create')
   @HttpCode(HttpStatus.OK)
   async testCreateTournament(@Body() body: any) {
     console.log('🧪 Test tournament endpoint hit!', { body });
-    return {
-      success: true,
-      message: 'Test endpoint working',
-      data: { received: body },
-    };
+    
+    try {
+      // Test the validation logic
+      const testDto: CreateTournamentDto = {
+        name: body.name || 'Test Tournament',
+        eventId: body.eventId || '684b4297048914785f2ac51e',
+        maxPlayers: body.maxPlayers || 8,
+        type: body.type || TournamentType.SWISS,
+        numRounds: body.numRounds || 3
+      };
+      
+      console.log('🧪 Validating DTO:', testDto);
+      
+      // Test validation
+      if (testDto.type === TournamentType.SWISS) {
+        if (!testDto.numRounds) {
+          throw new BadRequestException('Number of rounds is required for Swiss tournaments');
+        }
+        if (testDto.numRounds < 1 || testDto.numRounds > 10) {
+          throw new BadRequestException('Number of rounds must be between 1 and 10');
+        }
+      }
+      
+      return {
+        success: true,
+        message: 'Validation passed successfully',
+        data: { 
+          received: body,
+          validated: testDto,
+          validationType: testDto.type
+        },
+      };
+    } catch (error) {
+      console.error('🧪 Test validation failed:', error);
+      return {
+        success: false,
+        message: 'Validation failed',
+        error: error.message,
+        data: { received: body }
+      };
+    }
   }
 
   @Post('create')
@@ -176,7 +213,73 @@ export class TournamentsController {
   @Get(':id')
   async getTournament(@Param('id') id: string) {
     const tournament = await this.tournamentsService.getTournament(id);
-    return { data: tournament };
+    
+    // General tournament debug info
+    console.log('🔍 Tournament Debug Info:', {
+      tournamentId: id,
+      type: tournament.type,
+      isStarted: tournament.isStarted,
+      roundsLength: tournament.rounds?.length || 0
+    });
+    
+    // Debug logging for Swiss tournaments to help diagnose frontend issue
+    if (tournament.type === TournamentType.SWISS) {
+      console.log('🏆 Swiss Tournament Debug Info:', {
+        tournamentId: id,
+        isStarted: tournament.isStarted,
+        currentRound: tournament.currentRound,
+        totalRounds: tournament.rounds.length,
+        roundsData: tournament.rounds.map(round => ({
+          roundNumber: round.roundNumber,
+          matchCount: round.matches.length,
+          isComplete: round.isComplete,
+          firstMatchSample: round.matches[0] ? {
+            matchId: round.matches[0].matchId,
+            player1: round.matches[0].player1?.name,
+            player2: round.matches[0].player2?.name,
+            status: round.matches[0].status
+          } : null
+        }))
+      });
+    }
+    
+    // Transform tournament to ensure proper DTO structure for frontend
+    const transformedTournament = {
+      ...tournament.toObject(),
+      rounds: tournament.rounds.map(round => ({
+        ...round,
+        matches: round.matches.map(match => ({
+          ...match,
+          // Ensure matchId is explicitly preserved
+          matchId: match.matchId,
+          // Ensure status is in the expected format for frontend
+          status: match.status === 'submitted' || match.status === 'confirmed' || match.status === 'disputed' 
+            ? 'pending' 
+            : match.status,
+          // Ensure player structure is simplified for frontend
+          player1: {
+            id: match.player1.id,
+            name: match.player1.name,
+            points: match.player1.points || 0,
+            wins: match.player1.wins || 0,
+            buchholzScore: match.player1.buchholzScore || 0,
+            rank: 0,
+            isGuest: match.player1.isGuest || false
+          },
+          player2: {
+            id: match.player2.id,
+            name: match.player2.name,
+            points: match.player2.points || 0,
+            wins: match.player2.wins || 0,
+            buchholzScore: match.player2.buchholzScore || 0,
+            rank: 0,
+            isGuest: match.player2.isGuest || false
+          }
+        }))
+      }))
+    };
+    
+    return { data: transformedTournament };
   }
 
   @Get(':id/enhanced')
@@ -258,7 +361,15 @@ export class TournamentsController {
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest
   ) {
-    return this.tournamentsService.startTournament(id, req.user.sub);
+    try {
+      console.log('🚀 Starting tournament:', id, 'by user:', req.user.sub);
+      const result = await this.tournamentsService.startTournament(id, req.user.sub);
+      console.log('✅ Tournament started successfully');
+      return result;
+    } catch (error) {
+      console.error('❌ Error starting tournament:', error);
+      throw error;
+    }
   }
 
   @Post(':id/report-result')
@@ -538,5 +649,68 @@ export class TournamentsController {
   @Post(':id/repair-byes')
   async repairTournamentByes(@Param('id') tournamentId: string) {
     return this.tournamentsService.repairTournamentByes(tournamentId);
+  }
+
+  @Public()
+  @Post(':id/repair-pairings')
+  @HttpCode(HttpStatus.OK)
+  async repairTournamentPairings(@Param('id') tournamentId: string) {
+    try {
+      console.log('🔧 Repairing tournament pairings for:', tournamentId);
+      const result = await this.tournamentsService.repairTournamentPairings(tournamentId);
+      console.log('✅ Tournament pairings repaired successfully');
+      return {
+        success: true,
+        message: 'Tournament pairings repaired successfully',
+        data: result
+      };
+    } catch (error) {
+      console.error('❌ Error repairing tournament pairings:', error);
+      return {
+        success: false,
+        message: 'Failed to repair tournament pairings',
+        error: error.message
+      };
+    }
+  }
+
+  @Public()
+  @Post(':id/repair-advancement')
+  @HttpCode(HttpStatus.OK)
+  async repairTournamentAdvancement(@Param('id') tournamentId: string) {
+    try {
+      console.log('🔧 Repairing tournament advancement for:', tournamentId);
+      const result = await this.tournamentsService.repairTournamentAdvancement(tournamentId);
+      console.log('✅ Tournament advancement repaired successfully');
+      return {
+        success: true,
+        message: 'Tournament advancement repaired successfully',
+        data: result
+      };
+    } catch (error) {
+      console.error('❌ Error repairing tournament advancement:', error);
+      return {
+        success: false,
+        message: 'Failed to repair tournament advancement',
+        error: error.message
+      };
+    }
+  }
+
+  @Post(':id/next-round')
+  @HttpCode(HttpStatus.OK)
+  async startNextRound(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest
+  ) {
+    try {
+      console.log('🚀 Starting next round for tournament:', id, 'by user:', req.user.sub);
+      const result = await this.tournamentsService.startNextRound(id, req.user.sub);
+      console.log('✅ Next round started successfully');
+      return result;
+    } catch (error) {
+      console.error('❌ Error starting next round:', error);
+      throw error;
+    }
   }
 } 

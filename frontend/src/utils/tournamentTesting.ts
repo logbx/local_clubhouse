@@ -1,4 +1,4 @@
-import { tournamentService } from '../services/tournament.service';
+import { tournamentService, TournamentType } from '../services/tournament.service';
 
 export interface TestPlayer {
   name: string;
@@ -30,9 +30,10 @@ export const createTestTournament = async (
   try {
     // Create tournament
     const tournament = await tournamentService.createTournament(
-      tournamentName || `Test Tournament - ${playerCount} Players`,
       eventId,
-      Math.max(playerCount, 32) // Set max to at least the player count
+      tournamentName || `Test Tournament - ${playerCount} Players`,
+      Math.max(playerCount, 32), // Set max to at least the player count
+      TournamentType.SINGLE_ELIMINATION
     );
 
     // Add test players
@@ -81,7 +82,8 @@ export const simulateRandomResults = async (tournamentId: string): Promise<void>
             match.matchId,
             winner.id,
             loser.id,
-            'completed'
+            'completed',
+            'win'
           );
           
           // Small delay to make it more realistic

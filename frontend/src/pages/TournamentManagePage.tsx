@@ -8,6 +8,10 @@ import TournamentSetup from '../components/TournamentSetup';
 import TournamentBracket from '../components/TournamentBracket';
 import SwissTournamentPairings from '../components/SwissTournamentPairings';
 import SwissTournamentStandings from '../components/SwissTournamentStandings';
+import { TournamentHeader } from '../components/shared/TournamentHeader';
+import { PlayerManagement } from '../components/shared/PlayerManagement';
+import { TournamentSetupTab } from '../components/shared/TournamentSetupTab';
+import { DeleteConfirmModal } from '../components/shared/DeleteConfirmModal';
 import { toast } from 'react-hot-toast';
 import { MatchResultModal } from '../components/MatchResultModal';
 
@@ -21,8 +25,7 @@ const TournamentManagePage: React.FC = () => {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'setup' | 'players' | 'rounds' | 'live'>('setup');
-  const [guestName, setGuestName] = useState('');
+  const [activeTab, setActiveTab] = useState<'setup' | 'players' | 'live'>('setup');
   const [addingGuest, setAddingGuest] = useState(false);
   const [creating, setCreating] = useState(false);
   const [tournamentName, setTournamentName] = useState<string>(() => searchParams.get('eventTitle') || '');
@@ -81,11 +84,21 @@ const TournamentManagePage: React.FC = () => {
       if (data.type === 'registration-opened' || data.type === 'registration-closed' || 
           data.type === 'player-registered' || data.type === 'guest-player-added' ||
           data.type === 'player-removed' || data.type === 'tournament-started' ||
-          data.type === 'match-result-submitted' || data.type === 'round-started') {
+          data.type === 'match-result-submitted' || data.type === 'round-started' ||
+          data.type === 'tournament-completed') {
         // Call loadTournament and handle any errors
         void loadTournament().catch(error => {
           console.error('Failed to refresh tournament:', error);
         });
+        
+        // Show notifications for automatic events
+        if (data.type === 'round-started' && data.message) {
+          toast.success(`🚀 ${data.message}! Round ${data.currentRound} is now active.`);
+        }
+        
+        if (data.type === 'tournament-completed' && data.message) {
+          toast.success(`🏆 ${data.message}! The tournament has ended.`);
+        }
       }
     };
 
@@ -142,14 +155,13 @@ const TournamentManagePage: React.FC = () => {
     }
   };
 
-  const handleAddGuest = async () => {
-    if (!tournamentId || !guestName.trim()) return;
+  const handleAddGuest = async (name: string) => {
+    if (!tournamentId || !name.trim()) return;
 
     setAddingGuest(true);
     try {
-      const updatedTournament = await tournamentService.addGuestPlayer(tournamentId, guestName.trim());
+      const updatedTournament = await tournamentService.addGuestPlayer(tournamentId, name.trim());
       setTournament(updatedTournament);
-      setGuestName('');
     } catch (err) {
       console.error('Failed to add guest player:', err);
       alert('Failed to add guest player. Please try again.');
@@ -228,7 +240,7 @@ const TournamentManagePage: React.FC = () => {
   const handlePlayerMatchResult = async (match: TournamentMatch, result: 'win' | 'loss' | 'draw') => {
     if (!tournament || !user) return;
 
-    const isOrganizer = tournament.organizerId === user.id;
+    const isOrganizer = String(tournament.organizerId) === user.id;
     const isPlayer1 = match.player1.id === user.id;
     const isPlayer2 = match.player2.id === user.id;
     const isParticipant = isPlayer1 || isPlayer2;
@@ -275,23 +287,10 @@ const TournamentManagePage: React.FC = () => {
     setShowResultModal(true);
   };
 
-  const handleStartNextRound = async () => {
-    if (!tournamentId || !tournament) return;
-
-    try {
-      await tournamentService.startNextRound(tournamentId);
-      const updatedTournament = await loadTournament();
-      if (updatedTournament) {
-        setTournament(updatedTournament);
-      }
-    } catch (err) {
-      console.error('Failed to start next round:', err);
-      alert('Failed to start next round. Please try again.');
-    }
-  };
+  // Rounds now start automatically when current round is completed
 
   // Check if user is the organizer
-  if (tournament && tournament.organizerId !== user?.id) {
+  if (tournament && String(tournament.organizerId) !== user?.id) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="text-center">
@@ -433,82 +432,21 @@ const TournamentManagePage: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto p-4 relative z-1">
-      {/* Tournament Header */}
-      <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200 mb-8 relative z-1">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center">
-            <CogIcon className="h-8 w-8 text-blue-500 mr-3" />
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{tournament.name}</h1>
-              <p className="text-gray-600 dark:text-gray-400">Tournament Management</p>
-            </div>
-          </div>
-          
-          <div className="flex space-x-3">
-            <button
-              onClick={() => navigate(`/tournament/${tournamentId}`)}
-              className="btn btn-secondary"
-            >
-              <EyeIcon className="h-4 w-4 mr-2" />
-              Public View
-            </button>
-            
-            {canStartTournament && (
-              <button
-                onClick={handleStartTournament}
-                className="btn btn-success"
-              >
-                <PlayIcon className="h-4 w-4 mr-2" />
-                Start Tournament
-              </button>
-            )}
-          </div>
-        </div>
+      <TournamentHeader
+        tournament={tournament}
+        tournamentId={tournamentId!}
+        onStartTournament={handleStartTournament}
+        canStartTournament={canStartTournament}
+        tournamentType={tournament.type === TournamentType.SWISS ? "Swiss" : "Single Elimination"}
+      />
 
-        {/* Status Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-4 relative z-1">
-            <h3 className="font-semibold text-gray-700 dark:text-gray-300">Players</h3>
-            <p className="text-2xl font-bold text-primary-600 dark:text-primary-400">
-              {tournament.players.length} / {tournament.maxPlayers}
-            </p>
-          </div>
-          
-          <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-4 relative z-1">
-            <h3 className="font-semibold text-gray-700 dark:text-gray-300">Status</h3>
-            <p className={`text-lg font-bold ${
-              tournament.isFinished 
-                ? 'text-gray-600 dark:text-gray-400' 
-                : tournament.isStarted 
-                  ? 'text-green-600 dark:text-green-400' 
-                  : 'text-yellow-600 dark:text-yellow-400'
-            }`}>
-              {tournament.isFinished ? 'Finished' : tournament.isStarted ? 'In Progress' : 'Setup'}
-            </p>
-          </div>
-          
-          <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-4 relative z-1">
-            <h3 className="font-semibold text-gray-700 dark:text-gray-300">Rounds</h3>
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {tournament.rounds.length}
-            </p>
-          </div>
-          
-          <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-4 relative z-1">
-            <h3 className="font-semibold text-gray-700 dark:text-gray-300">Matches</h3>
-            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-              {tournament.rounds.reduce((total, round) => total + round.matches.length, 0)}
-            </p>
-          </div>
-        </div>
-
-        {/* Navigation Tabs */}
+      {/* Navigation Tabs */}
+      <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 mb-8">
         <div className="border-b border-gray-200/50 dark:border-gray-700/50">
-          <nav className="-mb-px flex space-x-8">
+          <nav className="-mb-px flex space-x-8 px-6">
             {[
               { id: 'setup', label: 'Setup', icon: CogIcon },
               { id: 'players', label: 'Players', icon: UserPlusIcon },
-              { id: 'rounds', label: 'Rounds', icon: TrophyIcon },
               { id: 'live', label: 'Live Management', icon: FireIcon },
             ].map(({ id, label, icon: Icon }) => (
               <button
@@ -532,94 +470,28 @@ const TournamentManagePage: React.FC = () => {
       <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200">
         {activeTab === 'setup' && (
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Tournament Setup</h2>
+            <TournamentSetupTab
+              tournament={tournament}
+              onOpenRegistration={handleOpenRegistration}
+              onCloseRegistration={handleCloseRegistration}
+              onDeleteTournament={() => setShowDeleteConfirm(true)}
+              deleting={deleting}
+              tournamentType={tournament.type === TournamentType.SWISS ? "Swiss" : "Single Elimination"}
+            />
             
-            {/* Registration Management - Moved above */}
-            {!tournament.isStarted && (
-              <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6 mb-8">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Registration Management</h3>
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    onClick={handleOpenRegistration}
-                    className={`btn ${tournament.registrationOpen ? 'btn-success opacity-50 cursor-not-allowed' : 'btn-success'}`}
-                    disabled={tournament.isStarted || tournament.registrationOpen}
-                  >
-                    <UserPlusIcon className="h-4 w-4 mr-2" />
-                    {tournament.registrationOpen ? 'Registration Open' : 'Open Registration'}
-                  </button>
-                  <button
-                    onClick={handleCloseRegistration}
-                    className={`btn ${!tournament.registrationOpen ? 'btn-warning opacity-50 cursor-not-allowed' : 'btn-warning'}`}
-                    disabled={tournament.isStarted || !tournament.registrationOpen}
-                  >
-                    <ExclamationTriangleIcon className="h-4 w-4 mr-2" />
-                    {!tournament.registrationOpen ? 'Registration Closed' : 'Close Registration'}
-                  </button>
-                </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-3">
-                  Control when players can register for your tournament. Registration is automatically closed when the tournament starts.
-                </p>
-              </div>
-            )}
-
-            {/* Public View */}
-            <div className="mb-8">
+            {/* Public View - Keep this section as it's specific to this page */}
+            <div className="mt-8">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Public View</h3>
               <TournamentSetup 
                 tournament={tournament} 
               />
-            </div>
-
-            {/* Danger Zone */}
-            <div className="bg-red-50/80 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-red-900 dark:text-red-300 mb-4">Danger Zone</h3>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium text-red-900 dark:text-red-300">Delete Tournament</h4>
-                  <p className="text-sm text-red-700 dark:text-red-400">
-                    Permanently delete this tournament and all its data. This action cannot be undone.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="btn btn-danger"
-                  disabled={deleting}
-                >
-                  <TrashIcon className="h-4 w-4 mr-2" />
-                  Delete Tournament
-                </button>
-              </div>
             </div>
           </div>
         )}
 
         {activeTab === 'players' && (
           <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Player Management</h2>
-              
-              {!tournament.isStarted && (
-                <div className="flex items-center space-x-3">
-                  <input
-                    type="text"
-                    placeholder="Guest player name"
-                    value={guestName}
-                    onChange={(e) => setGuestName(e.target.value)}
-                    className="input"
-                    onKeyPress={(e) => e.key === 'Enter' && handleAddGuest()}
-                  />
-                  <button
-                    onClick={handleAddGuest}
-                    disabled={!guestName.trim() || addingGuest}
-                    className="btn btn-primary"
-                  >
-                    {addingGuest ? 'Adding...' : 'Add Guest'}
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Player Statistics */}
+            {/* Player Statistics - Keep this section as it provides additional insights */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-4">
                 <h3 className="font-semibold text-gray-700 dark:text-gray-300">Total Players</h3>
@@ -655,155 +527,20 @@ const TournamentManagePage: React.FC = () => {
               <div className="bg-blue-50/80 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
                 <h3 className="font-semibold mb-2 text-blue-900 dark:text-blue-300">Adding Guest Players</h3>
                 <p className="text-sm text-blue-700 dark:text-blue-400">
-                  Use the form above to add guest players who don't have accounts. Guest players can participate in the tournament but won't be able to report their own results.
+                  Use the form below to add guest players who don't have accounts. Guest players can participate in the tournament but won't be able to report their own results.
                 </p>
               </div>
             )}
 
-            {tournament.players.length === 0 ? (
-              <div className="text-center py-12">
-                <UserPlusIcon className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No players yet</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Players will appear here as they register, or you can add guest players using the form above.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Registered Users Section */}
-                {tournament.players.filter(p => !p.isGuest).length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                      Registered Users ({tournament.players.filter(p => !p.isGuest).length})
-                    </h3>
-                    <div className="grid grid-cols-1 gap-3">
-                      {tournament.players.filter(p => !p.isGuest).map((player, index) => (
-                        <div 
-                          key={player.id}
-                          className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-4 flex items-center justify-between"
-                        >
-                          <div className="flex items-center">
-                            <div className="w-10 h-10 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-4">
-                              {tournament.players.indexOf(player) + 1}
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-gray-900 dark:text-white">{player.name}</h4>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Registered User • {player.username || 'No username'}
-                              </p>
-                            </div>
-                          </div>
-                          
-                          {!tournament.isStarted && (
-                            <button
-                              onClick={() => handleRemovePlayer(player.id)}
-                              className="btn btn-danger-outline btn-sm"
-                              title="Remove Player"
-                            >
-                              <TrashIcon className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Guest Players Section */}
-                {tournament.players.filter(p => p.isGuest).length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                      Guest Players ({tournament.players.filter(p => p.isGuest).length})
-                    </h3>
-                    <div className="grid grid-cols-1 gap-3">
-                      {tournament.players.filter(p => p.isGuest).map((player, index) => (
-                        <div 
-                          key={player.id}
-                          className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-4 flex items-center justify-between"
-                        >
-                          <div className="flex items-center">
-                            <div className="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-4">
-                              {tournament.players.indexOf(player) + 1}
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-gray-900 dark:text-white">{player.name}</h4>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Guest Player • Added by organizer
-                              </p>
-                            </div>
-                          </div>
-                          
-                          {!tournament.isStarted && (
-                            <button
-                              onClick={() => handleRemovePlayer(player.id)}
-                              className="btn btn-danger-outline btn-sm"
-                              title="Remove Player"
-                            >
-                              <TrashIcon className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+            <PlayerManagement
+              tournament={tournament}
+              onAddGuest={handleAddGuest}
+              onRemovePlayer={handleRemovePlayer}
+              addingGuest={addingGuest}
+            />
           </div>
         )}
 
-        {activeTab === 'rounds' && (
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Tournament Rounds</h2>
-              
-              {tournament.isStarted && !tournament.isFinished && (tournament.currentRound || 0) < (tournament.numRounds || 3) && (
-                <button
-                  onClick={handleStartNextRound}
-                  className="btn btn-primary"
-                >
-                  <PlayIcon className="h-4 w-4 mr-2" />
-                  Start Round {(tournament.currentRound || 0) + 1}
-                </button>
-              )}
-            </div>
-
-            {/* Tournament Standings */}
-            <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6 mb-8">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Current Standings</h3>
-              <SwissTournamentStandings
-                players={tournament.players}
-                isFinished={tournament.isFinished}
-              />
-            </div>
-
-            {/* Rounds List */}
-            <div className="space-y-8">
-              {tournament.rounds.map((round, index) => (
-                <div key={index} className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      Round {round.roundNumber} {round.isComplete ? '(Complete)' : '(In Progress)'}
-                    </h3>
-                    {round.byePlayers && round.byePlayers.length > 0 && (
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
-                        Bye: {round.byePlayers.map(p => p.name).join(', ')}
-                      </div>
-                    )}
-                  </div>
-                  <SwissTournamentPairings
-                    round={round}
-                    currentRound={tournament.currentRound || 1}
-                    totalRounds={tournament.numRounds || 3}
-                    onReportResult={(match, result) => openMatchResultModal(match)}
-                    isOrganizer={tournament.organizerId === user?.id}
-                    allowDraws={true}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {activeTab === 'live' && (
           <div>
@@ -874,19 +611,84 @@ const TournamentManagePage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Tournament Bracket with Management Features */}
+                {/* Tournament Display with Management Features */}
                 <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6 relative z-1">
                   <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Tournament Bracket</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {tournament.type === TournamentType.SWISS ? 'Current Round Matchups' : 'Tournament Bracket'}
+                    </h3>
                     <div className="text-sm text-gray-600 dark:text-gray-400">
                       Manage matches and view real-time progress
                     </div>
                   </div>
-                  <TournamentBracket 
-                    tournament={tournament} 
-                    onTournamentUpdate={setTournament}
-                    isManageMode={true}
-                  />
+                  
+                  {tournament.type === TournamentType.SWISS ? (
+                    <div className="space-y-6">
+                      {/* Current Round for Swiss Tournament */}
+                      {tournament.rounds && tournament.rounds.length > 0 ? (
+                        <div>
+                          {/* Current active round or most recent round */}
+                          {(() => {
+                            const currentRoundNumber = tournament.currentRound || 1;
+                            const currentRound = tournament.rounds.find(r => r.roundNumber === currentRoundNumber) || 
+                                                tournament.rounds[tournament.rounds.length - 1];
+                            
+                            if (!currentRound) {
+                              return (
+                                <div className="text-center py-8">
+                                  <p className="text-gray-500 dark:text-gray-400">No rounds available</p>
+                                </div>
+                              );
+                            }
+                            
+                            return (
+                              <div>
+                                <div className="flex items-center justify-between mb-4">
+                                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                    Round {currentRound.roundNumber} 
+                                    {currentRound.isComplete ? ' (Complete)' : ' (In Progress)'}
+                                  </h4>
+                                  <div className="flex items-center gap-4">
+                                    {!tournament.isFinished && !currentRound.isComplete && (
+                                      <div className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                                        ⚡ Next round starts automatically when all matches complete
+                                      </div>
+                                    )}
+                                    {currentRound.byePlayers && currentRound.byePlayers.length > 0 && (
+                                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                                        Bye: {currentRound.byePlayers.map(p => p.name).join(', ')}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <SwissTournamentPairings
+                                  round={currentRound}
+                                  currentRound={tournament.currentRound || 1}
+                                  totalRounds={tournament.numRounds || 3}
+                                  onReportResult={(match) => openMatchResultModal(match)}
+                                  isOrganizer={String(tournament.organizerId) === user?.id}
+                                  allowDraws={true}
+                                />
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <p className="text-gray-500 dark:text-gray-400">
+                            No matches have been generated yet. Start the tournament to generate first round pairings.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Single Elimination Bracket */
+                    <TournamentBracket 
+                      tournament={tournament} 
+                      onTournamentUpdate={setTournament}
+                      isManageMode={true}
+                    />
+                  )}
                 </div>
               </div>
             )}
@@ -894,53 +696,14 @@ const TournamentManagePage: React.FC = () => {
         )}
       </div>
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center" style={{ zIndex: 999999 }}>
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4" style={{ zIndex: 1000000 }}>
-            <div className="flex items-center mb-4">
-              <ExclamationTriangleIcon className="h-6 w-6 text-red-500 mr-3" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Delete Tournament
-              </h3>
-            </div>
-            
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Are you sure you want to delete "{tournament?.name}"? This action cannot be undone and will permanently remove all tournament data, including matches and results.
-            </p>
-            
-            <div className="flex space-x-3 justify-end">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="btn btn-secondary"
-                disabled={deleting}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteTournament}
-                className="btn btn-danger"
-                disabled={deleting}
-              >
-                {deleting ? (
-                  <span className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Deleting...
-                  </span>
-                ) : (
-                  <>
-                    <TrashIcon className="h-4 w-4 mr-2" />
-                    Delete Tournament
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeleteTournament}
+        title="Delete Tournament"
+        message={`Are you sure you want to delete "${tournament?.name}"? This action cannot be undone and will permanently remove all tournament data, including matches and results.`}
+        isDeleting={deleting}
+      />
 
       {/* Match Result Modal */}
       {selectedMatch && (
@@ -952,7 +715,7 @@ const TournamentManagePage: React.FC = () => {
           }}
           match={selectedMatch}
           currentUserId={user?.id || ''}
-          isCreator={tournament?.organizerId === user?.id}
+          isCreator={String(tournament?.organizerId) === user?.id}
           onSubmitResult={handleMatchResult}
           onConfirmResult={async () => {
             if (!tournament || !selectedMatch) return;

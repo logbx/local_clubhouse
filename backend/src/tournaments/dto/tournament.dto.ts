@@ -81,11 +81,21 @@ export class OverrideResultDto {
   @IsString()
   matchId: string;
 
+  @IsOptional()
   @IsString()
-  winnerId: string;
+  winnerId?: string;
 
+  @IsOptional()
   @IsString()
-  loserId: string;
+  loserId?: string;
+
+  @IsOptional()
+  @IsString()
+  result?: 'win' | 'loss' | 'draw';
+
+  @IsOptional()
+  @IsString()
+  reason?: string;
 
   @IsOptional()
   @IsString()
