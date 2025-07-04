@@ -50,7 +50,7 @@ export class SwissTournamentStrategy extends TournamentStrategy {
     
     // Initialize all players with Swiss-specific fields
     const initializedPlayers = players.map(player => ({
-      ...player.toObject ? player.toObject() : player, // Handle Mongoose documents
+      ...(player as any).toObject ? (player as any).toObject() : player, // Handle Mongoose documents
       points: 0,
       wins: 0,
       buchholzScore: 0,
@@ -66,7 +66,10 @@ export class SwissTournamentStrategy extends TournamentStrategy {
     // Generate first round pairings using enhanced algorithm
     console.log('🔄 Generating Swiss pairings for round 1...');
     try {
-      const firstRound = EnhancedSwissPairingService.generateSwissPairings(initializedPlayers, 1);
+      const firstRound = EnhancedSwissPairingService.generateSwissPairings(initializedPlayers, 1, {
+        allowRepeatPairings: false, // First round never needs repeat pairings
+        maxPointSpread: 3 // Allow more flexibility in point spread
+      });
       console.log('✅ Swiss pairings generated:', { 
         matches: firstRound.matches.length, 
         byePlayers: firstRound.byePlayers?.length || 0,
@@ -166,12 +169,14 @@ export class SwissTournamentStrategy extends TournamentStrategy {
     }
 
     console.log('🔍 Checking if round is complete...');
-    // Mark round as complete if all matches are done
-    const allMatchesComplete = matchRound.matches.every(m => m.status === 'completed');
+    // Mark round as complete if all matches are done (completed, forfeit, etc.)
+    const finalStatuses = ['completed', 'forfeit'];
+    const allMatchesComplete = matchRound.matches.every(m => finalStatuses.includes(m.status));
     console.log('📊 Round completion status:', {
       roundNumber: matchRound.roundNumber,
       totalMatches: matchRound.matches.length,
-      completedMatches: matchRound.matches.filter(m => m.status === 'completed').length,
+      completedMatches: matchRound.matches.filter(m => finalStatuses.includes(m.status)).length,
+      matchStatuses: matchRound.matches.map(m => ({ id: m.matchId, status: m.status })),
       allMatchesComplete
     });
 
@@ -222,11 +227,16 @@ export class SwissTournamentStrategy extends TournamentStrategy {
     EnhancedSwissPairingService.updateBuchholzScores(tournament.players);
     
     try {
-      const nextRound = EnhancedSwissPairingService.generateSwissPairings(tournament.players, completedRoundNumber + 1);
+      // For subsequent rounds, be more flexible with pairings
+      const nextRound = EnhancedSwissPairingService.generateSwissPairings(tournament.players, completedRoundNumber + 1, {
+        allowRepeatPairings: true, // Allow repeat pairings if needed for fair tournament
+        maxPointSpread: 3 // Allow more flexibility in point spread
+      });
       console.log('✅ Next round generated:', {
         roundNumber: nextRound.roundNumber,
         matchCount: nextRound.matches.length,
-        byePlayers: nextRound.byePlayers?.length || 0
+        byePlayers: nextRound.byePlayers?.length || 0,
+        playerCount: tournament.players.length
       });
       
       return {

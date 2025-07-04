@@ -103,9 +103,18 @@ export class TournamentsController {
     @Body() createTournamentDto: CreateTournamentDto,
     @Request() req: AuthenticatedRequest
   ) {
+    console.log('🏆 Tournament creation request received:', {
+      body: createTournamentDto,
+      userId: req.user.sub,
+      type: createTournamentDto.type,
+      numRounds: createTournamentDto.numRounds
+    });
+
     // Validate Swiss tournament requirements
     if (createTournamentDto.type === TournamentType.SWISS) {
+      console.log('🏆 Validating Swiss tournament - numRounds:', createTournamentDto.numRounds);
       if (!createTournamentDto.numRounds) {
+        console.error('❌ Swiss tournament validation failed: numRounds is missing');
         throw new BadRequestException('Number of rounds is required for Swiss tournaments');
       }
       if (createTournamentDto.numRounds < 1 || createTournamentDto.numRounds > 10) {
@@ -113,8 +122,15 @@ export class TournamentsController {
       }
     }
 
-    const tournament = await this.tournamentsService.createTournament(createTournamentDto, req.user.sub);
-    return { data: tournament };
+    try {
+      console.log('🚀 Calling tournamentsService.createTournament...');
+      const tournament = await this.tournamentsService.createTournament(createTournamentDto, req.user.sub);
+      console.log('✅ Tournament created successfully:', { id: tournament.id, name: tournament.name });
+      return { data: tournament };
+    } catch (error) {
+      console.error('❌ Tournament creation failed in service:', error);
+      throw error;
+    }
   }
 
   @Get('event/:eventId')
@@ -435,21 +451,58 @@ export class TournamentsController {
   @Post('override-result')
   @HttpCode(HttpStatus.OK)
   async overrideResult(@Body() overrideResultDto: OverrideResultDto, @Request() req: AuthenticatedRequest) {
+    console.log('🎯 OVERRIDE RESULT ENDPOINT HIT!', {
+      timestamp: new Date().toISOString(),
+      body: overrideResultDto,
+      bodyKeys: Object.keys(overrideResultDto),
+      bodyType: typeof overrideResultDto,
+      rawBody: JSON.stringify(overrideResultDto),
+      hasUser: !!req.user,
+      userInfo: req.user ? {
+        sub: req.user.sub,
+        id: req.user.id,
+        _id: req.user._id
+      } : null
+    });
+
     try {
       const userId = req.user.sub || req.user._id || req.user.id;
       if (!userId) {
+        console.log('❌ No user ID found in request');
         throw new BadRequestException('User ID not found in request');
       }
+      
+      console.log('🔄 Calling tournamentsService.overrideResult with:', {
+        overrideResultDto,
+        userId,
+        dtoValidation: {
+          tournamentId: overrideResultDto.tournamentId,
+          matchId: overrideResultDto.matchId,
+          hasWinnerId: 'winnerId' in overrideResultDto,
+          hasLoserId: 'loserId' in overrideResultDto,
+          result: overrideResultDto.result,
+          status: overrideResultDto.status
+        }
+      });
+      
       const tournament = await this.tournamentsService.overrideResult(
         overrideResultDto, 
         userId
       );
+      
+      console.log('✅ Match result overridden successfully');
       return {
         success: true,
         message: 'Match result overridden successfully',
         data: tournament,
       };
     } catch (error) {
+      console.log('💥 Error in overrideResult controller:', {
+        error: error.message,
+        stack: error.stack,
+        name: error.name,
+        statusCode: error.statusCode || error.status
+      });
       throw error;
     }
   }
@@ -674,24 +727,94 @@ export class TournamentsController {
     }
   }
 
+
   @Public()
-  @Post(':id/repair-advancement')
+  @Post(':id/force-next-round')
   @HttpCode(HttpStatus.OK)
-  async repairTournamentAdvancement(@Param('id') tournamentId: string) {
+  async forceNextRound(@Param('id') tournamentId: string) {
     try {
-      console.log('🔧 Repairing tournament advancement for:', tournamentId);
-      const result = await this.tournamentsService.repairTournamentAdvancement(tournamentId);
-      console.log('✅ Tournament advancement repaired successfully');
+      console.log('🚀 Forcing next round generation for:', tournamentId);
+      const result = await this.tournamentsService.forceNextRound(tournamentId);
+      console.log('✅ Next round generated successfully');
       return {
         success: true,
-        message: 'Tournament advancement repaired successfully',
+        message: 'Next round generated successfully',
         data: result
       };
     } catch (error) {
-      console.error('❌ Error repairing tournament advancement:', error);
+      console.error('❌ Error generating next round:', error);
       return {
         success: false,
-        message: 'Failed to repair tournament advancement',
+        message: 'Failed to generate next round',
+        error: error.message
+      };
+    }
+  }
+
+  @Public()
+  @Post(':id/fix-swiss-round2')
+  @HttpCode(HttpStatus.OK)
+  async fixSwissRound2(@Param('id') tournamentId: string) {
+    try {
+      console.log('🔧 Fixing Swiss Round 2 pairings for:', tournamentId);
+      const result = await this.tournamentsService.fixSwissRound2(tournamentId);
+      console.log('✅ Swiss Round 2 fixed successfully');
+      return {
+        success: true,
+        message: 'Swiss Round 2 fixed successfully',
+        data: result
+      };
+    } catch (error) {
+      console.error('❌ Error fixing Swiss Round 2:', error);
+      return {
+        success: false,
+        message: 'Failed to fix Swiss Round 2',
+        error: error.message
+      };
+    }
+  }
+
+  @Public()
+  @Post(':id/manual-swiss-round2')
+  @HttpCode(HttpStatus.OK)
+  async manualSwissRound2(@Param('id') tournamentId: string) {
+    try {
+      console.log('🔧 Manually creating Swiss Round 2 for:', tournamentId);
+      const result = await this.tournamentsService.manualSwissRound2(tournamentId);
+      console.log('✅ Manual Swiss Round 2 created successfully');
+      return {
+        success: true,
+        message: 'Manual Swiss Round 2 created successfully',
+        data: result
+      };
+    } catch (error) {
+      console.error('❌ Error creating manual Swiss Round 2:', error);
+      return {
+        success: false,
+        message: 'Failed to create manual Swiss Round 2',
+        error: error.message
+      };
+    }
+  }
+
+  @Public()
+  @Post(':id/manual-swiss-round3')
+  @HttpCode(HttpStatus.OK)
+  async manualSwissRound3(@Param('id') tournamentId: string) {
+    try {
+      console.log('🔧 Manually creating Swiss Round 3 for:', tournamentId);
+      const result = await this.tournamentsService.manualSwissRound3(tournamentId);
+      console.log('✅ Manual Swiss Round 3 created successfully');
+      return {
+        success: true,
+        message: 'Manual Swiss Round 3 created successfully',
+        data: result
+      };
+    } catch (error) {
+      console.error('❌ Error creating manual Swiss Round 3:', error);
+      return {
+        success: false,
+        message: 'Failed to create manual Swiss Round 3',
         error: error.message
       };
     }
@@ -711,6 +834,28 @@ export class TournamentsController {
     } catch (error) {
       console.error('❌ Error starting next round:', error);
       throw error;
+    }
+  }
+
+  @Post(':id/repair-advancement')
+  @HttpCode(HttpStatus.OK)
+  async repairTournamentAdvancement(@Param('id') tournamentId: string) {
+    try {
+      console.log('🔧 Repairing tournament advancement for:', tournamentId);
+      const result = await this.tournamentsService.repairTournamentAdvancement(tournamentId);
+      console.log('✅ Tournament advancement repaired successfully');
+      return {
+        success: true,
+        message: 'Tournament advancement repaired successfully',
+        data: result
+      };
+    } catch (error) {
+      console.error('❌ Error repairing tournament advancement:', error);
+      return {
+        success: false,
+        message: 'Failed to repair tournament advancement',
+        error: error.message
+      };
     }
   }
 } 

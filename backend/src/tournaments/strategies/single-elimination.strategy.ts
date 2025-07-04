@@ -156,12 +156,14 @@ export class SingleEliminationStrategy extends TournamentStrategy {
     match.loserId = loserId;
 
     console.log('🔍 Checking if round is complete...');
-    // Mark round as complete if all matches are done
-    const allMatchesComplete = matchRound.matches.every(m => m.status === 'completed');
+    // Mark round as complete if all matches are done (completed, forfeit, etc.)
+    const finalStatuses = ['completed', 'forfeit'];
+    const allMatchesComplete = matchRound.matches.every(m => finalStatuses.includes(m.status));
     console.log('📊 Round completion status:', {
       roundNumber: matchRound.roundNumber,
       totalMatches: matchRound.matches.length,
-      completedMatches: matchRound.matches.filter(m => m.status === 'completed').length,
+      completedMatches: matchRound.matches.filter(m => finalStatuses.includes(m.status)).length,
+      matchStatuses: matchRound.matches.map(m => ({ id: m.matchId, status: m.status })),
       allMatchesComplete
     });
 

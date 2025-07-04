@@ -47,7 +47,7 @@ export class BaseTournamentService {
     // Check if tournament already exists for this event
     const existingTournament = await this.tournamentModel.findOne({ eventId: options.eventId });
     if (existingTournament) {
-      throw new BadRequestException('Tournament already exists for this event');
+      throw new BadRequestException(`Tournament already exists for this event. Existing tournament: "${existingTournament.name}" (${existingTournament.type}). Only one tournament per event is allowed.`);
     }
 
     // Determine tournament type from options or default to single elimination
@@ -406,57 +406,8 @@ export class BaseTournamentService {
     const updatedTournament = strategy.processMatchResult({ ...options, tournament });
     console.log('✅ Match result processed by strategy');
 
-    // Check for automatic round advancement
-    const currentRound = this.getCurrentRound(updatedTournament);
-    let nextRoundStarted = false;
-    let tournamentCompleted = false;
-    
-    console.log('🔍 Checking current round status:', {
-      hasCurrentRound: !!currentRound,
-      currentRoundNumber: currentRound?.roundNumber,
-      isRoundComplete: currentRound ? this.isRoundComplete(currentRound) : null,
-      matchStatuses: currentRound?.matches.map(m => ({ id: m.matchId, status: m.status }))
-    });
-    
-    if (currentRound && this.isRoundComplete(currentRound)) {
-      console.log('🔄 Round completed, checking for automatic advancement...', {
-        roundNumber: currentRound.roundNumber,
-        allMatchesComplete: currentRound.matches.every(m => m.status === 'completed')
-      });
-      
-      const advancementResult = strategy.checkAdvancement(updatedTournament, currentRound.roundNumber);
-      console.log('🔄 Advancement check result:', {
-        shouldAdvance: advancementResult.shouldAdvance,
-        hasNextRound: !!advancementResult.nextRound,
-        isComplete: advancementResult.isComplete,
-        winnerId: advancementResult.winnerId
-      });
-      
-      if (advancementResult.shouldAdvance && advancementResult.nextRound) {
-        updatedTournament.rounds.push(advancementResult.nextRound);
-        if (updatedTournament.type === TournamentType.SWISS) {
-          updatedTournament.currentRound = (updatedTournament.currentRound || 1) + 1;
-        }
-        nextRoundStarted = true;
-        console.log('✅ Next round automatically started:', {
-          newRoundNumber: advancementResult.nextRound.roundNumber,
-          matchCount: advancementResult.nextRound.matches.length,
-          currentRound: updatedTournament.currentRound
-        });
-      }
-      
-      if (advancementResult.isComplete) {
-        updatedTournament.isFinished = true;
-        updatedTournament.winnerId = advancementResult.winnerId;
-        tournamentCompleted = true;
-        console.log('🏁 Tournament automatically completed with winner:', advancementResult.winnerId);
-      }
-    } else {
-      console.log('❌ Round advancement not triggered:', {
-        hasCurrentRound: !!currentRound,
-        isRoundComplete: currentRound ? this.isRoundComplete(currentRound) : null
-      });
-    }
+    // Check for automatic round advancement - Enhanced logic
+    const { nextRoundStarted, tournamentCompleted } = await this.checkAndAdvanceRounds(updatedTournament, strategy);
 
     console.log('💾 Saving updated tournament...');
     const savedTournament = await updatedTournament.save();
@@ -560,11 +511,13 @@ export class BaseTournamentService {
   }
 
   private isRoundComplete(round: any): boolean {
-    const isComplete = round.matches.every((match: any) => match.status === 'completed');
+    // A round is complete when all matches have finished (completed, forfeit, or other final statuses)
+    const finalStatuses = ['completed', 'forfeit'];
+    const isComplete = round.matches.every((match: any) => finalStatuses.includes(match.status));
     console.log('🔍 Checking if round is complete:', {
       roundNumber: round.roundNumber,
       totalMatches: round.matches.length,
-      completedMatches: round.matches.filter((m: any) => m.status === 'completed').length,
+      completedMatches: round.matches.filter((m: any) => finalStatuses.includes(m.status)).length,
       matchStatuses: round.matches.map((m: any) => ({ id: m.matchId, status: m.status })),
       isComplete
     });
@@ -616,6 +569,197 @@ export class BaseTournamentService {
       tournamentId: tournamentId,
       rounds: savedTournament.rounds,
       currentRound: savedTournament.currentRound
+    });
+
+    return savedTournament;
+  }
+
+  /**
+   * Enhanced round advancement checking and processing
+   * This method checks ALL rounds for completion and advances as needed
+   */
+  private async checkAndAdvanceRounds(tournament: ITournament, strategy: any): Promise<{ nextRoundStarted: boolean; tournamentCompleted: boolean }> {
+    console.log('🔄 Enhanced round advancement check starting...');
+    
+    let nextRoundStarted = false;
+    let tournamentCompleted = false;
+    
+    // Check all rounds for completion, not just the current one
+    for (let roundIndex = 0; roundIndex < tournament.rounds.length; roundIndex++) {
+      const round = tournament.rounds[roundIndex];
+      
+      console.log(`🔍 Checking round ${round.roundNumber} for completion:`, {
+        roundNumber: round.roundNumber,
+        totalMatches: round.matches.length,
+        matchStatuses: round.matches.map(m => ({ id: m.matchId, status: m.status })),
+        currentlyMarkedComplete: round.isComplete
+      });
+      
+      // Check if this round is complete but not marked as such
+      if (!round.isComplete && this.isRoundComplete(round)) {
+        console.log(`🔧 Marking round ${round.roundNumber} as complete`);
+        round.isComplete = true;
+      }
+      
+      // If round is complete, check for advancement
+      if (round.isComplete) {
+        console.log(`🔄 Round ${round.roundNumber} is complete, checking advancement...`);
+        
+        const advancementResult = strategy.checkAdvancement(tournament, round.roundNumber);
+        console.log('🔄 Advancement check result:', {
+          roundNumber: round.roundNumber,
+          shouldAdvance: advancementResult.shouldAdvance,
+          hasNextRound: !!advancementResult.nextRound,
+          isComplete: advancementResult.isComplete,
+          winnerId: advancementResult.winnerId
+        });
+        
+        // Check if tournament should be completed
+        if (advancementResult.isComplete) {
+          if (!tournament.isFinished) {
+            tournament.isFinished = true;
+            tournament.winnerId = advancementResult.winnerId;
+            tournamentCompleted = true;
+            console.log('🏁 Tournament marked as completed with winner:', advancementResult.winnerId);
+          }
+          break; // Tournament is finished, no more advancement needed
+        }
+        
+        // Check if we should advance to next round
+        if (advancementResult.shouldAdvance && advancementResult.nextRound) {
+          const nextRoundNumber = round.roundNumber + 1;
+          
+          // Check if next round already exists and is properly populated
+          const existingNextRound = tournament.rounds.find(r => r.roundNumber === nextRoundNumber);
+          
+          if (!existingNextRound) {
+            // Add the new round
+            console.log(`✅ Adding new round ${nextRoundNumber} to tournament`);
+            tournament.rounds.push(advancementResult.nextRound);
+            
+            if (tournament.type === TournamentType.SWISS) {
+              tournament.currentRound = nextRoundNumber;
+            }
+            
+            nextRoundStarted = true;
+          } else if (this.needsRoundUpdate(existingNextRound, advancementResult.nextRound)) {
+            // Update existing round if it needs updating (e.g., TBD players)
+            console.log(`🔧 Updating existing round ${nextRoundNumber} with new player assignments`);
+            this.updateRoundWithNewPlayers(existingNextRound, advancementResult.nextRound);
+            nextRoundStarted = true;
+          } else {
+            console.log(`ℹ️ Round ${nextRoundNumber} already exists and is properly populated`);
+          }
+        }
+      }
+    }
+    
+    console.log('✅ Enhanced round advancement check completed:', {
+      nextRoundStarted,
+      tournamentCompleted,
+      totalRounds: tournament.rounds.length,
+      isFinished: tournament.isFinished
+    });
+    
+    return { nextRoundStarted, tournamentCompleted };
+  }
+
+  /**
+   * Check if an existing round needs to be updated with new player assignments
+   */
+  private needsRoundUpdate(existingRound: any, newRound: any): boolean {
+    // Check if existing round has TBD players that should be replaced
+    const hasTBDPlayers = existingRound.matches.some((match: any) => 
+      match.player1.id === 'TBD' || match.player2.id === 'TBD'
+    );
+    
+    // For Swiss tournaments, if the match count is different, we need to update
+    const differentMatchCount = existingRound.matches.length !== newRound.matches.length;
+    
+    return hasTBDPlayers || differentMatchCount;
+  }
+
+  /**
+   * Update an existing round with new player assignments
+   */
+  private updateRoundWithNewPlayers(existingRound: any, newRound: any): void {
+    console.log(`🔧 Updating round ${existingRound.roundNumber} with new players`);
+    
+    // For single elimination, update TBD placeholders with real players
+    if (existingRound.matches.length === newRound.matches.length) {
+      for (let i = 0; i < existingRound.matches.length; i++) {
+        const existingMatch = existingRound.matches[i];
+        const newMatch = newRound.matches[i];
+        
+        if (existingMatch.player1.id === 'TBD' && newMatch.player1.id !== 'TBD') {
+          existingMatch.player1 = newMatch.player1;
+        }
+        if (existingMatch.player2.id === 'TBD' && newMatch.player2.id !== 'TBD') {
+          existingMatch.player2 = newMatch.player2;
+        }
+      }
+    } else {
+      // For Swiss tournaments, replace all matches
+      existingRound.matches = newRound.matches;
+    }
+    
+    // Update bye players if needed
+    if (newRound.byePlayers) {
+      existingRound.byePlayers = newRound.byePlayers;
+    }
+    
+    console.log(`✅ Round ${existingRound.roundNumber} updated successfully`);
+  }
+
+  /**
+   * Fix existing stuck tournaments by applying the enhanced advancement logic
+   */
+  async repairTournamentAdvancement(tournamentId: string): Promise<ITournament> {
+    console.log('🔧 Repairing tournament advancement for:', tournamentId);
+    
+    const tournament = await this.tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      throw new NotFoundException('Tournament not found');
+    }
+
+    console.log('🔍 Tournament state before repair:', {
+      id: tournament._id,
+      type: tournament.type,
+      isStarted: tournament.isStarted,
+      isFinished: tournament.isFinished,
+      roundCount: tournament.rounds.length,
+      currentRound: tournament.currentRound
+    });
+
+    if (!tournament.isStarted) {
+      console.log('ℹ️ Tournament not started, no repair needed');
+      return tournament;
+    }
+
+    const strategy = this.getStrategy(tournament.type);
+    
+    // Apply the enhanced advancement logic to check and fix all rounds
+    const { nextRoundStarted, tournamentCompleted } = await this.checkAndAdvanceRounds(tournament, strategy);
+    
+    // Save the repaired tournament
+    const savedTournament = await tournament.save();
+    
+    // Broadcast the repair
+    this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), {
+      type: 'tournament-repaired',
+      tournamentId: tournamentId,
+      rounds: savedTournament.rounds,
+      currentRound: savedTournament.currentRound,
+      isFinished: savedTournament.isFinished,
+      winnerId: savedTournament.winnerId,
+      message: 'Tournament advancement repaired'
+    });
+
+    console.log('✅ Tournament advancement repair completed:', {
+      nextRoundStarted,
+      tournamentCompleted,
+      finalRoundCount: savedTournament.rounds.length,
+      isFinished: savedTournament.isFinished
     });
 
     return savedTournament;

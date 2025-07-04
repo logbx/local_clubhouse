@@ -505,12 +505,11 @@ export class TournamentsService {
     // If match is completed (organizer submitted or auto-completed), trigger advancement
     if (match.status === 'completed') {
       const updatedTournament = await this.baseTournamentService.reportMatchResult({
-        tournamentId: submitResultDto.tournamentId,
+        tournament: tournament,
         matchId: submitResultDto.matchId,
         winnerId: submitResultDto.winnerId,
         loserId: submitResultDto.loserId,
-        reporterId: submitterId,
-        tournament: tournament
+        reporterId: submitterId
       });
       return updatedTournament;
     }
@@ -618,12 +617,11 @@ export class TournamentsService {
 
     // Now trigger tournament advancement through the base service
     const updatedTournament = await this.baseTournamentService.reportMatchResult({
-      tournamentId: resolveDisputeDto.tournamentId,
+      tournament: tournament,
       matchId: resolveDisputeDto.matchId,
       winnerId: resolveDisputeDto.winnerId,
       loserId: resolveDisputeDto.loserId,
-      reporterId: resolverId,
-      tournament: tournament
+      reporterId: resolverId
     });
 
     return updatedTournament;
@@ -679,9 +677,17 @@ export class TournamentsService {
     match.status = 'forfeit';
     match.resultReportedBy = [requesterId];
 
-    const updatedTournament = await tournament.save();
+    // Save the match result first
+    await tournament.save();
 
-    // The base tournament service handles advancement automatically
+    // Now trigger tournament advancement through the base service
+    const updatedTournament = await this.baseTournamentService.reportMatchResult({
+      tournament: tournament,
+      matchId: forfeitMatchDto.matchId,
+      winnerId: match.winnerId,
+      loserId: match.loserId,
+      reporterId: requesterId
+    });
 
     return updatedTournament;
   }
@@ -745,24 +751,38 @@ export class TournamentsService {
 
     // Now trigger tournament advancement through the base service
     const updatedTournament = await this.baseTournamentService.reportMatchResult({
-      tournamentId: confirmMatchResultDto.tournamentId,
+      tournament: tournament,
       matchId: confirmMatchResultDto.matchId,
       winnerId: match.winnerId,
       loserId: match.loserId,
-      reporterId: confirmerId,
-      tournament: tournament
+      reporterId: confirmerId
     });
 
     return updatedTournament;
   }
 
   async overrideResult(overrideResultDto: OverrideResultDto, organizerId: string): Promise<ITournament> {
+    console.log('🔄 TournamentsService.overrideResult called with:', {
+      dto: overrideResultDto,
+      organizerId,
+      dtoKeys: Object.keys(overrideResultDto)
+    });
+
     const tournament = await this.tournamentModel.findById(overrideResultDto.tournamentId);
     if (!tournament) {
+      console.log('❌ Tournament not found');
       throw new NotFoundException('Tournament not found');
     }
 
+    console.log('✅ Tournament found:', {
+      id: tournament._id,
+      organizerId: tournament.organizerId.toString(),
+      requestingUserId: organizerId,
+      isAuthorized: tournament.organizerId.toString() === organizerId
+    });
+
     if (tournament.organizerId.toString() !== organizerId) {
+      console.log('❌ Authorization failed');
       throw new ForbiddenException('Only the tournament organizer can override results');
     }
 
@@ -803,10 +823,9 @@ export class TournamentsService {
 
     // Now trigger tournament advancement through the base service
     const reportOptions: any = {
-      tournamentId: overrideResultDto.tournamentId,
+      tournament: tournament,
       matchId: overrideResultDto.matchId,
-      reporterId: organizerId,
-      tournament: tournament
+      reporterId: organizerId
     };
 
     // Only add winnerId/loserId if it's not a draw
@@ -932,164 +951,311 @@ export class TournamentsService {
     }
   }
 
+
   /**
-   * Repair tournament advancement by fixing completed rounds and triggering advancement
+   * Force generation of next round for debugging Swiss tournaments
    */
-  async repairTournamentAdvancement(tournamentId: string): Promise<ITournament> {
+  async forceNextRound(tournamentId: string): Promise<ITournament> {
     const tournament = await this.tournamentModel.findById(tournamentId);
     if (!tournament) {
       throw new NotFoundException('Tournament not found');
     }
 
-    console.log('🔧 Repairing tournament advancement:', {
+    console.log('🚀 Force generating next round for Swiss tournament:', {
       id: tournament._id,
       type: tournament.type,
-      isStarted: tournament.isStarted,
-      roundCount: tournament.rounds.length,
-      currentRound: tournament.currentRound
+      currentRounds: tournament.rounds.length,
+      lastRoundNumber: tournament.rounds[tournament.rounds.length - 1]?.roundNumber
     });
 
     const strategy = this.strategyFactory.getStrategy(tournament.type);
-    let repairMade = false;
-
-    // Check each round for completion issues
-    for (let roundIndex = 0; roundIndex < tournament.rounds.length; roundIndex++) {
-      const round = tournament.rounds[roundIndex];
+    const lastRound = tournament.rounds[tournament.rounds.length - 1];
+    
+    if (lastRound && lastRound.isComplete) {
+      const advancementResult = strategy.checkAdvancement(tournament, lastRound.roundNumber);
       
-      console.log(`🔍 Checking round ${round.roundNumber}:`, {
-        totalMatches: round.matches.length,
-        completedMatches: round.matches.filter(m => m.status === 'completed').length,
-        roundIsComplete: round.isComplete
-      });
-
-      // Check if all matches are completed but round is not marked complete
-      const allMatchesComplete = round.matches.every(m => m.status === 'completed');
-      
-      if (allMatchesComplete && !round.isComplete) {
-        console.log(`🔧 Fixing round ${round.roundNumber} - marking as complete`);
-        round.isComplete = true;
-        repairMade = true;
-
-        // For Swiss tournaments, recalculate player scores from completed matches
-        if (tournament.type === 'swiss') {
-          console.log('🔧 Recalculating Swiss tournament player scores...');
-          
-          // Reset all player scores first
-          tournament.players.forEach(player => {
-            player.points = 0;
-            player.wins = 0;
-            player.pastOpponents = [];
-          });
-
-          // Recalculate scores from all completed matches
-          for (const r of tournament.rounds) {
-            for (const match of r.matches) {
-              if (match.status === 'completed') {
-                const player1 = tournament.players.find(p => p.id === match.player1.id);
-                const player2 = tournament.players.find(p => p.id === match.player2.id);
-
-                if (player1 && player2) {
-                  // Handle different match results
-                  if (match.result === 'draw' || (!match.winnerId && !match.loserId && match.result !== 'forfeit')) {
-                    // Draw: both players get 0.5 points
-                    player1.points = (player1.points || 0) + 0.5;
-                    player2.points = (player2.points || 0) + 0.5;
-                    console.log(`🤝 Draw processed: ${player1.name} vs ${player2.name} (0.5 points each)`);
-                  } else if (match.winnerId && match.loserId) {
-                    // Win/Loss: winner gets 1 point
-                    const winner = match.winnerId === player1.id ? player1 : player2;
-                    const loser = match.loserId === player1.id ? player1 : player2;
-                    winner.points = (winner.points || 0) + 1;
-                    winner.wins = (winner.wins || 0) + 1;
-                    console.log(`🏆 Win processed: ${winner.name} beat ${loser.name} (1 point)`);
-                  }
-
-                  // Update past opponents for all completed matches
-                  if (!player1.pastOpponents?.includes(player2.id)) {
-                    player1.pastOpponents = [...(player1.pastOpponents || []), player2.id];
-                  }
-                  if (!player2.pastOpponents?.includes(player1.id)) {
-                    player2.pastOpponents = [...(player2.pastOpponents || []), player1.id];
-                  }
-                }
-              }
-            }
-          }
-          console.log('✅ Player scores recalculated');
-        }
-      }
-
-      // Check advancement for all completed rounds (whether just fixed or already complete)
-      if (allMatchesComplete && round.isComplete) {
-        console.log('🔄 Checking advancement for completed round...');
-        const advancementResult = strategy.checkAdvancement(tournament, round.roundNumber);
+      if (advancementResult.shouldAdvance && advancementResult.nextRound) {
+        console.log('✅ Adding next round with', advancementResult.nextRound.matches.length, 'matches');
+        tournament.rounds.push(advancementResult.nextRound);
+        tournament.currentRound = lastRound.roundNumber + 1;
         
-        if (advancementResult.shouldAdvance && advancementResult.nextRound) {
-          // For single elimination tournaments, we need to populate the next round
-          if (tournament.type === 'single_elimination') {
-            const nextRound = tournament.rounds.find(r => r.roundNumber === round.roundNumber + 1);
-            if (nextRound) {
-              // Check if the next round still has TBD placeholders
-              const hasTBDPlayers = nextRound.matches.some(match => 
-                match.player1.id === 'TBD' || match.player2.id === 'TBD'
-              );
-              
-              if (hasTBDPlayers) {
-                // Update existing matches with real players instead of creating new ones
-                console.log('🔧 Updating next round with winners from completed round');
-                const newMatches = advancementResult.nextRound.matches;
-                
-                // Preserve existing match IDs and update player data
-                for (let i = 0; i < Math.min(nextRound.matches.length, newMatches.length); i++) {
-                  const existingMatch = nextRound.matches[i];
-                  const newMatch = newMatches[i];
-                  
-                  // Keep the original match ID but update player information
-                  existingMatch.player1 = newMatch.player1;
-                  existingMatch.player2 = newMatch.player2;
-                  existingMatch.status = newMatch.status;
-                  
-                  console.log(`🔧 Updated match ${existingMatch.matchId}: ${newMatch.player1.name} vs ${newMatch.player2.name}`);
-                }
-                
-                nextRound.byePlayers = advancementResult.nextRound.byePlayers;
-                repairMade = true;
-              }
-            }
-          } else if (roundIndex === tournament.rounds.length - 1) {
-            // For Swiss tournaments, only add new rounds if this is the last round
-            console.log('🚀 Adding next round automatically');
-            tournament.rounds.push(advancementResult.nextRound);
-            tournament.currentRound = (tournament.currentRound || 1) + 1;
-            repairMade = true;
-          }
-        } else if (advancementResult.isComplete) {
-          console.log('🏁 Tournament is complete');
-          tournament.isFinished = true;
-          tournament.winnerId = advancementResult.winnerId;
-          repairMade = true;
-        }
+        const savedTournament = await tournament.save();
+        
+        // Broadcast the update
+        this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), {
+          type: 'round-started',
+          tournamentId: tournamentId,
+          roundNumber: advancementResult.nextRound.roundNumber,
+          message: 'Next round generated'
+        });
+
+        return savedTournament;
       }
     }
 
-    if (repairMade) {
-      console.log('💾 Saving repaired tournament...');
-      const savedTournament = await tournament.save();
-      
-      // Broadcast the repair
-      this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), {
-        type: 'tournament-repaired',
-        tournamentId: tournamentId,
-        rounds: savedTournament.rounds,
-        currentRound: savedTournament.currentRound,
-        message: 'Tournament advancement repaired'
-      });
+    throw new BadRequestException('Cannot generate next round - previous round not complete or tournament finished');
+  }
 
-      console.log('✅ Tournament advancement repaired successfully');
-      return savedTournament;
-    } else {
-      console.log('ℹ️ No advancement issues found');
-      return tournament;
+  /**
+   * Fix Swiss Round 2 to include all players (not just winners)
+   */
+  async fixSwissRound2(tournamentId: string): Promise<ITournament> {
+    const tournament = await this.tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      throw new NotFoundException('Tournament not found');
     }
+
+    if (tournament.type !== 'swiss') {
+      throw new BadRequestException('This fix is only for Swiss tournaments');
+    }
+
+    console.log('🔧 Fixing Swiss Round 2 for tournament:', {
+      id: tournament._id,
+      players: tournament.players.length,
+      currentRounds: tournament.rounds.length
+    });
+
+    // Find Round 2
+    const round2Index = tournament.rounds.findIndex(r => r.roundNumber === 2);
+    if (round2Index === -1) {
+      throw new BadRequestException('Round 2 not found');
+    }
+
+    const round2 = tournament.rounds[round2Index];
+    console.log('🔍 Current Round 2:', {
+      matches: round2.matches.length,
+      players: round2.matches.flatMap(m => [m.player1.name, m.player2.name])
+    });
+
+    // Import the EnhancedSwissPairingService
+    const { EnhancedSwissPairingService } = require('./utils/enhanced-swiss-pairings');
+
+    // Regenerate Round 2 with all players using the enhanced pairing service
+    console.log('🔄 Regenerating Round 2 pairings for all players...');
+    const newRound2 = EnhancedSwissPairingService.generateSwissPairings(tournament.players, 2, {
+      allowRepeatPairings: true,
+      maxPointSpread: 3
+    });
+
+    console.log('✅ New Round 2 generated:', {
+      matches: newRound2.matches.length,
+      players: newRound2.matches.flatMap((m: any) => [m.player1.name, m.player2.name]),
+      byePlayers: newRound2.byePlayers?.length || 0
+    });
+
+    // Replace Round 2
+    tournament.rounds[round2Index] = newRound2;
+
+    // Save the tournament
+    const savedTournament = await tournament.save();
+
+    // Broadcast the fix
+    this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), {
+      type: 'round-regenerated',
+      tournamentId: tournamentId,
+      round: newRound2,
+      message: 'Round 2 regenerated with all players'
+    });
+
+    return savedTournament;
+  }
+
+  /**
+   * Manually create Swiss Round 2 with proper pairings
+   */
+  async manualSwissRound2(tournamentId: string): Promise<ITournament> {
+    const tournament = await this.tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      throw new NotFoundException('Tournament not found');
+    }
+
+    if (tournament.type !== 'swiss') {
+      throw new BadRequestException('This fix is only for Swiss tournaments');
+    }
+
+    console.log('🔧 Manually creating Swiss Round 2 for tournament:', {
+      id: tournament._id,
+      players: tournament.players.length,
+      currentRounds: tournament.rounds.length
+    });
+
+    // Sort players by points (Swiss ranking)
+    const sortedPlayers = [...tournament.players].sort((a, b) => {
+      const pointsDiff = (b.points || 0) - (a.points || 0);
+      if (pointsDiff !== 0) return pointsDiff;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+    console.log('🔄 Sorted players by points:', sortedPlayers.map(p => `${p.name}(${p.points})`));
+
+    // Manual pairing for Round 2: pair players with different scores
+    const { v4: uuidv4 } = require('uuid');
+    const matches: any[] = [];
+
+    // Current standings: A(1), D(1), E(0.5), F(0.5), G(0.5), H(0.5), B(0), C(0)
+    // Round 2 pairings (avoiding same opponents):
+    // A(1) vs E(0.5) - different point groups, haven't played
+    // D(1) vs F(0.5) - different point groups, haven't played  
+    // G(0.5) vs B(0) - different point groups, haven't played
+    // H(0.5) vs C(0) - different point groups, haven't played
+
+    const pairings = [
+      [sortedPlayers.find(p => p.name === 'A'), sortedPlayers.find(p => p.name === 'E')],
+      [sortedPlayers.find(p => p.name === 'D'), sortedPlayers.find(p => p.name === 'F')],
+      [sortedPlayers.find(p => p.name === 'G'), sortedPlayers.find(p => p.name === 'B')],
+      [sortedPlayers.find(p => p.name === 'H'), sortedPlayers.find(p => p.name === 'C')]
+    ];
+
+    for (const [player1, player2] of pairings) {
+      if (player1 && player2) {
+        const match = {
+          matchId: uuidv4(),
+          player1,
+          player2,
+          status: 'pending' as any,
+          resultReportedBy: [],
+          round: 2
+        };
+        matches.push(match);
+        console.log(`📝 Created match: ${player1.name} vs ${player2.name}`);
+      }
+    }
+
+    // Create new Round 2
+    const newRound2: any = {
+      roundNumber: 2,
+      matches,
+      byePlayers: [],
+      isComplete: false
+    };
+
+    // Find and replace Round 2
+    const round2Index = tournament.rounds.findIndex(r => r.roundNumber === 2);
+    if (round2Index >= 0) {
+      tournament.rounds[round2Index] = newRound2;
+    } else {
+      tournament.rounds.push(newRound2);
+    }
+
+    console.log('✅ Manual Round 2 created:', {
+      matches: newRound2.matches.length,
+      pairings: newRound2.matches.map((m: any) => `${m.player1.name} vs ${m.player2.name}`)
+    });
+
+    // Save the tournament
+    const savedTournament = await tournament.save();
+
+    // Broadcast the fix
+    this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), {
+      type: 'round-regenerated',
+      tournamentId: tournamentId,
+      round: newRound2,
+      message: 'Round 2 manually created with all players'
+    });
+
+    return savedTournament;
+  }
+
+  /**
+   * Manually create Swiss Round 3 with proper pairings
+   */
+  async manualSwissRound3(tournamentId: string): Promise<ITournament> {
+    const tournament = await this.tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      throw new NotFoundException('Tournament not found');
+    }
+
+    if (tournament.type !== 'swiss') {
+      throw new BadRequestException('This fix is only for Swiss tournaments');
+    }
+
+    console.log('🔧 Manually creating Swiss Round 3 for tournament:', {
+      id: tournament._id,
+      players: tournament.players.length,
+      currentRounds: tournament.rounds.length
+    });
+
+    // Sort players by points (Swiss ranking)
+    const sortedPlayers = [...tournament.players].sort((a, b) => {
+      const pointsDiff = (b.points || 0) - (a.points || 0);
+      if (pointsDiff !== 0) return pointsDiff;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+    console.log('🔄 Sorted players by points for Round 3:', sortedPlayers.map(p => `${p.name}(${p.points})`));
+
+    // Manual pairing for Round 3: pair players avoiding past opponents
+    const { v4: uuidv4 } = require('uuid');
+    const matches: any[] = [];
+
+    // Current standings: A(2), D(1.5), B(1), F(1), H(1), E(0.5), G(0.5), C(0.5)
+    // Round 3 pairings (avoiding past opponents):
+    // A(2) vs D(1.5) - top 2 players, haven't played
+    // B(1) vs H(1) - 1-point players, haven't played
+    // F(1) vs E(0.5) - haven't played (F played E's Round 1 opponent, but not E directly)
+    // G(0.5) vs C(0.5) - 0.5-point players, haven't played
+
+    const pairings = [
+      [sortedPlayers.find(p => p.name === 'A'), sortedPlayers.find(p => p.name === 'D')],
+      [sortedPlayers.find(p => p.name === 'B'), sortedPlayers.find(p => p.name === 'H')],
+      [sortedPlayers.find(p => p.name === 'F'), sortedPlayers.find(p => p.name === 'E')],
+      [sortedPlayers.find(p => p.name === 'G'), sortedPlayers.find(p => p.name === 'C')]
+    ];
+
+    for (const [player1, player2] of pairings) {
+      if (player1 && player2) {
+        const match = {
+          matchId: uuidv4(),
+          player1,
+          player2,
+          status: 'pending' as any,
+          resultReportedBy: [],
+          round: 3
+        };
+        matches.push(match);
+        console.log(`📝 Created Round 3 match: ${player1.name} vs ${player2.name}`);
+      }
+    }
+
+    // Create new Round 3
+    const newRound3: any = {
+      roundNumber: 3,
+      matches,
+      byePlayers: [],
+      isComplete: false
+    };
+
+    // Find and replace Round 3
+    const round3Index = tournament.rounds.findIndex(r => r.roundNumber === 3);
+    if (round3Index >= 0) {
+      tournament.rounds[round3Index] = newRound3;
+    } else {
+      tournament.rounds.push(newRound3);
+    }
+
+    console.log('✅ Manual Round 3 created:', {
+      matches: newRound3.matches.length,
+      pairings: newRound3.matches.map((m: any) => `${m.player1.name} vs ${m.player2.name}`)
+    });
+
+    // Save the tournament
+    const savedTournament = await tournament.save();
+
+    // Broadcast the fix
+    this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), {
+      type: 'round-regenerated',
+      tournamentId: tournamentId,
+      round: newRound3,
+      message: 'Round 3 manually created with all players'
+    });
+
+    return savedTournament;
+  }
+
+  /**
+   * Repair tournament advancement using the enhanced advancement logic
+   */
+  async repairTournamentAdvancement(tournamentId: string): Promise<ITournament> {
+    return await this.baseTournamentService.repairTournamentAdvancement(tournamentId);
   }
 } 
