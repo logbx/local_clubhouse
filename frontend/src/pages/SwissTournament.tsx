@@ -61,8 +61,9 @@ const SwissTournament: React.FC = () => {
   const loadTournamentByEvent = async () => {
     try {
       const tournaments = await tournamentService.getTournamentsByEvent(eventId);
-      if (tournaments.length > 0) {
-        setTournament(tournaments[0]);
+      const swissTournament = tournaments.find(t => t.type === TournamentType.SWISS);
+      if (swissTournament) {
+        setTournament(swissTournament);
       }
     } catch (error) {
       console.error('Error loading tournament:', error);
@@ -89,56 +90,17 @@ const SwissTournament: React.FC = () => {
     }
   };
 
-  const handleCreateTournament = async () => {
-    try {
-      log.info(LogCategory.TOURNAMENT, 'Creating Swiss tournament', {
-        eventId,
-        eventTitle,
-        eventCreatorId,
-        userId: user?.id,
-        username: user?.username
-      });
-
-      // First, validate that the event exists
-      try {
-        const eventResponse = await fetch(`http://localhost:3001/api/events/${eventId}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-          }
-        });
-        
-        if (!eventResponse.ok) {
-          if (eventResponse.status === 404) {
-            throw new Error(`Event with ID ${eventId} does not exist. Please check the event ID and try again.`);
-          }
-          throw new Error(`Failed to validate event: ${eventResponse.status} ${eventResponse.statusText}`);
-        }
-      } catch (validationError) {
-        log.error(LogCategory.TOURNAMENT, 'Event validation failed', validationError);
-        const errorMessage = validationError instanceof Error ? validationError.message : 'Unknown validation error';
-        setError(`Cannot create tournament: ${errorMessage}`);
-        return;
-      }
-
-      const type = TournamentType.SWISS;
-
-      // Create tournament via backend API
-      const backendTournament = await tournamentService.createTournament(
-        eventId,
-        `${eventTitle} Tournament`,
-        32, // Default max players
-        type,
-        3 // Default 3 rounds for Swiss tournaments
-      );
-      
-      log.info(LogCategory.TOURNAMENT, 'Swiss tournament created successfully', { backendTournament });
-      
-      // Navigate to the tournament management page
-      navigate(`/tournament/swiss/${backendTournament.id}/manage?eventId=${eventId}&eventTitle=${encodeURIComponent(eventTitle)}&creatorId=${eventCreatorId}`);
-    } catch (error) {
-      log.error(LogCategory.TOURNAMENT, 'Failed to create Swiss tournament', error);
-      setError('Failed to create tournament. Please try again.');
-    }
+  const handleCreateTournament = (tournament: any) => {
+    // This function is called after the TournamentCreationForm successfully creates a tournament
+    // We just need to navigate to the tournament management page
+    log.info(LogCategory.TOURNAMENT, 'Tournament created successfully, navigating to management page', {
+      tournamentId: tournament.id,
+      eventId,
+      eventTitle
+    });
+    
+    // Navigate to the tournament management page
+    navigate(`/tournament/swiss/${tournament.id}/manage?eventId=${eventId}&eventTitle=${encodeURIComponent(eventTitle)}&creatorId=${eventCreatorId}`);
   };
 
   const handleRemovePlayer = async (playerId: string) => {
@@ -465,7 +427,7 @@ const SwissTournament: React.FC = () => {
   }
 
   // Show registration page only when registration is open and user is not registered
-  if (!isEventCreator && tournament.status === 'registration_open' && !isUserRegistered) {
+  if (!isEventCreator && !tournament.isStarted && tournament.registrationOpen !== false && !isUserRegistered) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
         <div className="max-w-4xl mx-auto">
@@ -689,12 +651,14 @@ const SwissTournament: React.FC = () => {
             {tournament.name}
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Status: {tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)}
+            Status: {tournament?.isFinished ? 'Completed' : 
+                    tournament?.isStarted ? 'Active' : 
+                    tournament?.registrationOpen !== false ? 'Registration Open' : 'Pending'}
           </p>
         </div>
 
         {/* Match Results Access for Registered Players */}
-        {!isEventCreator && isUserRegistered && (tournament.status === 'active' || tournament.status === 'completed') && (
+        {!isEventCreator && isUserRegistered && (tournament.isStarted || tournament.isFinished) && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Your Tournament Actions</h2>
             <div className="space-y-4">
