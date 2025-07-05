@@ -31,6 +31,7 @@ const SwissTournament: React.FC = () => {
 
   // Check if current user is registered
   const isUserRegistered = tournament && user && tournament.players.some(p => p.userId === user.id);
+  
 
   // Check if user can register
   const canRegister = user && !isUserRegistered && !tournament?.isStarted && !tournament?.isFinished && tournament?.registrationOpen !== false;
@@ -682,7 +683,139 @@ const SwissTournament: React.FC = () => {
           </div>
         )}
 
-        {/* Rest of the tournament view code ... */}
+        {/* Tournament Status and Player Management */}
+        {!tournament.isStarted && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Tournament Status</h2>
+            
+            {isUserRegistered ? (
+              <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 mb-4">
+                <div className="flex items-center">
+                  <CheckIcon className="h-6 w-6 text-green-500 mr-2" />
+                  <div>
+                    <p className="text-green-700 dark:text-green-400 font-medium">You're registered and ready to compete!</p>
+                    <p className="text-green-600 dark:text-green-500 text-sm">Waiting for the tournament to start...</p>
+                  </div>
+                </div>
+              </div>
+            ) : canRegister ? (
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4">
+                <p className="text-blue-700 dark:text-blue-400 mb-4">Ready to join this Swiss tournament?</p>
+                <button
+                  onClick={() => setShowRegistrationModal(true)}
+                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  <UserPlusIcon className="h-5 w-5 mr-2 inline" />
+                  Register for Tournament
+                </button>
+              </div>
+            ) : (
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4">
+                <p className="text-gray-600 dark:text-gray-400">Tournament registration is closed or you cannot register at this time.</p>
+              </div>
+            )}
+
+            {/* Event Creator Controls */}
+            {isEventCreator && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4">
+                <h3 className="font-medium text-blue-900 dark:text-blue-300 mb-2">Tournament Management</h3>
+                <div className="space-y-2">
+                  <button
+                    onClick={handleStartTournament}
+                    disabled={tournament.players.length < 2}
+                    className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    <PlayIcon className="h-5 w-5 mr-2 inline" />
+                    Start Tournament
+                  </button>
+                  {tournament.players.length < 2 && (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Need at least 2 players to start</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Players List */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              Players ({tournament?.players?.length || 0})
+            </h2>
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              Max: {tournament?.maxPlayers || 0}
+            </span>
+          </div>
+
+          {tournament?.players?.length > 0 ? (
+            <div className="space-y-3">
+              {tournament.players.map((player, index) => (
+                <div key={player.id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                  <div className="flex items-center">
+                    <div className="flex items-center justify-center w-8 h-8 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full mr-3">
+                      {player.isGuest ? 'G' : index + 1}
+                    </div>
+                    <div>
+                      <div className="flex items-center">
+                        <span className="text-gray-900 dark:text-white font-medium">{player.name}</span>
+                        {player.userId === user?.id && (
+                          <span className="ml-2 text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2 py-1 rounded-full">
+                            You
+                          </span>
+                        )}
+                        {player.isGuest && (
+                          <span className="ml-2 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-1 rounded-full">
+                            Guest
+                          </span>
+                        )}
+                      </div>
+                      {player.registeredAt && (
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          Registered: {format(new Date(player.registeredAt), 'M/d/yyyy, h:mm a')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {isEventCreator && !tournament.isStarted && (
+                    <button
+                      onClick={() => handleRemovePlayer(player.id)}
+                      className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                    >
+                      <XMarkIcon className="h-5 w-5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-600 dark:text-gray-400 text-center py-8">No players registered yet</p>
+          )}
+
+          {/* Add Guest Player (Event Creator Only) */}
+          {isEventCreator && !tournament.isStarted && (
+            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-600">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Add Guest Player</h3>
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={newPlayerName}
+                  onChange={(e) => setNewPlayerName(e.target.value)}
+                  placeholder="Guest player name"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={handleAddPlayer}
+                  disabled={!newPlayerName.trim()}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg shadow transition-colors flex items-center"
+                >
+                  <UserPlusIcon className="h-5 w-5 mr-1" />
+                  Add
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Registration Confirmation Modal */}
