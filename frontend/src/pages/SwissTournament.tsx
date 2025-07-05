@@ -24,6 +24,7 @@ const SwissTournament: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newPlayerName, setNewPlayerName] = useState('');
+  const [showRegistrationModal, setShowRegistrationModal] = useState(false);
 
   // Check if current user is the event creator
   const isEventCreator = user && eventCreatorId && user.id === eventCreatorId;
@@ -294,7 +295,7 @@ const SwissTournament: React.FC = () => {
               </div>
             ) : (
               <button
-                onClick={handleRegisterForTournament}
+                onClick={() => setShowRegistrationModal(true)}
                 className="w-full flex justify-center items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow transition-colors"
               >
                 <UserPlusIcon className="h-5 w-5 mr-2" />
@@ -508,7 +509,7 @@ const SwissTournament: React.FC = () => {
               </div>
             ) : (
               <button
-                onClick={handleRegisterForTournament}
+                onClick={() => setShowRegistrationModal(true)}
                 className="w-full flex justify-center items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow transition-colors"
               >
                 <UserPlusIcon className="h-5 w-5 mr-2" />
@@ -683,6 +684,40 @@ const SwissTournament: React.FC = () => {
 
         {/* Rest of the tournament view code ... */}
       </div>
+
+      {/* Registration Confirmation Modal */}
+      {showRegistrationModal && (
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <div className="text-center">
+              <TrophyIcon className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                Join Swiss Tournament
+              </h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-6">
+                Are you sure you want to register for this Swiss tournament? You'll be able to play multiple rounds and compete against players with similar records.
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowRegistrationModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowRegistrationModal(false);
+                    handleRegisterForTournament();
+                  }}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  Join Tournament
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
