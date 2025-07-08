@@ -277,6 +277,16 @@ export class SponsorsController {
     return this.sponsorsService.removeTeamMember(sponsorId, req.user.sub, memberId);
   }
 
+  @Post(':id/team/:memberId/transfer-leadership')
+  @UseGuards(JwtAuthGuard)
+  async transferLeadership(
+    @Param('id') sponsorId: string,
+    @Param('memberId') memberId: string,
+    @Request() req: any
+  ) {
+    return this.sponsorsService.transferLeadership(sponsorId, req.user.sub, memberId);
+  }
+
   // Sponsorship Preferences endpoints
   @Post(':username/preferences')
   @UseGuards(JwtAuthGuard)

@@ -155,9 +155,7 @@ export class FriendsController {
   }
 
   @Post('cleanup')
-  async cleanupAllFriendshipData(@Request() req: any) {
-    const userId = req.user.sub;
-    
+  async cleanupAllFriendshipData() {
     // Get all users to check for inconsistencies
     const allUsers = await this.friendsService['userModel'].find({}).select('_id sentRequests receivedRequests friends');
     let cleanupCount = 0;

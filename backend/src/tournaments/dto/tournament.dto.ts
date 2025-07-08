@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, IsMongoId, Min, Max, IsEnum, IsArray } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsMongoId, Min, Max, IsEnum, IsArray, ValidateIf, IsBoolean } from 'class-validator';
 import { TournamentType } from '../../models/tournament.model';
 
 export class CreateTournamentDto {
@@ -29,7 +29,7 @@ export class RegisterPlayerDto {
 }
 
 export class AddGuestPlayerDto {
-  @IsString()
+  @IsMongoId()
   tournamentId: string;
 
   @IsString()
@@ -37,7 +37,7 @@ export class AddGuestPlayerDto {
 }
 
 export class RemovePlayerDto {
-  @IsString()
+  @IsMongoId()
   tournamentId: string;
 
   @IsString()
@@ -50,7 +50,7 @@ export class StartTournamentDto {
 }
 
 export class ReportResultDto {
-  @IsString()
+  @IsMongoId()
   tournamentId: string;
 
   @IsString()
@@ -64,6 +64,36 @@ export class ReportResultDto {
 
   @IsString()
   result: 'win' | 'loss' | 'draw';
+}
+
+export class SubmitResultDto {
+  @IsMongoId()
+  tournamentId: string;
+
+  @IsString()
+  matchId: string;
+
+  @IsOptional()
+  @ValidateIf((o) => o.winnerId !== null)
+  @IsString()
+  winnerId?: string | null;
+
+  @IsOptional()
+  @ValidateIf((o) => o.loserId !== null)
+  @IsString()
+  loserId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  result?: 'win' | 'loss' | 'draw';
+
+  @IsOptional()
+  @IsBoolean()
+  isDraw?: boolean;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }
 
 export class ConfirmResultDto {

@@ -1,22 +1,33 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request, UnauthorizedException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { 
+  Controller, 
+  Get, 
+  Post, 
+  Put, 
+  Delete, 
+  Body, 
+  Param, 
+  UseGuards, 
+  Request, 
+  NotFoundException, 
+  ForbiddenException,
+  UnauthorizedException 
+} from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { IEvent } from '../models/event.model';
+import { IEvent, EventStatus } from '../models/event.model';
+import { AuthenticatedRequest } from '../types/express';
 import { Public } from '../auth/decorators/public.decorator';
 import { Club, ClubDocument } from '../clubs/schemas/club.schema';
-import { EventsService } from './events.service';
-import { CreateEventDto } from './dto/create-event.dto';
-import { UpdateEventDto } from './dto/update-event.dto';
-import { Query } from '@nestjs/common';
-import { transformId } from '../utils/transform.util';
+import { Sponsor, SponsorDocument } from '../sponsors/schemas/sponsor.schema';
+import { Tournament, ITournament } from '../models/tournament.model';
 
-interface AuthenticatedRequest {
-  user: {
-    sub: string;
-    email: string;
-    id?: string;
-  };
+function transformId(obj: any): any {
+  if (obj && obj._id) {
+    obj.id = obj._id.toString();
+    delete obj._id;
+  }
+  return obj;
 }
 
 @Controller('events')
@@ -25,17 +36,19 @@ export class EventsController {
   constructor(
     @InjectModel('Event') private eventModel: Model<IEvent>,
     @InjectModel(Club.name) private clubModel: Model<ClubDocument>,
-    private readonly eventsService: EventsService
+    @InjectModel(Sponsor.name) private sponsorModel: Model<SponsorDocument>,
+    @InjectModel(Tournament.name) private tournamentModel: Model<ITournament>
   ) {}
 
   @Get()
   async findAll(@Request() req: AuthenticatedRequest) {
-    const userId = req.user.sub || req.user.id;
+    const userId = req.user.sub;
     
     const events = await this.eventModel
       .find()
       .populate('creator', 'username email profileImage')
-      .populate('clubId', 'name username logoUrl') // Include club logo
+      .populate('clubId', 'name username logoUrl') // Populate club info with logo if associated
+      .populate('sponsors.sponsorId', 'name username logoUrl') // Include sponsors
       .lean()
       .exec();
     
@@ -173,6 +186,7 @@ export class EventsController {
       .findById(id)
       .populate('creator', 'username email profileImage')
       .populate('clubId', 'name username logoUrl') // Include club logo
+      .populate('sponsors', 'name username logoUrl') // Include sponsors
       .lean()
       .exec();
 
@@ -260,6 +274,7 @@ export class EventsController {
       .findById(id)
       .populate('creator', 'username email profileImage')
       .populate('clubId', 'name username logoUrl') // Populate club info with logo if associated
+      .populate('sponsors', 'name username logoUrl') // Include sponsors
       .lean()
       .exec();
 
@@ -336,7 +351,7 @@ export class EventsController {
 
   @Post()
   async create(@Request() req: AuthenticatedRequest, @Body() createEventDto: any) {
-    const userId = req.user.sub || req.user.id;
+    const userId = req.user.sub;
     if (!userId) {
       throw new UnauthorizedException('User ID not found in token');
     }
@@ -421,12 +436,64 @@ export class EventsController {
         .filter(Boolean);
     }
 
+    // Handle sponsors array
+    if (createEventDto.sponsors !== undefined) {
+      console.log('🔍 Processing sponsors:', JSON.stringify(createEventDto.sponsors, null, 2));
+      
+      if (typeof createEventDto.sponsors === 'string') {
+        try {
+          createEventDto.sponsors = JSON.parse(createEventDto.sponsors);
+          console.log('📝 Parsed sponsors from string:', createEventDto.sponsors);
+        } catch {
+          createEventDto.sponsors = [];
+        }
+      }
+      if (!Array.isArray(createEventDto.sponsors)) {
+        createEventDto.sponsors = [];
+      }
+      
+      // Handle both legacy format (string IDs) and new format (sponsor request objects)
+      eventData.sponsors = createEventDto.sponsors
+        .map((sponsor: any) => {
+          try {
+            if (typeof sponsor === 'string' && sponsor.trim().length > 0) {
+              // Legacy format: simple string ID
+              const result = {
+                sponsorId: new Types.ObjectId(sponsor),
+                status: 'pending',
+                requestedAt: new Date()
+              };
+              console.log('✅ Processed legacy sponsor:', result);
+              return result;
+            } else if (typeof sponsor === 'object' && sponsor.sponsorId) {
+              // New format: sponsor request object
+              const result = {
+                sponsorId: new Types.ObjectId(sponsor.sponsorId),
+                status: sponsor.status || 'pending',
+                requestedAt: sponsor.requestedAt ? new Date(sponsor.requestedAt) : new Date()
+              };
+              console.log('✅ Processed sponsor object:', result);
+              return result;
+            }
+            console.log('❌ Invalid sponsor format:', sponsor);
+            return null;
+          } catch (error) {
+            console.log('❌ Error processing sponsor:', sponsor, error);
+            return null;
+          }
+        })
+        .filter(Boolean);
+        
+      console.log('🎯 Final sponsors array:', eventData.sponsors);
+    }
+
     const createdEvent = await this.eventModel.create(eventData);
 
     const populatedEvent = await this.eventModel
       .findById(createdEvent._id)
       .populate('creator', 'username email profileImage')
       .populate('clubId', 'name username logoUrl') // Include club logo
+      .populate('sponsors.sponsorId', 'name username logoUrl') // Include sponsors
       .lean()
       .exec();
 
@@ -515,10 +582,62 @@ export class EventsController {
         .filter(Boolean);
     }
 
+    // Handle sponsors array
+    if (updateEventDto.sponsors !== undefined) {
+      console.log('🔍 UPDATE: Processing sponsors:', JSON.stringify(updateEventDto.sponsors, null, 2));
+      
+      if (typeof updateEventDto.sponsors === 'string') {
+        try {
+          updateEventDto.sponsors = JSON.parse(updateEventDto.sponsors);
+          console.log('📝 UPDATE: Parsed sponsors from string:', updateEventDto.sponsors);
+        } catch {
+          updateEventDto.sponsors = [];
+        }
+      }
+      if (!Array.isArray(updateEventDto.sponsors)) {
+        updateEventDto.sponsors = [];
+      }
+      
+      // Handle both legacy format (string IDs) and new format (sponsor request objects)
+      updateEventDto.sponsors = updateEventDto.sponsors
+        .map((sponsor: any) => {
+          try {
+            if (typeof sponsor === 'string' && sponsor.trim().length > 0) {
+              // Legacy format: simple string ID
+              const result = {
+                sponsorId: new Types.ObjectId(sponsor),
+                status: 'pending',
+                requestedAt: new Date()
+              };
+              console.log('✅ UPDATE: Processed legacy sponsor:', result);
+              return result;
+            } else if (typeof sponsor === 'object' && sponsor.sponsorId) {
+              // New format: sponsor request object
+              const result = {
+                sponsorId: new Types.ObjectId(sponsor.sponsorId),
+                status: sponsor.status || 'pending',
+                requestedAt: sponsor.requestedAt ? new Date(sponsor.requestedAt) : new Date()
+              };
+              console.log('✅ UPDATE: Processed sponsor object:', result);
+              return result;
+            }
+            console.log('❌ UPDATE: Invalid sponsor format:', sponsor);
+            return null;
+          } catch (error) {
+            console.log('❌ UPDATE: Error processing sponsor:', sponsor, error);
+            return null;
+          }
+        })
+        .filter(Boolean);
+        
+      console.log('🎯 UPDATE: Final sponsors array:', updateEventDto.sponsors);
+    }
+
     const updatedEvent = await this.eventModel
       .findByIdAndUpdate(id, updateEventDto, { new: true })
       .populate('creator', 'username email profileImage')
         .populate('clubId', 'name username logoUrl') // Include club logo
+        .populate('sponsors.sponsorId', 'name username logoUrl') // Include sponsors
       .lean()
       .exec();
 
@@ -534,22 +653,61 @@ export class EventsController {
   }
 
   @Delete(':id')
-  async remove(@Param('id') id: string) {
-    const deletedEvent = await this.eventModel
-      .findByIdAndDelete(id)
-      .lean()
-      .exec();
-
+  async remove(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
+    const userId = req.user.sub;
+    
+    // First, check if the event exists and user has permission
+    const event = await this.eventModel.findById(id).lean().exec();
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+    
+    // Check if user is the creator (only creators can delete events)
+    if (event.creator.toString() !== userId) {
+      throw new ForbiddenException('Only the event creator can delete this event');
+    }
+    
+    console.log('🗑️ Deleting event and associated tournaments:', {
+      eventId: id,
+      eventTitle: event.title,
+      creatorId: userId
+    });
+    
+    // Find and delete any tournaments associated with this event
+    const associatedTournaments = await this.tournamentModel.find({ eventId: id }).lean().exec();
+    
+    if (associatedTournaments.length > 0) {
+      console.log(`🏆 Found ${associatedTournaments.length} tournaments to delete:`, 
+        associatedTournaments.map(t => ({ id: t._id, name: t.name, type: t.type }))
+      );
+      
+      const tournamentDeleteResult = await this.tournamentModel.deleteMany({ eventId: id }).exec();
+      console.log(`✅ Deleted ${tournamentDeleteResult.deletedCount} tournaments associated with event ${id}`);
+    } else {
+      console.log('ℹ️ No tournaments found for this event');
+    }
+    
+    // Delete the event
+    const deletedEvent = await this.eventModel.findByIdAndDelete(id).lean().exec();
+    
     if (!deletedEvent) {
       throw new NotFoundException('Event not found');
     }
     
-    return { event: transformId(deletedEvent) };
+    console.log('✅ Event successfully deleted:', {
+      eventId: id,
+      tournamentsDeleted: associatedTournaments.length
+    });
+    
+    return { 
+      event: transformId(deletedEvent),
+      tournamentsDeleted: associatedTournaments.length
+    };
   }
 
   @Post(':id/publish')
   async publishEvent(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
-    const userId = req.user.sub || req.user.id;
+    const userId = req.user.sub;
     if (!userId) {
       throw new UnauthorizedException('User ID not found in token');
     }
@@ -570,7 +728,7 @@ export class EventsController {
 
   @Post(':id/rsvp')
   async rsvpEvent(@Param('id') id: string, @Body() _rsvpData: { status: string }, @Request() req: AuthenticatedRequest) {
-    const userId = req.user.sub || req.user.id;
+    const userId = req.user.sub;
     
     const event = await this.eventModel.findById(id);
     if (!event) {
@@ -588,5 +746,141 @@ export class EventsController {
 
     await event.save();
     return { event: transformId(event.toObject()) };
+  }
+
+  @Post(':eventId/sponsors/:sponsorId/approve')
+  async approveSponsorshipRequest(
+    @Param('eventId') eventId: string,
+    @Param('sponsorId') sponsorId: string,
+    @Request() req: AuthenticatedRequest
+  ) {
+    const userId = req.user.sub;
+    
+    console.log('🔍 Sponsor approval request:', {
+      eventId,
+      sponsorId,
+      userId
+    });
+    
+    const event = await this.eventModel.findById(eventId);
+    if (!event) {
+      console.log('❌ Event not found:', eventId);
+      throw new NotFoundException('Event not found');
+    }
+
+    console.log('✅ Event found:', {
+      eventId: event._id,
+      title: event.title,
+      sponsorsCount: event.sponsors?.length || 0
+    });
+
+    // Check if user owns the sponsor
+    const sponsor = await this.sponsorModel.findOne({ 
+      _id: new Types.ObjectId(sponsorId),
+      $or: [
+        { createdBy: new Types.ObjectId(userId) },
+        { 'teamMembers.userId': new Types.ObjectId(userId), 'teamMembers.isActive': true }
+      ]
+    }).lean().exec();
+
+    console.log('🔍 Sponsor ownership check:', {
+      sponsorId,
+      userId,
+      sponsorFound: !!sponsor,
+      sponsor: sponsor ? { id: sponsor._id, name: sponsor.name, createdBy: sponsor.createdBy } : null
+    });
+
+    if (!sponsor) {
+      console.log('❌ User does not have permission to manage this sponsor');
+      throw new ForbiddenException('You do not have permission to manage this sponsor');
+    }
+
+    // Find and update the sponsor request
+    const sponsorRequest = event.sponsors?.find(s => s.sponsorId.toString() === sponsorId);
+    if (!sponsorRequest) {
+      console.log('❌ Sponsorship request not found in event sponsors:', {
+        eventSponsors: event.sponsors?.map(s => ({ id: s.sponsorId.toString(), status: s.status }))
+      });
+      throw new NotFoundException('Sponsorship request not found');
+    }
+
+    console.log('✅ Sponsor request found:', {
+      sponsorId: sponsorRequest.sponsorId.toString(),
+      currentStatus: sponsorRequest.status
+    });
+
+    sponsorRequest.status = 'approved';
+    sponsorRequest.respondedAt = new Date();
+
+    await event.save();
+
+    console.log('✅ Sponsor request approved and saved');
+
+    const populatedEvent = await this.eventModel
+      .findById(eventId)
+      .populate('creator', 'username email profileImage')
+      .populate('clubId', 'name username logoUrl')
+      .populate('sponsors.sponsorId', 'name username logoUrl')
+      .lean()
+      .exec();
+
+    if (!populatedEvent) {
+      throw new NotFoundException('Event not found after update');
+    }
+
+    console.log('✅ Returning updated event with approved sponsor');
+    return { event: transformId(populatedEvent) };
+  }
+
+  @Post(':eventId/sponsors/:sponsorId/reject')
+  async rejectSponsorshipRequest(
+    @Param('eventId') eventId: string,
+    @Param('sponsorId') sponsorId: string,
+    @Request() req: AuthenticatedRequest
+  ) {
+    const userId = req.user.sub;
+    
+    const event = await this.eventModel.findById(eventId);
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+
+    // Check if user owns the sponsor
+    const sponsor = await this.sponsorModel.findOne({ 
+      _id: new Types.ObjectId(sponsorId),
+      $or: [
+        { createdBy: new Types.ObjectId(userId) },
+        { 'teamMembers.userId': new Types.ObjectId(userId), 'teamMembers.isActive': true }
+      ]
+    }).lean().exec();
+
+    if (!sponsor) {
+      throw new ForbiddenException('You do not have permission to manage this sponsor');
+    }
+
+    // Find and update the sponsor request
+    const sponsorRequest = event.sponsors?.find(s => s.sponsorId.toString() === sponsorId);
+    if (!sponsorRequest) {
+      throw new NotFoundException('Sponsorship request not found');
+    }
+
+    sponsorRequest.status = 'rejected';
+    sponsorRequest.respondedAt = new Date();
+
+    await event.save();
+
+    const populatedEvent = await this.eventModel
+      .findById(eventId)
+      .populate('creator', 'username email profileImage')
+      .populate('clubId', 'name username logoUrl')
+      .populate('sponsors.sponsorId', 'name username logoUrl')
+      .lean()
+      .exec();
+
+    if (!populatedEvent) {
+      throw new NotFoundException('Event not found after update');
+    }
+
+    return { event: transformId(populatedEvent) };
   }
 } 

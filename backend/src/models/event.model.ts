@@ -19,6 +19,12 @@ export interface IEvent extends Document {
   imageUrl?: string;
   creator: Types.ObjectId;
   clubId?: Types.ObjectId;
+  sponsors?: {
+    sponsorId: Types.ObjectId;
+    status: 'pending' | 'approved' | 'rejected';
+    requestedAt: Date;
+    respondedAt?: Date;
+  }[]; // Array of sponsor requests with approval status
   invitedUsers?: Types.ObjectId[];
   rsvps: Types.ObjectId[];
   createdAt: Date;
@@ -41,12 +47,18 @@ export const EventSchema = new Schema<IEvent>({
   imageUrl: { type: String },
   creator: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   clubId: { type: Schema.Types.ObjectId, ref: 'Club' },
+  sponsors: [{
+    sponsorId: { type: Schema.Types.ObjectId, ref: 'Sponsor' },
+    status: { type: String, enum: ['pending', 'approved', 'rejected'] },
+    requestedAt: { type: Date, required: true },
+    respondedAt: { type: Date }
+  }],
   invitedUsers: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   rsvps: [{ type: Schema.Types.ObjectId, ref: 'User' }],
 }, {
   timestamps: true,
   toObject: {
-    transform: function(doc, ret) {
+    transform: function(_doc, ret) {
       ret.id = ret._id.toString();
       return ret;
     }

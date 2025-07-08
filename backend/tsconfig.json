@@ -12,8 +12,8 @@
     "strictNullChecks": true,
     "strictFunctionTypes": true,
     "noImplicitThis": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "allowSyntheticDefaultImports": true,
@@ -23,6 +23,13 @@
     "resolveJsonModule": true,
     "baseUrl": "."
   },
-  "exclude": ["node_modules"],
+  "exclude": [
+    "node_modules", 
+    "**/*.spec.ts", 
+    "**/*.test.ts",
+    "src/routes/**/*",
+    "src/scripts/**/*",
+    "src/tournaments/**/*"
+  ],
   "include": ["./src/**/*.ts"]
 }

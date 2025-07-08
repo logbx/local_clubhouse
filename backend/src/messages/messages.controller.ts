@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request, UnauthorizedException, Inject } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Request, UnauthorizedException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MessagesService } from './messages.service';
 import { AppWebSocketGateway } from '../websocket/websocket.gateway';

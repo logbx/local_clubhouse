@@ -105,8 +105,8 @@ export class FriendsService {
     if (!sender.sentRequests) sender.sentRequests = [];
     if (!receiver.receivedRequests) receiver.receivedRequests = [];
     
-    sender.sentRequests.push(new Types.ObjectId(receiver._id));
-    receiver.receivedRequests.push(new Types.ObjectId(sender._id));
+    sender.sentRequests.push(receiver._id as any);
+    receiver.receivedRequests.push(sender._id as any);
 
     console.log('Adding request - Sender will have:', [...(sender.sentRequests || []).map(id => id.toString()), receiver._id.toString()]);
     console.log('Adding request - Receiver will have:', [...(receiver.receivedRequests || []).map(id => id.toString()), sender._id.toString()]);

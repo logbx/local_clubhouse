@@ -1,15 +1,7 @@
 import { Controller, Get, Post, Body, UseGuards, Request } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GroupMessagesService } from './group-messages.service';
-
-interface AuthenticatedRequest {
-  user: {
-    sub: string;
-    email: string;
-    _id?: string;
-    id?: string;
-  };
-}
+import { AuthenticatedRequest } from '../types/express';
 
 @Controller('group-messages')
 @UseGuards(JwtAuthGuard)
@@ -17,7 +9,7 @@ export class GroupMessagesController {
   constructor(private readonly groupMessagesService: GroupMessagesService) {}
 
   @Get()
-  async getGroupMessages(@Request() req: AuthenticatedRequest) {
+  async getGroupMessages() {
     return await this.groupMessagesService.getGroupMessages();
   }
 
@@ -26,7 +18,7 @@ export class GroupMessagesController {
     @Request() req: AuthenticatedRequest,
     @Body() body: { content: string }
   ) {
-    const userId = req.user.sub || req.user._id || req.user.id;
+    const userId = req.user.sub;
     const { content } = body;
     return await this.groupMessagesService.sendGroupMessage(userId, content);
   }

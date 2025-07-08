@@ -1,339 +1,161 @@
-import { Controller, Get, Post, Delete, Param, Body, UseGuards, Request, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Controller, Get, Post, Delete, Param, Body, UseGuards, Request } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AppWebSocketGateway } from '../websocket/websocket.gateway';
-import { EventSubGroup, EventSubGroupDocument } from '../models/eventSubGroup.model';
-import { EventSubGroupMessage, EventSubGroupMessageDocument } from '../models/eventSubGroupMessage.model';
-import { User, UserDocument } from '../users/schemas/user.schema';
+import { Model } from 'mongoose';
+import { InjectModel } from '@nestjs/mongoose';
 import { IEvent } from '../models/event.model';
-
-interface AuthenticatedRequest {
-  user: {
-    sub: string;
-    email: string;
-    id?: string;
-  };
-}
-
-interface EventSubGroup {
-  _id: string;
-  eventId: string;
-  name: string;
-  members: string[];
-  createdBy: string;
-  createdAt: Date;
-}
-
-interface EventSubGroupMessage {
-  _id: string;
-  subGroupId: string;
-  sender: string;
-  content: string;
-  timestamp: Date;
-}
-
-interface PopulatedUser {
-  _id: string;
-  username: string;
-  profileImage?: string;
-}
-
-interface PopulatedSubGroupMessage {
-  _id: string;
-  subGroupId: string;
-  sender: PopulatedUser;
-  content: string;
-  timestamp: Date;
-}
+import { User, UserDocument } from '../users/schemas/user.schema';
+import { AuthenticatedRequest } from '../types/express';
+import { AppWebSocketGateway } from '../websocket/websocket.gateway';
 
 @Controller('event-subgroups')
 @UseGuards(JwtAuthGuard)
 export class EventSubGroupsController {
   constructor(
-    @InjectModel('EventSubGroup') private eventSubGroupModel: Model<EventSubGroup>,
-    @InjectModel('EventSubGroupMessage') private eventSubGroupMessageModel: Model<EventSubGroupMessage>,
-    private readonly webSocketGateway: AppWebSocketGateway
+    @InjectModel('Event') private eventModel: Model<IEvent>,
+    @InjectModel('EventSubGroup') private eventSubGroupModel: Model<any>,
+    @InjectModel('EventSubGroupMessage') private eventSubGroupMessageModel: Model<any>,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
+    private webSocketGateway: AppWebSocketGateway,
   ) {}
 
-  // Get sub-groups for an event (only show sub-groups user is a member of)
   @Get('event/:eventId')
   async getEventSubGroups(@Param('eventId') eventId: string, @Request() req: AuthenticatedRequest) {
+    const userId = req.user.sub;
+    
     try {
-      if (!eventId || eventId === 'undefined') {
-        console.log('[DEBUG] Invalid eventId provided for subgroups:', eventId);
-        return [];
+      const event = await this.eventModel.findById(eventId);
+      if (!event) {
+        return { success: false, message: 'Event not found' };
       }
 
-      const userId = req.user.sub || req.user.id;
-      console.log('[DEBUG] Fetching sub-groups for eventId:', eventId, 'userId:', userId);
+      const subGroups = await this.eventSubGroupModel.find({ eventId }).populate('members', 'username profileImage').populate('createdBy', 'username profileImage');
       
-      // First, let's see ALL sub-groups for this event for debugging
-      const allSubGroups = await this.eventSubGroupModel
-        .find({ eventId })
-        .populate('members', 'username profileImage')
-        .populate('createdBy', 'username')
-        .exec();
+      // Filter subgroups to only show ones the user is a member of
+      const userSubGroups = subGroups.filter((sg: any) => sg.members.some((m: any) => m._id.toString() === userId));
       
-      console.log('[DEBUG] ALL sub-groups for event:', allSubGroups.length, 'groups');
-      allSubGroups.forEach(group => {
-        console.log('[DEBUG] All Sub-group:', group.name, 'members:', group.members.map(m => m.toString()), 'createdBy:', group.createdBy);
-      });
-      
-      // Only return sub-groups where user is a member
-      const subGroups = await this.eventSubGroupModel
-        .find({ 
-          eventId,
-          members: userId  // User must be in the members array
-        })
-        .populate('members', 'username profileImage')
-        .populate('createdBy', 'username')
-        .exec();
-      
-      console.log('[DEBUG] Found member sub-groups:', subGroups.length, 'groups');
-      subGroups.forEach(group => {
-        console.log('[DEBUG] Member Sub-group:', group.name, 'members:', group.members.map(m => m.toString()));
-      });
-      
-      return subGroups;
+      return { success: true, subGroups: userSubGroups };
     } catch (error) {
-      console.error('[ERROR] Failed to fetch sub-groups:', error);
-      throw new Error('Failed to fetch sub-groups');
+      console.error('Error getting event sub-groups:', error);
+      return { success: false, message: 'Internal server error' };
     }
   }
 
-  // Get all sub-groups the user is a member of (for messages page)
-  @Get('user-subgroups')
-  async getUserSubGroups(@Request() req: AuthenticatedRequest) {
-    try {
-      const userId = req.user.sub || req.user.id;
-      
-      const subGroups = await this.eventSubGroupModel
-        .find({ 
-          members: userId  // User must be in the members array
-        })
-        .populate('members', 'username profileImage')
-        .populate('createdBy', 'username')
-        .populate({
-          path: 'eventId',
-          select: 'title',
-          model: 'Event'
-        })
-        .exec();
-      
-      return subGroups.map(subGroup => ({
-        _id: subGroup._id,
-        name: subGroup.name,
-        eventId: subGroup.eventId,
-        eventTitle: (subGroup.eventId as any)?.title || 'Unknown Event',
-        members: subGroup.members,
-        createdBy: subGroup.createdBy,
-        createdAt: subGroup.createdAt
-      }));
-    } catch (error) {
-      throw new Error('Failed to fetch user sub-groups');
-    }
-  }
-
-  // Create a sub-group (organizer only)
-  @Post()
-  async createEventSubGroup(
-    @Body() subGroupData: { eventId: string; name: string; members: string[] },
-    @Request() req: AuthenticatedRequest
-  ) {
-    try {
-      const userId = req.user.sub || req.user.id;
-      console.log('[DEBUG] Creating sub-group for eventId:', subGroupData.eventId, 'userId:', userId);
-      console.log('[DEBUG] Sub-group data:', subGroupData);
-      
-      // Always include the event creator as a member
-      const membersIncludingCreator = [...new Set([userId, ...(subGroupData.members || [])])];
-      console.log('[DEBUG] Members including creator:', membersIncludingCreator);
-      
-      const subGroup = new this.eventSubGroupModel({
-        eventId: subGroupData.eventId,
-        name: subGroupData.name,
-        members: membersIncludingCreator,
-        createdBy: userId,
-      });
-      await subGroup.save();
-      console.log('[DEBUG] Sub-group created:', subGroup._id, 'with members:', subGroup.members);
-      return subGroup;
-    } catch (error) {
-      console.error('[ERROR] Failed to create sub-group:', error);
-      throw new Error('Failed to create sub-group');
-    }
-  }
-
-  // Add member to sub-group (organizer only)
-  @Post(':subGroupId/add-member')
-  async addMemberToSubGroup(
-    @Param('subGroupId') subGroupId: string,
-    @Body() memberData: { userId: string },
-    @Request() req: AuthenticatedRequest
-  ) {
-    try {
-      const subGroup = await this.eventSubGroupModel.findById(subGroupId);
-      if (!subGroup) {
-        throw new Error('Sub-group not found');
-      }
-      
-      if (!subGroup.members.includes(memberData.userId)) {
-        subGroup.members.push(memberData.userId);
-        await subGroup.save();
-      }
-      return subGroup;
-    } catch (error) {
-      throw new Error('Failed to add member to sub-group');
-    }
-  }
-
-  // Remove member from sub-group (organizer only)
-  @Post(':subGroupId/remove-member')
-  async removeMemberFromSubGroup(
-    @Param('subGroupId') subGroupId: string,
-    @Body() memberData: { userId: string },
-    @Request() req: AuthenticatedRequest
-  ) {
-    try {
-      const subGroup = await this.eventSubGroupModel.findById(subGroupId);
-      if (!subGroup) {
-        throw new Error('Sub-group not found');
-      }
-      
-      subGroup.members = subGroup.members.filter(id => id.toString() !== memberData.userId);
-      await subGroup.save();
-      return subGroup;
-    } catch (error) {
-      throw new Error('Failed to remove member from sub-group');
-    }
-  }
-
-  // Delete a sub-group (organizer only)
-  @Delete(':subGroupId')
-  async deleteEventSubGroup(
-    @Param('subGroupId') subGroupId: string,
-    @Request() req: AuthenticatedRequest
-  ) {
-    try {
-      const userId = req.user.sub || req.user.id;
-      const subGroup = await this.eventSubGroupModel.findById(subGroupId);
-      if (!subGroup) {
-        throw new Error('Sub-group not found');
-      }
-      
-      // TODO: Check if req.user is event organizer
-      await this.eventSubGroupModel.findByIdAndDelete(subGroupId);
-      return { message: 'Sub-group deleted successfully' };
-    } catch (error) {
-      throw new Error('Failed to delete sub-group');
-    }
-  }
-
-  // Get messages for a sub-group (members only)
   @Get(':subGroupId/messages')
   async getSubGroupMessages(@Param('subGroupId') subGroupId: string, @Request() req: AuthenticatedRequest) {
+    const userId = req.user.sub;
+    
     try {
-      if (!subGroupId || subGroupId === 'undefined') {
-        throw new Error('Invalid subGroupId provided');
-      }
-      
-      const userId = req.user.sub || req.user.id;
-      
-      // Check if user is a member of the sub-group
       const subGroup = await this.eventSubGroupModel.findById(subGroupId);
       if (!subGroup) {
-        throw new Error('Sub-group not found');
+        return { success: false, message: 'Sub-group not found' };
       }
-      
-      const isMember = subGroup.members.some(memberId => memberId.toString() === userId);
+
+      // Check if user is a member of the sub-group
+      const isMember = (subGroup as any).members.some((m: any) => m.toString() === userId);
       if (!isMember) {
-        throw new Error('Access denied: You are not a member of this sub-group');
+        return { success: false, message: 'Access denied: You are not a member of this sub-group' };
       }
+
+      const messages = await this.eventSubGroupMessageModel.find({ subGroupId }).populate('senderId', 'username fullName profileImage').sort({ createdAt: 1 });
       
-      const messages = await this.eventSubGroupMessageModel
-        .find({ subGroupId })
-        .populate({
-          path: 'sender',
-          select: 'username profileImage'
-        })
-        .sort({ timestamp: 1 })
-        .exec();
-      
-      // Transform the data to match frontend interface
-      const transformedMessages = messages.map((message: any) => ({
-        _id: message._id,
-        sender: {
-          _id: message.sender._id,
-          username: message.sender.username || 'Unknown User',
-          profileImage: message.sender.profileImage
-        },
-        content: message.content,
-        timestamp: message.timestamp
-      }));
-      
-      return transformedMessages;
+      return { success: true, messages };
     } catch (error) {
-      console.error('Error in getSubGroupMessages:', error);
-      throw new Error(`Failed to fetch sub-group messages: ${error.message}`);
+      console.error('Error getting sub-group messages:', error);
+      return { success: false, message: 'Internal server error' };
     }
   }
 
-  // Post a message to a sub-group (members only)
   @Post(':subGroupId/messages')
-  async createSubGroupMessage(
+  async sendSubGroupMessage(
     @Param('subGroupId') subGroupId: string,
-    @Body() messageData: { content: string },
+    @Body() body: { content: string },
     @Request() req: AuthenticatedRequest
   ) {
+    const userId = req.user.sub;
+    
     try {
-      if (!subGroupId || subGroupId === 'undefined') {
-        throw new Error('Invalid subGroupId provided');
-      }
-      
-      const userId = req.user.sub || req.user.id;
-      
-      // Check if user is a member of the sub-group
       const subGroup = await this.eventSubGroupModel.findById(subGroupId);
       if (!subGroup) {
-        throw new Error('Sub-group not found');
+        return { success: false, message: 'Sub-group not found' };
       }
-      
-      const isMember = subGroup.members.some(memberId => memberId.toString() === userId);
+
+      // Check if user is a member
+      const isMember = (subGroup as any).members.some((m: any) => m.toString() === userId);
       if (!isMember) {
-        throw new Error('Access denied: You are not a member of this sub-group');
+        return { success: false, message: 'Access denied: You are not a member of this sub-group' };
       }
-      
+
+      const user = await this.userModel.findById(userId);
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
       const message = new this.eventSubGroupMessageModel({
         subGroupId,
-        sender: userId,
-        content: messageData.content,
+        senderId: userId,
+        senderName: user.fullName || user.username,
+        content: body.content,
+        createdAt: new Date(),
       });
-      await message.save();
-      const populated = await message.populate({
-        path: 'sender',
-        select: 'username profileImage'
-      });
-      
-      // Transform the response to match frontend interface
-      const messageResponse = {
-        _id: populated._id,
-        sender: {
-          _id: (populated.sender as any)._id,
-          username: (populated.sender as any).username || 'Unknown User',
-          profileImage: (populated.sender as any).profileImage
-        },
-        content: populated.content,
-        timestamp: populated.timestamp
-      };
 
-      // Broadcast real-time message to sub-group members (excluding the sender)
-      this.webSocketGateway.broadcastNewSubgroupMessage(subGroupId, messageResponse, userId);
-      
-      return messageResponse;
+      await message.save();
+      await message.populate('senderId', 'username fullName profileImage');
+
+      // Emit to WebSocket
+      this.webSocketGateway.server.to(`subgroup-${subGroupId}`).emit('newSubGroupMessage', message);
+
+      return { success: true, message };
     } catch (error) {
-      console.error('Error in createSubGroupMessage:', error);
-      throw new Error(`Failed to create sub-group message: ${error.message}`);
+      console.error('Error sending sub-group message:', error);
+      return { success: false, message: 'Internal server error' };
+    }
+  }
+
+  @Post('event/:eventId/create')
+  async createEventSubGroup(
+    @Param('eventId') eventId: string,
+    @Body() body: { name: string; members: string[] }
+  ) {
+    try {
+      const event = await this.eventModel.findById(eventId);
+      if (!event) {
+        return { success: false, message: 'Event not found' };
+      }
+
+      const subGroup = new this.eventSubGroupModel({
+        eventId,
+        name: body.name,
+        members: body.members,
+        createdBy: event.creator,
+        createdAt: new Date(),
+      });
+
+      await subGroup.save();
+      await subGroup.populate('members', 'username profileImage');
+      await subGroup.populate('createdBy', 'username profileImage');
+
+      return { success: true, subGroup };
+    } catch (error) {
+      console.error('Error creating event sub-group:', error);
+      return { success: false, message: 'Internal server error' };
+    }
+  }
+
+  @Delete(':subGroupId')
+  async deleteEventSubGroup(@Param('subGroupId') subGroupId: string) {
+    try {
+      const deletedSubGroup = await this.eventSubGroupModel.findByIdAndDelete(subGroupId);
+      if (!deletedSubGroup) {
+        return { success: false, message: 'Sub-group not found' };
+      }
+
+      // Also delete all messages in this sub-group
+      await this.eventSubGroupMessageModel.deleteMany({ subGroupId });
+
+      return { success: true, message: 'Sub-group deleted successfully' };
+    } catch (error) {
+      console.error('Error deleting event sub-group:', error);
+      return { success: false, message: 'Internal server error' };
     }
   }
 } 

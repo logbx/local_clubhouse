@@ -71,16 +71,22 @@ export class ClubsController {
     return this.clubsService.delete(id, this.getUserId(req.user));
   }
 
-  @Post(':id/join')
+  @Post(':username/join')
   @UseGuards(JwtAuthGuard)
-  async joinClub(@Param('id') id: string, @Request() req: any) {
-    return this.clubsService.joinClub(id, this.getUserId(req.user));
+  async joinClub(
+    @Param('username') username: string,
+    @Request() req: any
+  ) {
+    return this.clubsService.joinClub(username, this.getUserId(req.user));
   }
 
-  @Post(':id/leave')
+  @Post(':username/leave')
   @UseGuards(JwtAuthGuard)
-  async leaveClub(@Param('id') id: string, @Request() req: any) {
-    return this.clubsService.leaveClub(id, this.getUserId(req.user));
+  async leaveClub(
+    @Param('username') username: string,
+    @Request() req: any
+  ) {
+    return this.clubsService.leaveClub(username, this.getUserId(req.user));
   }
 
   @Post(':username/comments')

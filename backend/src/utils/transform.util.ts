@@ -6,12 +6,12 @@ import { Types } from 'mongoose';
  * @returns The transformed object with consistent id field
  */
 export function transformId<T extends { _id?: any }>(doc: T): Omit<T, '_id'> & { id: string } {
-  if (!doc) return doc;
+  if (!doc) return doc as any;
 
   const { _id, ...rest } = doc;
   return {
     ...rest,
-    id: _id?.toString() || rest.id?.toString(),
+    id: _id?.toString() || (rest as any).id?.toString() || '',
   };
 }
 

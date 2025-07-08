@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Query } from 'mongoose';
+import { Document } from 'mongoose';
 import * as bcryptjs from 'bcryptjs';
 
 export type UserDocument = User & Document & {

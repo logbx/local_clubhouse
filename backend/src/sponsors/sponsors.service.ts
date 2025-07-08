@@ -217,10 +217,26 @@ export class SponsorsService {
   async isSponsorOwner(sponsorUsername: string, userId: Types.ObjectId): Promise<boolean> {
     const sponsor = await this.sponsorModel
       .findOne({ username: sponsorUsername, isActive: true })
-      .select('createdBy')
+      .select('createdBy teamMembers')
       .exec();
     
-    return sponsor ? sponsor.createdBy.equals(userId) : false;
+    if (!sponsor) {
+      return false;
+    }
+
+    // Check if user is the sponsor creator/leader
+    if (sponsor.createdBy.equals(userId)) {
+      return true;
+    }
+
+    // Check if user is an admin team member
+    const adminMember = sponsor.teamMembers.find(member => 
+      member.userId.equals(userId) && 
+      member.role === 'Admin' && 
+      member.isActive
+    );
+
+    return !!adminMember;
   }
 
   async getSponsorStats(sponsorUsername: string, ownerId: Types.ObjectId) {
@@ -352,13 +368,19 @@ export class SponsorsService {
       { $inc: { 'stats.activeCollaborations': 1 } }
     );
 
-    return this.collaborationRequestModel
+    const populatedRequest = await this.collaborationRequestModel
       .findById(savedRequest._id)
       .populate('sponsorId', 'name username logoUrl')
       .populate('clubId', 'name username logoUrl')
       .populate('requestedBy', 'username fullName profileImage')
       .populate('tierSelected')
       .exec();
+
+    if (!populatedRequest) {
+      throw new NotFoundException('Failed to retrieve created collaboration request');
+    }
+
+    return populatedRequest;
   }
 
   async getCollaborationRequests(sponsorUsername?: string, clubId?: string, userId?: Types.ObjectId): Promise<CollaborationRequest[]> {
@@ -631,6 +653,57 @@ export class SponsorsService {
     }
 
     return sponsor.teamMembers.filter(member => member.isActive);
+  }
+
+  async transferLeadership(sponsorId: string, currentOwnerId: Types.ObjectId, newOwnerId: string): Promise<SponsorDocument> {
+    const sponsor = await this.sponsorModel.findById(sponsorId).exec();
+    
+    if (!sponsor) {
+      throw new NotFoundException('Sponsor not found');
+    }
+
+    // Check if current user is the sponsor owner
+    if (!sponsor.createdBy.equals(currentOwnerId)) {
+      throw new ForbiddenException('Only the current sponsor leader can transfer leadership');
+    }
+
+    // Check if the new owner is a team member
+    const newOwnerMember = sponsor.teamMembers.find(member => member.userId.equals(newOwnerId));
+    if (!newOwnerMember) {
+      throw new BadRequestException('New leader must be an existing team member');
+    }
+
+    // Transfer leadership
+    const oldOwnerId = sponsor.createdBy;
+    sponsor.createdBy = new Types.ObjectId(newOwnerId);
+
+    // Remove the new owner from team members (since they're now the leader)
+    sponsor.teamMembers = sponsor.teamMembers.filter(member => !member.userId.equals(newOwnerId));
+
+    // Add the old owner as a team member with admin role
+    sponsor.teamMembers.push({
+      userId: oldOwnerId,
+      role: 'Admin',
+      permissions: ['manage_team', 'manage_collaborations', 'manage_packages'],
+      joinedAt: new Date(),
+      isActive: true,
+      invitedBy: new Types.ObjectId(newOwnerId)
+    });
+
+    await sponsor.save();
+    
+    const populatedSponsor = await this.sponsorModel
+      .findById(sponsorId)
+      .populate('createdBy', 'username fullName profileImage')
+      .populate('teamMembers.userId', 'username fullName profileImage email')
+      .populate('teamMembers.invitedBy', 'username fullName profileImage')
+      .exec();
+
+    if (!populatedSponsor) {
+      throw new NotFoundException('Failed to retrieve updated sponsor');
+    }
+
+    return populatedSponsor;
   }
 
   // Sponsorship Preferences operations

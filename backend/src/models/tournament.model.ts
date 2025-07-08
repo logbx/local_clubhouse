@@ -38,8 +38,11 @@ export interface ITournamentMatch {
   disputedBy?: string; // userId that disputed
   resolvedBy?: string; // userId that resolved the dispute
   resolutionNotes?: string; // Notes from dispute resolution
+  overriddenBy?: string; // userId that overrode the result
+  overrideReason?: string; // Reason for override
   // Swiss tournament specific fields
   result?: 'win' | 'loss' | 'draw'; // Explicit result for Swiss tournaments
+  isDraw?: boolean; // Whether the match was a draw
   round?: number; // Round number for this match
 }
 
@@ -105,8 +108,11 @@ const TournamentMatchSchema = new Schema<ITournamentMatch>({
   disputedBy: { type: String },
   resolvedBy: { type: String },
   resolutionNotes: { type: String },
+  overriddenBy: { type: String },
+  overrideReason: { type: String },
   // Swiss tournament specific fields
   result: { type: String, enum: ['win', 'loss', 'draw'] },
+  isDraw: { type: Boolean, default: false },
   round: { type: Number }
 }, { _id: false });
 
@@ -134,8 +140,9 @@ export const TournamentSchema = new Schema<ITournament>({
   currentRound: { type: Number, default: 0 }
 }, {
   timestamps: true,
+  collection: 'tournaments', // Explicitly set collection name
   toObject: {
-    transform: function(doc, ret) {
+    transform: function(_, ret) {
       ret.id = ret._id.toString();
       return ret;
     }

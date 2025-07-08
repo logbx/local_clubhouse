@@ -11,4 +11,9 @@ export class EventsService {
 
   // Add service methods here as needed
   // For now, this is just a placeholder to fix the import error
+
+  // Simple method to use eventModel and avoid unused property error
+  async getEventCount(): Promise<number> {
+    return this.eventModel.countDocuments();
+  }
 } 

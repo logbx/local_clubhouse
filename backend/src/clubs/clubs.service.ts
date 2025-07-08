@@ -288,8 +288,7 @@ export class ClubsService {
 
   // Member management
   async getClubMembers(clubUsername: string, userId?: Types.ObjectId): Promise<Club['members']> {
-    const club = await this.clubModel
-      .findOne({ username: clubUsername, isActive: true })
+    const club = await this.clubModel.findOne({ username: clubUsername, isActive: true })
       .populate('members.userId', 'username fullName profileImage')
       .exec();
     
@@ -298,6 +297,7 @@ export class ClubsService {
     }
 
     // Club members are now publicly viewable - no admin restriction
+    // userId parameter kept for potential future authorization use
     return club.members;
   }
 

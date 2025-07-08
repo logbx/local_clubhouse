@@ -19,7 +19,8 @@ import {
   CreateTournamentDto, 
   AddGuestPlayerDto, 
   RemovePlayerDto, 
-  ReportResultDto, 
+  ReportResultDto,
+  SubmitResultDto, 
   ConfirmResultDto, 
   OverrideResultDto,
   TournamentPlayerDto
@@ -263,15 +264,20 @@ export class TournamentsController {
     const transformedTournament = {
       ...tournament.toObject(),
       rounds: tournament.rounds.map(round => ({
-        ...round,
+        roundNumber: round.roundNumber,
+        isComplete: round.isComplete,
+        byePlayers: round.byePlayers || [], // Preserve bye players for Swiss tournaments
         matches: round.matches.map(match => ({
-          ...match,
           // Ensure matchId is explicitly preserved
           matchId: match.matchId,
-          // Ensure status is in the expected format for frontend
-          status: match.status === 'submitted' || match.status === 'confirmed' || match.status === 'disputed' 
-            ? 'pending' 
-            : match.status,
+          round: match.round || round.roundNumber,
+          // Preserve actual backend status for proper frontend handling
+          status: match.status,
+          // IMPORTANT: Include match result fields for proper scoring
+          winnerId: match.winnerId,
+          loserId: match.loserId,
+          isDraw: match.isDraw || false,
+          result: match.result,
           // Ensure player structure is simplified for frontend
           player1: {
             id: match.player1.id,
@@ -509,10 +515,11 @@ export class TournamentsController {
 
   @Post('submit-result')
   @HttpCode(HttpStatus.OK)
-  async submitResult(@Body() submitResultDto: any, @Request() req: AuthenticatedRequest) {
+  async submitResult(@Body() submitResultDto: SubmitResultDto, @Request() req: AuthenticatedRequest) {
     console.log('🎯 SUBMIT RESULT ENDPOINT HIT!', {
       timestamp: new Date().toISOString(),
       body: submitResultDto,
+      bodyStringified: JSON.stringify(submitResultDto),
       hasUser: !!req.user,
       userInfo: req.user ? {
         sub: req.user.sub,
@@ -528,7 +535,15 @@ export class TournamentsController {
         throw new BadRequestException('User ID not found in request');
       }
       
-      console.log('🔄 Calling tournamentsService.submitMatchResult with:', {
+      // Validate required fields manually for better error messages
+      if (!submitResultDto.tournamentId) {
+        throw new BadRequestException('Tournament ID is required');
+      }
+      if (!submitResultDto.matchId) {
+        throw new BadRequestException('Match ID is required');
+      }
+      
+      console.log('🔄 Validation passed. Calling tournamentsService.submitMatchResult with:', {
         submitResultDto,
         userId
       });
@@ -545,7 +560,12 @@ export class TournamentsController {
         data: tournament,
       };
     } catch (error) {
-      console.log('💥 Error in submitResult controller:', error);
+      console.log('💥 Error in submitResult controller:', {
+        error: error.message,
+        stack: error.stack,
+        name: error.name,
+        submitResultDto
+      });
       throw error;
     }
   }
@@ -837,6 +857,7 @@ export class TournamentsController {
     }
   }
 
+  @Public()
   @Post(':id/repair-advancement')
   @HttpCode(HttpStatus.OK)
   async repairTournamentAdvancement(@Param('id') tournamentId: string) {
@@ -854,6 +875,94 @@ export class TournamentsController {
       return {
         success: false,
         message: 'Failed to repair tournament advancement',
+        error: error.message
+      };
+    }
+  }
+
+  @Public()
+  @Post(':id/repair-players')
+  @HttpCode(HttpStatus.OK)
+  async repairSwissPlayers(@Param('id') tournamentId: string) {
+    try {
+      console.log('🔧 Repairing Swiss tournament player inclusion for:', tournamentId);
+      const result = await this.tournamentsService.repairSwissPlayers(tournamentId);
+      console.log('✅ Swiss tournament player inclusion repaired successfully');
+      return {
+        success: true,
+        message: 'Swiss tournament player inclusion repaired successfully',
+        data: result
+      };
+    } catch (error) {
+      console.error('❌ Error repairing Swiss tournament player inclusion:', error);
+      return {
+        success: false,
+        message: 'Failed to repair Swiss tournament player inclusion',
+        error: error.message
+      };
+    }
+  }
+
+  @Public()
+  @Post(':id/repair-match-data')
+  @HttpCode(HttpStatus.OK)
+  async repairMatchData(@Param('id') tournamentId: string) {
+    console.log('🔧 Repair match data endpoint hit for tournament:', tournamentId);
+    
+    try {
+      const result = await this.tournamentsService.repairMatchData(tournamentId);
+      return { 
+        data: result.tournament,
+        message: `Repaired ${result.repairedCount} matches`,
+        repairedCount: result.repairedCount 
+      };
+    } catch (error) {
+      console.error('❌ Error repairing match data:', error);
+      throw error;
+    }
+  }
+
+  @Public()
+  @Post(':id/force-round-completion')
+  @HttpCode(HttpStatus.OK)
+  async forceRoundCompletion(@Param('id') tournamentId: string) {
+    try {
+      console.log('🔧 Forcing round completion check and advancement for:', tournamentId);
+      const result = await this.tournamentsService.forceRoundCompletionCheck(tournamentId);
+      console.log('✅ Round completion check and advancement completed successfully');
+      return {
+        success: true,
+        message: 'Round completion check and advancement completed successfully',
+        data: result
+      };
+    } catch (error) {
+      console.error('❌ Error forcing round completion check:', error);
+      return {
+        success: false,
+        message: 'Failed to force round completion check',
+        error: error.message
+      };
+    }
+  }
+
+  @Public()
+  @Post(':id/fix-bye-distribution')
+  @HttpCode(HttpStatus.OK)
+  async fixByeDistribution(@Param('id') tournamentId: string) {
+    try {
+      console.log('🔧 Fixing bye distribution for Swiss tournament:', tournamentId);
+      const result = await this.tournamentsService.fixSwissByeDistribution(tournamentId);
+      console.log('✅ Bye distribution fixed successfully');
+      return {
+        success: true,
+        message: 'Swiss tournament bye distribution fixed successfully',
+        data: result
+      };
+    } catch (error) {
+      console.error('❌ Error fixing bye distribution:', error);
+      return {
+        success: false,
+        message: 'Failed to fix bye distribution',
         error: error.message
       };
     }

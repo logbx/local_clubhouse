@@ -31,6 +31,19 @@ export class SwissTournamentStrategy extends TournamentStrategy {
     if (options.maxPlayers < 4) {
       throw new BadRequestException('Swiss tournament requires at least 4 players');
     }
+
+    // Validate that number of rounds is appropriate for odd number of players
+    // With odd players, there will be one bye per round
+    // No player should receive more than one bye
+    if (options.maxPlayers % 2 === 1) {
+      const maxRoundsWithByes = options.maxPlayers;
+      if (options.numRounds > maxRoundsWithByes) {
+        throw new BadRequestException(
+          `With ${options.maxPlayers} players (odd number), maximum ${maxRoundsWithByes} rounds allowed to ensure no player receives multiple byes. ` +
+          `You requested ${options.numRounds} rounds.`
+        );
+      }
+    }
   }
 
   initializeTournament(tournament: ITournament, options: TournamentCreationOptions): ITournament {
@@ -43,13 +56,37 @@ export class SwissTournamentStrategy extends TournamentStrategy {
     if (options.players.length < 4) {
       throw new BadRequestException('Swiss tournament needs at least 4 players to start');
     }
+
+    // Validate number of rounds vs actual players for odd numbers
+    if (options.players.length % 2 === 1) {
+      const tournament = options.tournament;
+      const maxRoundsWithByes = options.players.length;
+      if (tournament.numRounds && tournament.numRounds > maxRoundsWithByes) {
+        throw new BadRequestException(
+          `With ${options.players.length} players (odd number), maximum ${maxRoundsWithByes} rounds allowed to ensure no player receives multiple byes. ` +
+          `Tournament is configured for ${tournament.numRounds} rounds. Please reduce the number of rounds or add more players.`
+        );
+      }
+    }
   }
 
   generateInitialStructure(players: ITournamentPlayer[], tournament: ITournament): ITournamentRound[] {
     console.log('🏆 SwissTournamentStrategy.generateInitialStructure called with', players.length, 'players');
     
+    // CRITICAL FIX: Ensure ALL players (registered + guests) are included
+    // Filter out any null/undefined players and ensure proper structure
+    const validPlayers = players.filter(player => player && player.id);
+    
+    if (validPlayers.length !== players.length) {
+      console.warn('⚠️ Some players were filtered out as invalid:', {
+        original: players.length,
+        valid: validPlayers.length,
+        filtered: players.filter(p => !p || !p.id)
+      });
+    }
+    
     // Initialize all players with Swiss-specific fields
-    const initializedPlayers = players.map(player => ({
+    const initializedPlayers = validPlayers.map(player => ({
       ...(player as any).toObject ? (player as any).toObject() : player, // Handle Mongoose documents
       points: 0,
       wins: 0,
@@ -57,8 +94,28 @@ export class SwissTournamentStrategy extends TournamentStrategy {
       pastOpponents: []
     }));
 
-    console.log('👥 Players initialized for Swiss tournament:', initializedPlayers.map(p => ({ id: p.id, name: p.name })));
-    console.log('🐛 Raw players from function parameter:', players.map(p => ({ id: p.id, name: p.name, fullName: p.fullName, isGuest: p.isGuest })));
+    console.log('👥 Players initialized for Swiss tournament:', initializedPlayers.map(p => ({ 
+      id: p.id, 
+      name: p.name, 
+      isGuest: p.isGuest, 
+      userId: p.userId 
+    })));
+    console.log('🐛 Raw players from function parameter:', players.map(p => ({ 
+      id: p.id, 
+      name: p.name, 
+      fullName: p.fullName, 
+      isGuest: p.isGuest,
+      userId: p.userId 
+    })));
+
+    // Verify we have the expected number of players
+    if (initializedPlayers.length < players.length) {
+      console.error('❌ PLAYER LOSS DETECTED: Some players were lost during initialization!', {
+        originalCount: players.length,
+        initializedCount: initializedPlayers.length,
+        missingPlayers: players.filter(p => !initializedPlayers.find(ip => ip.id === p.id))
+      });
+    }
 
     // Update the tournament's players array
     tournament.players = initializedPlayers;
@@ -84,6 +141,13 @@ export class SwissTournamentStrategy extends TournamentStrategy {
           }))
         }
       });
+      
+      // Bye points will be awarded by the base tournament service
+      if (firstRound.byePlayers && firstRound.byePlayers.length > 0) {
+        console.log('ℹ️ Round 1 bye players identified:', firstRound.byePlayers.map(p => p.name));
+        console.log('ℹ️ Bye points will be awarded by base tournament service');
+      }
+      
       return [firstRound];
     } catch (error) {
       console.error('❌ Error generating Swiss pairings:', error);
@@ -134,6 +198,7 @@ export class SwissTournamentStrategy extends TournamentStrategy {
     // Update match result
     match.status = 'completed';
     match.result = result;
+    match.isDraw = isDraw || result === 'draw';
     match.winnerId = winnerId;
     match.loserId = loserId;
 
@@ -166,25 +231,58 @@ export class SwissTournamentStrategy extends TournamentStrategy {
       // Update past opponents
       player1.pastOpponents = [...(player1.pastOpponents || []), player2.id];
       player2.pastOpponents = [...(player2.pastOpponents || []), player1.id];
+      
+      console.log('✅ Final player scores after update:', {
+        player1: { id: player1.id, name: player1.name, points: player1.points, wins: player1.wins },
+        player2: { id: player2.id, name: player2.name, points: player2.points, wins: player2.wins }
+      });
+    } else {
+      console.error('❌ Could not find players in tournament.players array:', {
+        match: { player1Id: match.player1.id, player2Id: match.player2.id },
+        tournamentPlayers: tournament.players.map(p => ({ id: p.id, name: p.name }))
+      });
     }
 
     console.log('🔍 Checking if round is complete...');
-    // Mark round as complete if all matches are done (completed, forfeit, etc.)
-    const finalStatuses = ['completed', 'forfeit'];
+    // Mark round as complete if all matches are done (completed, forfeit, resolved, etc.)
+    // Include ALL possible final statuses that indicate a match is finished
+    // IMPORTANT: For guest matches, 'submitted' status from organizer should also be considered complete
+    const finalStatuses = ['completed', 'forfeit', 'resolved', 'resolvedByCreator', 'submitted'];
     const allMatchesComplete = matchRound.matches.every(m => finalStatuses.includes(m.status));
     console.log('📊 Round completion status:', {
       roundNumber: matchRound.roundNumber,
       totalMatches: matchRound.matches.length,
       completedMatches: matchRound.matches.filter(m => finalStatuses.includes(m.status)).length,
       matchStatuses: matchRound.matches.map(m => ({ id: m.matchId, status: m.status })),
-      allMatchesComplete
+      allMatchesComplete,
+      finalStatusesConsidered: finalStatuses
     });
 
     if (allMatchesComplete) {
       matchRound.isComplete = true;
       console.log('✅ Round marked as complete!');
+      
+      // Update Buchholz scores after round completion
+      console.log('🔄 Updating Buchholz scores after round completion...');
+      EnhancedSwissPairingService.updateBuchholzScores(tournament.players);
+      console.log('✅ Buchholz scores updated:', tournament.players.map(p => ({ 
+        name: p.name, 
+        points: p.points || 0, 
+        buchholz: p.buchholzScore || 0 
+      })));
     }
 
+    console.log('🔍 Final tournament state before return:', {
+      playersWithScores: tournament.players.map(p => ({
+        id: p.id,
+        name: p.name,
+        points: p.points || 0,
+        wins: p.wins || 0,
+        buchholz: p.buchholzScore || 0,
+        opponents: (p.pastOpponents || []).length
+      }))
+    });
+    
     console.log('✅ SwissTournamentStrategy.processMatchResult completed successfully');
     return tournament;
   }
@@ -208,12 +306,20 @@ export class SwissTournamentStrategy extends TournamentStrategy {
     }
 
     // Check if tournament is complete
+    console.log('🔍 Checking tournament completion:', {
+      completedRoundNumber,
+      numRounds: tournament.numRounds,
+      totalRounds: tournament.rounds.length,
+      comparison: `${completedRoundNumber} >= ${tournament.numRounds}`
+    });
+    
     if (completedRoundNumber >= (tournament.numRounds || 0)) {
       console.log('🏁 Tournament complete, calculating final standings');
       // Calculate Buchholz scores for final standings
       EnhancedSwissPairingService.updateBuchholzScores(tournament.players);
       
       const winner = this.getWinner(tournament);
+      console.log('🏆 Winner determined:', { winnerId: winner?.id, winnerName: winner?.name });
       return {
         shouldAdvance: false,
         isComplete: true,
@@ -221,30 +327,130 @@ export class SwissTournamentStrategy extends TournamentStrategy {
       };
     }
 
-    console.log('🔄 Generating next round...');
-    // Generate next round
-    // Calculate Buchholz scores before generating next round
+    console.log('🔄 Generating next round for Swiss tournament...');
+    console.log('🏆 CRITICAL: In Swiss tournaments, ALL players continue to next round');
+    console.log('📊 Tournament players:', {
+      totalPlayers: tournament.players.length,
+      playersWithPoints: tournament.players.filter(p => (p.points || 0) > 0).length,
+      playersWithZeroPoints: tournament.players.filter(p => (p.points || 0) === 0).length,
+      playerDetails: tournament.players.map(p => `${p.name}(${p.points || 0}pts)`)
+    });
+    
+    // CRITICAL FIX: Ensure ALL players participate in Swiss tournament rounds
+    // This is the key difference from Single Elimination tournaments
+    
+    // STEP 1: Calculate Buchholz scores after round completion
+    console.log('🔄 STEP 1: Calculating Buchholz scores after Round', completedRoundNumber, 'completion...');
     EnhancedSwissPairingService.updateBuchholzScores(tournament.players);
     
+    // STEP 2: Display current standings after all results processed
+    console.log('📊 STEP 2: Current standings after Round', completedRoundNumber, 'completion:');
+    const currentStandings = EnhancedSwissPairingService.calculateStandings(tournament.players);
+    currentStandings.forEach((player, index) => {
+      const byes = (player.pastOpponents || []).filter(o => o === 'BYE').length;
+      console.log(`  ${index + 1}. ${player.name}: ${player.points || 0} pts, ${player.wins || 0} wins, ${player.buchholzScore || 0} bh, ${byes} byes, opponents: [${(player.pastOpponents || []).join(', ')}]`);
+    });
+    
+    // STEP 3: Determine bye player BEFORE generating next round
+    let byePlayer: ITournamentPlayer | null = null;
+    if (tournament.players.length % 2 === 1) {
+      console.log('🔄 STEP 3: Determining bye player for Round', completedRoundNumber + 1, 'based on completed results...');
+      const selectedByePlayer = EnhancedSwissPairingService.selectByePlayer(currentStandings, completedRoundNumber + 1);
+      
+      if (selectedByePlayer) {
+        // Find the actual player object from tournament.players array to ensure proper object reference
+        byePlayer = tournament.players.find(p => p.id === selectedByePlayer.id) || null;
+        
+        if (byePlayer) {
+          console.log('✅ Bye player determined and found in tournament players:', {
+            name: byePlayer.name,
+            id: byePlayer.id,
+            points: byePlayer.points || 0,
+            wins: byePlayer.wins || 0,
+            buchholz: byePlayer.buchholzScore || 0,
+            pastByes: (byePlayer.pastOpponents || []).filter(o => o === 'BYE').length,
+            roundNumber: completedRoundNumber + 1
+          });
+        } else {
+          console.error('❌ Selected bye player not found in tournament.players array!', {
+            selectedPlayerId: selectedByePlayer.id,
+            selectedPlayerName: selectedByePlayer.name,
+            tournamentPlayerIds: tournament.players.map(p => ({ id: p.id, name: p.name }))
+          });
+        }
+      } else {
+        console.error('❌ Failed to determine bye player for odd number of players!');
+      }
+    }
+    
     try {
-      // For subsequent rounds, be more flexible with pairings
-      const nextRound = EnhancedSwissPairingService.generateSwissPairings(tournament.players, completedRoundNumber + 1, {
-        allowRepeatPairings: true, // Allow repeat pairings if needed for fair tournament
-        maxPointSpread: 3 // Allow more flexibility in point spread
+      // STEP 4: Generate next round with pre-determined bye player
+      console.log('🔄 STEP 4: Generating Round', completedRoundNumber + 1, 'with bye player already determined...');
+      const nextRound = EnhancedSwissPairingService.generateSwissPairings(
+        tournament.players, // Pass ALL tournament players
+        completedRoundNumber + 1, 
+        {
+          allowRepeatPairings: false, // NEVER allow repeat pairings in Swiss tournaments
+          maxPointSpread: 3, // Allow more flexibility in point spread for fair tournament
+          predeterminedByePlayer: byePlayer // Pass the pre-determined bye player
+        }
+      );
+      
+      // Validate that we have the correct number of matches for ALL players
+      const expectedMatches = Math.floor(tournament.players.length / 2);
+      const totalPlayersInRound = (nextRound.matches.length * 2) + (nextRound.byePlayers?.length || 0);
+      
+      console.log('✅ Swiss round validation:', {
+        roundNumber: nextRound.roundNumber,
+        totalPlayers: tournament.players.length,
+        matchCount: nextRound.matches.length,
+        expectedMatches,
+        byePlayers: nextRound.byePlayers?.length || 0,
+        totalPlayersInRound,
+        allPlayersAccountedFor: totalPlayersInRound === tournament.players.length
       });
-      console.log('✅ Next round generated:', {
+      
+      if (totalPlayersInRound !== tournament.players.length) {
+        console.error('❌ SWISS TOURNAMENT WARNING: Not all players were paired!');
+        console.error('Missing players:', tournament.players.length - totalPlayersInRound);
+        console.error('This may happen in edge cases where no valid pairings exist.');
+        // Don't throw error - let the pairing algorithm handle edge cases
+      }
+      
+      if (nextRound.matches.length !== expectedMatches) {
+        console.warn('⚠️ Swiss tournament match count mismatch:', {
+          actual: nextRound.matches.length,
+          expected: expectedMatches,
+          reason: tournament.players.length % 2 === 1 ? 'Odd number of players (bye assigned)' : 'Unknown'
+        });
+      }
+      
+      console.log('🎯 Swiss round generated successfully:', {
         roundNumber: nextRound.roundNumber,
         matchCount: nextRound.matches.length,
         byePlayers: nextRound.byePlayers?.length || 0,
-        playerCount: tournament.players.length
+        playerCount: tournament.players.length,
+        matches: nextRound.matches.map(m => `${m.player1.name} vs ${m.player2.name}`)
       });
+      
+      // NOTE: Bye points are awarded when the round is created, not during advancement
+      // This prevents double-awarding of bye points
+      if (nextRound.byePlayers && nextRound.byePlayers.length > 0) {
+        console.log('ℹ️ Round', nextRound.roundNumber, 'bye players identified:', nextRound.byePlayers.map(p => p.name));
+        console.log('ℹ️ Bye points will be awarded when the round is processed by tournament service');
+      }
       
       return {
         shouldAdvance: true,
         nextRound: nextRound
       };
     } catch (error) {
-      console.error('❌ Error generating next round:', error);
+      console.error('❌ Error generating Swiss tournament round:', error);
+      console.error('Tournament state:', {
+        players: tournament.players.length,
+        completedRound: completedRoundNumber,
+        targetRound: completedRoundNumber + 1
+      });
       throw error;
     }
   }
@@ -258,6 +464,15 @@ export class SwissTournamentStrategy extends TournamentStrategy {
     if (!tournament.isStarted || tournament.rounds.length === 0) {
       return false;
     }
+
+    console.log('🔍 Checking if Swiss tournament is complete:', {
+      isStarted: tournament.isStarted,
+      roundsCount: tournament.rounds.length,
+      numRounds: tournament.numRounds,
+      lastRoundComplete: tournament.rounds.length > 0 ? tournament.rounds[tournament.rounds.length - 1].isComplete : false,
+      condition1: tournament.rounds.length >= (tournament.numRounds || 0),
+      condition2: tournament.rounds.length > 0 && tournament.rounds[tournament.rounds.length - 1].isComplete === true
+    });
 
     return tournament.rounds.length >= (tournament.numRounds || 0) &&
            tournament.rounds[tournament.rounds.length - 1].isComplete === true;
@@ -280,22 +495,33 @@ export class SwissTournamentStrategy extends TournamentStrategy {
   }
 
   validateMatchResult(options: MatchResultOptions): void {
-    // Swiss tournaments can have draws, wins, or losses
-    if (!options.result && !options.isDraw && !options.winnerId) {
-      throw new BadRequestException('Swiss tournament matches must have a result (win, loss, or draw)');
-    }
+    console.log('🔍 ValidateMatchResult called with:', {
+      result: options.result,
+      isDraw: options.isDraw,
+      winnerId: options.winnerId,
+      loserId: options.loserId
+    });
 
-    if (options.result === 'draw' || options.isDraw) {
-      // For draws, winnerId and loserId should not be set
+    // Check if it's a draw first (highest priority check)
+    if (options.result === 'draw' || options.isDraw === true) {
+      console.log('✅ Draw match validation passed - no winner/loser required');
       return;
     }
 
-    if (!options.winnerId || !options.loserId) {
-      throw new BadRequestException('Swiss tournament matches with win/loss must have both winner and loser');
+    // For non-draw matches, validate we have proper result data
+    if (!options.result && !options.winnerId) {
+      throw new BadRequestException('Swiss tournament matches must have a result (win, loss, or draw) or winner/loser specified');
     }
 
-    if (options.winnerId === options.loserId) {
-      throw new BadRequestException('Winner and loser cannot be the same player');
+    // If we have winner/loser, validate they're different
+    if (options.winnerId && options.loserId) {
+      if (options.winnerId === options.loserId) {
+        throw new BadRequestException('Winner and loser cannot be the same player');
+      }
     }
+
+    // If it's a non-draw result but we don't have winner/loser, that's also valid
+    // (the processing logic will determine winner/loser from the result)
+    console.log('✅ Match result validation passed');
   }
 }

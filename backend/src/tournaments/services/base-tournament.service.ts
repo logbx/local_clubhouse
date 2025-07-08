@@ -284,6 +284,29 @@ export class BaseTournamentService {
       tournament.currentRound = 1;
     }
 
+    // Award bye points for initial rounds
+    for (const round of initialRounds) {
+      if (round.byePlayers && round.byePlayers.length > 0) {
+        for (const byePlayer of round.byePlayers) {
+          const tournamentPlayer = tournament.players.find(p => p.id === byePlayer.id);
+          if (tournamentPlayer) {
+            // Award bye points (1 full point for Swiss) and track the bye
+            tournamentPlayer.points = (tournamentPlayer.points || 0) + 1;
+            tournamentPlayer.pastOpponents = [...(tournamentPlayer.pastOpponents || []), 'BYE'];
+            
+            console.log('✅ Initial round bye points awarded to tournament player:', {
+              name: tournamentPlayer.name,
+              newPoints: tournamentPlayer.points,
+              totalByes: (tournamentPlayer.pastOpponents || []).filter((o: string) => o === 'BYE').length,
+              roundNumber: round.roundNumber
+            });
+          } else {
+            console.error('❌ Could not find initial round bye player in tournament.players to award points:', byePlayer.name);
+          }
+        }
+      }
+    }
+
     console.log('💾 Saving tournament...');
     const savedTournament = await tournament.save();
 
@@ -377,6 +400,8 @@ export class BaseTournamentService {
       matchId: options.matchId,
       winnerId: options.winnerId,
       loserId: options.loserId,
+      isDraw: options.isDraw,
+      result: options.result,
       reporterId: options.reporterId
     });
 
@@ -407,7 +432,9 @@ export class BaseTournamentService {
     console.log('✅ Match result processed by strategy');
 
     // Check for automatic round advancement - Enhanced logic
+    console.log('🔄 Checking for automatic round advancement after match result...');
     const { nextRoundStarted, tournamentCompleted } = await this.checkAndAdvanceRounds(updatedTournament, strategy);
+    console.log('✅ Advancement check completed:', { nextRoundStarted, tournamentCompleted });
 
     console.log('💾 Saving updated tournament...');
     const savedTournament = await updatedTournament.save();
@@ -427,23 +454,27 @@ export class BaseTournamentService {
 
     // Broadcast automatic round advancement if it occurred
     if (nextRoundStarted) {
-      this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), {
+      const updateData = {
         type: 'round-started',
         tournamentId: tournament._id.toString(),
         newRound: savedTournament.rounds[savedTournament.rounds.length - 1],
         currentRound: savedTournament.currentRound,
         message: 'Next round started automatically'
-      });
+      };
+      this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), updateData);
+      this.webSocketGateway.broadcastTournamentToParticipants(tournament._id.toString(), updateData);
     }
 
     // Broadcast tournament completion if it occurred
     if (tournamentCompleted) {
-      this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), {
+      const updateData = {
         type: 'tournament-completed',
         tournamentId: tournament._id.toString(),
         winnerId: savedTournament.winnerId,
         message: 'Tournament completed automatically'
-      });
+      };
+      this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), updateData);
+      this.webSocketGateway.broadcastTournamentToParticipants(tournament._id.toString(), updateData);
     }
 
     return savedTournament;
@@ -511,8 +542,8 @@ export class BaseTournamentService {
   }
 
   private isRoundComplete(round: any): boolean {
-    // A round is complete when all matches have finished (completed, forfeit, or other final statuses)
-    const finalStatuses = ['completed', 'forfeit'];
+    // A round is complete when all matches have finished (completed, forfeit, submitted, or other final statuses)
+    const finalStatuses = ['completed', 'forfeit', 'submitted', 'resolved', 'resolvedByCreator'];
     const isComplete = round.matches.every((match: any) => finalStatuses.includes(match.status));
     console.log('🔍 Checking if round is complete:', {
       roundNumber: round.roundNumber,
@@ -639,6 +670,27 @@ export class BaseTournamentService {
             
             if (tournament.type === TournamentType.SWISS) {
               tournament.currentRound = nextRoundNumber;
+            }
+            
+            // Award bye points immediately when round is added to tournament
+            if (advancementResult.nextRound.byePlayers && advancementResult.nextRound.byePlayers.length > 0) {
+              for (const byePlayer of advancementResult.nextRound.byePlayers) {
+                const tournamentPlayer = tournament.players.find(p => p.id === byePlayer.id);
+                if (tournamentPlayer) {
+                  // Award bye points (1 full point for Swiss) and track the bye
+                  tournamentPlayer.points = (tournamentPlayer.points || 0) + 1;
+                  tournamentPlayer.pastOpponents = [...(tournamentPlayer.pastOpponents || []), 'BYE'];
+                  
+                  console.log('✅ Bye points awarded to tournament player:', {
+                    name: tournamentPlayer.name,
+                    newPoints: tournamentPlayer.points,
+                    totalByes: (tournamentPlayer.pastOpponents || []).filter((o: string) => o === 'BYE').length,
+                    roundNumber: nextRoundNumber
+                  });
+                } else {
+                  console.error('❌ Could not find bye player in tournament.players to award points:', byePlayer.name);
+                }
+              }
             }
             
             nextRoundStarted = true;

@@ -101,7 +101,7 @@ class RedisService {
 
   async getCachedMessages(channelId: string, limit: number = 50): Promise<any[]> {
     const messages = await this.client.lRange(`messages:${channelId}`, 0, limit - 1);
-    return messages.map(msg => JSON.parse(msg));
+    return messages.map((msg: string) => JSON.parse(msg));
   }
 
   // WebSocket Pub/Sub Methods
@@ -110,7 +110,7 @@ class RedisService {
   }
 
   async subscribe(channel: string, callback: (message: any) => void): Promise<void> {
-    await this.subscriber.subscribe(channel, (message) => {
+    await this.subscriber.subscribe(channel, (message: string) => {
       callback(JSON.parse(message));
     });
   }
