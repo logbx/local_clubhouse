@@ -28,9 +28,19 @@ import {
   GiftIcon,
   CalendarIcon,
   PlusIcon,
-  InformationCircleIcon
+  InformationCircleIcon,
+  ClockIcon,
+  CurrencyDollarIcon,
+  TagIcon,
+  UserGroupIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  EyeIcon,
+  PencilIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import { toast } from 'react-toastify';
+import CreateEventModal from '../components/CreateEventModal';
 
 const SponsorProfilePage: React.FC = () => {
   const { sponsorUsername } = useParams<{ sponsorUsername: string }>();
@@ -44,6 +54,7 @@ const SponsorProfilePage: React.FC = () => {
   const [showCollaborationModal, setShowCollaborationModal] = useState(false);
   const [eventsTabInitialTab, setEventsTabInitialTab] = useState<EventStatus>(EventStatus.LIVE);
   const [sponsorEventsCount, setSponsorEventsCount] = useState(0);
+  const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
 
   const fetchOwnershipStatus = useCallback(async () => {
     if (!sponsorUsername || !user) return;
@@ -63,21 +74,34 @@ const SponsorProfilePage: React.FC = () => {
     try {
       const events = await eventApi.getEvents();
       const sponsorEvents = events.filter((event: Event) => {
-        // Check if the sponsor is tagged
+        // Priority 1: Check if the sponsor is directly associated with the event
+        const isDirectSponsor = event.sponsors?.some((eventSponsor: any) => {
+          if (typeof eventSponsor === 'object') {
+            // New structure with approval status
+            const sponsorData = eventSponsor.sponsorId;
+            return (typeof sponsorData === 'string' ? sponsorData : sponsorData._id) === sponsor._id ||
+                   (typeof sponsorData === 'object' && sponsorData.username === sponsor.username);
+          } else {
+            // Legacy structure (simple ID)
+            return eventSponsor === sponsor._id;
+          }
+        });
+
+        // Priority 2: Check if the sponsor is tagged
         const isTagged = event.tags?.some(tag => 
           tag.toLowerCase() === sponsor.username.toLowerCase() ||
           tag.toLowerCase() === sponsor.name.toLowerCase()
         );
 
-        // Check if the sponsor is mentioned in the description
+        // Priority 3: Check if the sponsor is mentioned in the description
         const isMentioned = event.description?.toLowerCase().includes(sponsor.username.toLowerCase()) ||
                           event.description?.toLowerCase().includes(sponsor.name.toLowerCase());
 
-        // Check if the event was created by the sponsor
+        // Priority 4: Check if the event was created by the sponsor
         const creatorId = typeof sponsor.createdBy === 'object' ? sponsor.createdBy._id : sponsor.createdBy;
         const isCreator = event.creator?.id === creatorId;
 
-        return isTagged || isMentioned || isCreator;
+        return isDirectSponsor || isTagged || isMentioned || isCreator;
       });
       setSponsorEventsCount(sponsorEvents.length);
     } catch (err: any) {
@@ -615,7 +639,7 @@ const SponsorProfilePage: React.FC = () => {
                     </button>
                   </div>
                   <button
-                    onClick={() => navigate('/events/create')}
+                    onClick={() => setIsCreateEventModalOpen(true)}
                     className="btn btn-primary flex items-center gap-2"
                   >
                     <PlusIcon className="h-5 w-5" />
@@ -739,6 +763,17 @@ const SponsorProfilePage: React.FC = () => {
               toast.error(error.response?.data?.message || 'Failed to send collaboration request');
             }
           }}
+        />
+      )}
+
+      {/* Create Event Modal */}
+      {isCreateEventModalOpen && (
+        <CreateEventModal
+          isOpen={isCreateEventModalOpen}
+          onClose={() => setIsCreateEventModalOpen(false)}
+          clubId={sponsor._id}
+          clubUsername={sponsor.username}
+          isSponsorship={true}
         />
       )}
     </div>

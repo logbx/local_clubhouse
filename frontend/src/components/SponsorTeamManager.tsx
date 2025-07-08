@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sponsor, TeamMember } from '../types/sponsor';
 import { sponsorApi } from '../services/sponsor.service';
+import { useAuth } from '../context/AuthContext';
 import { 
   UserPlusIcon, 
   UserIcon,
@@ -11,7 +12,10 @@ import {
   InformationCircleIcon,
   UsersIcon,
   UserGroupIcon,
-  CogIcon
+  CogIcon,
+  ArrowRightIcon,
+  ExclamationTriangleIcon,
+  StarIcon
 } from '@heroicons/react/24/outline';
 import { toast } from 'react-toastify';
 import { LoadingSpinner } from './LoadingSpinner';
@@ -22,27 +26,38 @@ interface SponsorTeamManagerProps {
 }
 
 const SponsorTeamManager: React.FC<SponsorTeamManagerProps> = ({ sponsor, onTeamUpdate }) => {
+  const { user } = useAuth();
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [selectedMemberForTransfer, setSelectedMemberForTransfer] = useState<TeamMember | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [transferring, setTransferring] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
 
-  // Team roles
+  // Check if current user is the sponsor leader
+  const isCurrentUserLeader = user && sponsor.createdBy && (
+    (typeof sponsor.createdBy === 'object' && sponsor.createdBy._id === user.id) ||
+    (typeof sponsor.createdBy === 'string' && sponsor.createdBy === user.id)
+  );
+
+  // Team roles with admin designation
   const teamRoles = [
-    'Marketing Manager',
-    'Event Coordinator',
-    'Communications Specialist',
-    'Business Development',
-    'Creative Director',
-    'Account Manager',
-    'Social Media Manager',
-    'Partnership Manager',
-    'Customer Success',
-    'Operations Manager'
+    { value: 'Admin', label: 'Admin', isAdmin: true },
+    { value: 'Marketing Manager', label: 'Marketing Manager', isAdmin: false },
+    { value: 'Event Coordinator', label: 'Event Coordinator', isAdmin: false },
+    { value: 'Communications Specialist', label: 'Communications Specialist', isAdmin: false },
+    { value: 'Business Development', label: 'Business Development', isAdmin: false },
+    { value: 'Creative Director', label: 'Creative Director', isAdmin: false },
+    { value: 'Account Manager', label: 'Account Manager', isAdmin: false },
+    { value: 'Social Media Manager', label: 'Social Media Manager', isAdmin: false },
+    { value: 'Partnership Manager', label: 'Partnership Manager', isAdmin: false },
+    { value: 'Customer Success', label: 'Customer Success', isAdmin: false },
+    { value: 'Operations Manager', label: 'Operations Manager', isAdmin: false }
   ];
 
   useEffect(() => {
@@ -134,6 +149,29 @@ const SponsorTeamManager: React.FC<SponsorTeamManagerProps> = ({ sponsor, onTeam
     }
   };
 
+  const handleTransferLeadership = async () => {
+    if (!selectedMemberForTransfer) return;
+
+    try {
+      setTransferring(true);
+      await sponsorApi.transferLeadership(sponsor._id, selectedMemberForTransfer.userId._id);
+      toast.success('Leadership transferred successfully!');
+      setShowTransferModal(false);
+      setSelectedMemberForTransfer(null);
+      onTeamUpdate();
+    } catch (error: any) {
+      console.error('Failed to transfer leadership:', error);
+      toast.error(error.response?.data?.message || 'Failed to transfer leadership');
+    } finally {
+      setTransferring(false);
+    }
+  };
+
+  const openTransferModal = (member: TeamMember) => {
+    setSelectedMemberForTransfer(member);
+    setShowTransferModal(true);
+  };
+
   const filteredMembers = teamMembers.filter(member =>
     member.userId.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     member.userId.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -154,16 +192,18 @@ const SponsorTeamManager: React.FC<SponsorTeamManagerProps> = ({ sponsor, onTeam
         <div>
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">Team Management</h2>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Manage your team members who can access internal communications
+            Manage your team members, admins, and leadership
           </p>
         </div>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="btn btn-primary flex items-center gap-2"
-        >
-          <UserPlusIcon className="h-4 w-4" />
-          Add Team Member
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="btn btn-primary flex items-center gap-2"
+          >
+            <UserPlusIcon className="h-4 w-4" />
+            Add Team Member
+          </button>
+        </div>
       </div>
 
       {/* Add Member Form */}
@@ -211,7 +251,7 @@ const SponsorTeamManager: React.FC<SponsorTeamManagerProps> = ({ sponsor, onTeam
               >
                 <option value="">Select a role</option>
                 {teamRoles.map(role => (
-                  <option key={role} value={role}>{role}</option>
+                  <option key={role.value} value={role.value}>{role.label}</option>
                 ))}
               </select>
             </div>
@@ -378,8 +418,14 @@ const SponsorTeamManager: React.FC<SponsorTeamManagerProps> = ({ sponsor, onTeam
                         <span className="text-xs">👑</span>
                       </div>
                     )}
+                    {/* Admin Badge */}
+                    {member._id !== 'leader' && member.role === 'Admin' && (
+                      <div className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800">
+                        <StarIcon className="h-3 w-3 text-white" />
+                      </div>
+                    )}
                     {/* Active Status */}
-                    {member._id !== 'leader' && (
+                    {member._id !== 'leader' && member.role !== 'Admin' && (
                       <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white dark:border-gray-800 ${
                         member.isActive ? 'bg-green-400' : 'bg-gray-400'
                       }`}></div>
@@ -399,6 +445,11 @@ const SponsorTeamManager: React.FC<SponsorTeamManagerProps> = ({ sponsor, onTeam
                           Leader
                         </span>
                       )}
+                      {member._id !== 'leader' && member.role === 'Admin' && (
+                        <span className="bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100 px-2 py-1 rounded-full text-xs font-medium">
+                          Admin
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 mt-1">
                       {member._id === 'leader' ? (
@@ -410,9 +461,10 @@ const SponsorTeamManager: React.FC<SponsorTeamManagerProps> = ({ sponsor, onTeam
                           value={member.role}
                           onChange={(e) => handleUpdateRole(member._id, e.target.value)}
                           className="text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 text-gray-700 dark:text-gray-300"
+                          disabled={!isCurrentUserLeader}
                         >
                           {teamRoles.map(role => (
-                            <option key={role} value={role}>{role}</option>
+                            <option key={role.value} value={role.value}>{role.label}</option>
                           ))}
                         </select>
                       )}
@@ -423,16 +475,41 @@ const SponsorTeamManager: React.FC<SponsorTeamManagerProps> = ({ sponsor, onTeam
                   </div>
                 </div>
                 
-                {/* Remove Button - Hidden for Leader */}
-                {member._id !== 'leader' && (
-                  <button
-                    onClick={() => handleRemoveMember(member._id)}
-                    className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                    title="Remove team member"
-                  >
-                    <TrashIcon className="h-5 w-5" />
-                  </button>
-                )}
+                {/* Actions */}
+                <div className="flex items-center gap-2">
+                  {/* Transfer Leadership Button - Only for Leader */}
+                  {member._id === 'leader' && isCurrentUserLeader && teamMembers.length > 1 && (
+                    <button
+                      onClick={() => setShowTransferModal(true)}
+                      className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      title="Transfer leadership"
+                    >
+                      <ArrowRightIcon className="h-5 w-5" />
+                    </button>
+                  )}
+                  
+                  {/* Transfer Leadership to this Member - Only for non-leaders when user is leader */}
+                  {member._id !== 'leader' && isCurrentUserLeader && (
+                    <button
+                      onClick={() => openTransferModal(member)}
+                      className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      title="Transfer leadership to this member"
+                    >
+                      <ArrowRightIcon className="h-5 w-5" />
+                    </button>
+                  )}
+                  
+                  {/* Remove Button - Hidden for Leader */}
+                  {member._id !== 'leader' && isCurrentUserLeader && (
+                    <button
+                      onClick={() => handleRemoveMember(member._id)}
+                      className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                      title="Remove team member"
+                    >
+                      <TrashIcon className="h-5 w-5" />
+                    </button>
+                  )}
+                </div>
               </div>
             ))
           )}
@@ -446,11 +523,117 @@ const SponsorTeamManager: React.FC<SponsorTeamManagerProps> = ({ sponsor, onTeam
           <div className="text-sm text-blue-800 dark:text-blue-200">
             <p className="font-medium mb-1">Team Management</p>
             <p>
-              The sponsor leader (👑) has full permissions and cannot be removed. Team members can be assigned different roles with specific permissions. Active members have access to team communications and sponsor resources.
+              The sponsor leader (👑) has full permissions and can transfer leadership to admins. Admins (⭐) can manage team members and collaborations. Team members have access to sponsor communications and resources.
             </p>
           </div>
         </div>
       </div>
+
+      {/* Transfer Leadership Modal */}
+      {showTransferModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <ExclamationTriangleIcon className="h-6 w-6 text-yellow-500 mr-3" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Transfer Leadership
+              </h3>
+            </div>
+            
+            <div className="mb-6">
+              {selectedMemberForTransfer ? (
+                <div>
+                  <p className="text-gray-600 dark:text-gray-400 mb-4">
+                    Are you sure you want to transfer leadership to{' '}
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {selectedMemberForTransfer.userId.fullName}
+                    </span>
+                    ?
+                  </p>
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                      <strong>Important:</strong> This action cannot be undone. You will become an admin and the selected member will become the new sponsor leader with full permissions.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-gray-600 dark:text-gray-400 mb-4">
+                    Select a team member to transfer leadership to:
+                  </p>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {teamMembers
+                      .filter(member => member._id !== 'leader')
+                      .map((member) => (
+                        <button
+                          key={member._id}
+                          onClick={() => setSelectedMemberForTransfer(member)}
+                          className="w-full p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          <div className="flex items-center space-x-3">
+                            {member.userId.profileImage ? (
+                              <img
+                                src={member.userId.profileImage}
+                                alt={member.userId.fullName}
+                                className="w-8 h-8 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                                <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                                  {member.userId.fullName.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                            )}
+                            <div>
+                              <p className="font-medium text-gray-900 dark:text-white">
+                                {member.userId.fullName}
+                              </p>
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                {member.role}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex space-x-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowTransferModal(false);
+                  setSelectedMemberForTransfer(null);
+                }}
+                className="btn btn-secondary"
+                disabled={transferring}
+              >
+                Cancel
+              </button>
+              {selectedMemberForTransfer && (
+                <button
+                  onClick={handleTransferLeadership}
+                  className="btn btn-primary"
+                  disabled={transferring}
+                >
+                  {transferring ? (
+                    <span className="flex items-center">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Transferring...
+                    </span>
+                  ) : (
+                    <>
+                      <ArrowRightIcon className="h-4 w-4 mr-2" />
+                      Transfer Leadership
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

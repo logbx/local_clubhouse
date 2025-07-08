@@ -5,7 +5,7 @@ interface SwissTournamentPairingsProps {
   round: TournamentRound;
   currentRound: number;
   totalRounds: number;
-  onReportResult: (match: TournamentMatch, result: 'win' | 'loss' | 'draw') => Promise<void>;
+  onReportResult: (match: TournamentMatch) => void;
   isOrganizer: boolean;
   allowDraws?: boolean;
 }
@@ -104,24 +104,10 @@ export const SwissTournamentPairings: React.FC<SwissTournamentPairingsProps> = (
               {match.status === 'pending' && (
                 <div className="flex gap-2 mt-2">
                   <button
-                    onClick={() => onReportResult(match, 'win')}
-                    className="flex-1 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                    onClick={() => onReportResult(match)}
+                    className="flex-1 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
                   >
-                    {isOrganizer ? `${match.player1.name} Won` : 'I Won'}
-                  </button>
-                  {allowDraws && (
-                    <button
-                      onClick={() => onReportResult(match, 'draw')}
-                      className="flex-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-                    >
-                      Draw
-                    </button>
-                  )}
-                  <button
-                    onClick={() => onReportResult(match, 'loss')}
-                    className="flex-1 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
-                  >
-                    {isOrganizer ? `${match.player2.name} Won` : 'I Lost'}
+                    {isOrganizer ? 'Report Result' : 'Report My Result'}
                   </button>
                 </div>
               )}
@@ -132,26 +118,12 @@ export const SwissTournamentPairings: React.FC<SwissTournamentPairingsProps> = (
                   <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Tournament Organizer Controls
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => onReportResult(match, 'win')}
-                      className="flex-1 px-2 py-1 text-sm bg-green-100 text-green-800 rounded hover:bg-green-200"
-                    >
-                      Override: {match.player1.name} Won
-                    </button>
-                    <button
-                      onClick={() => onReportResult(match, 'draw')}
-                      className="flex-1 px-2 py-1 text-sm bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
-                    >
-                      Override: Draw
-                    </button>
-                    <button
-                      onClick={() => onReportResult(match, 'loss')}
-                      className="flex-1 px-2 py-1 text-sm bg-red-100 text-red-800 rounded hover:bg-red-200"
-                    >
-                      Override: {match.player2.name} Won
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => onReportResult(match)}
+                    className="px-3 py-2 text-sm bg-orange-100 text-orange-800 rounded hover:bg-orange-200 font-medium"
+                  >
+                    Override Result
+                  </button>
                 </div>
               )}
             </div>

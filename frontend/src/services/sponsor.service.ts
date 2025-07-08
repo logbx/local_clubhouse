@@ -176,6 +176,12 @@ export const sponsorApi = {
     return response.data;
   },
 
+  // Transfer leadership to another team member
+  transferLeadership: async (sponsorId: string, newLeaderId: string): Promise<Sponsor> => {
+    const response = await api.post(`/api/sponsors/${sponsorId}/team/${newLeaderId}/transfer-leadership`);
+    return response.data;
+  },
+
   // Sponsorship Preferences operations
   createSponsorshipPreferences: async (username: string, preferencesData: CreateSponsorshipPreferencesDto): Promise<SponsorshipPreferences> => {
     const response = await api.post(`/api/sponsors/${username}/preferences`, preferencesData);

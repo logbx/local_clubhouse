@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import { sponsorApi } from '../services/sponsor.service';
 import { 
   Sponsor, 
-  SponsorshipTier, 
   CollaborationRequest, 
   SponsorStats as ISponsorStats,
   CollaborationStatus 
@@ -13,6 +12,8 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import SponsorProfileEditor from '../components/SponsorProfileEditor';
 import CollaborationRequestsList from '../components/CollaborationRequestsList';
 import SponsorshipPackagesManager from '../components/SponsorshipPackagesManager';
+import SponsorTeamManager from '../components/SponsorTeamManager';
+import SponsorshipRequestsManager from '../components/SponsorshipRequestsManager';
 import { toast } from 'react-toastify';
 import {
   HomeIcon,
@@ -26,7 +27,7 @@ import {
   GiftIcon,
 } from '@heroicons/react/24/outline';
 
-type TabType = 'overview' | 'profile' | 'packages' | 'collaborations';
+type TabType = 'overview' | 'profile' | 'packages' | 'collaborations' | 'team' | 'requests';
 
 const SponsorDashboard: React.FC = () => {
   const { sponsorUsername } = useParams<{ sponsorUsername: string }>();
@@ -34,7 +35,6 @@ const SponsorDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [sponsor, setSponsor] = useState<Sponsor | null>(null);
   const [stats, setStats] = useState<ISponsorStats | null>(null);
-  const [tiers, setTiers] = useState<SponsorshipTier[]>([]);
   const [collaborationRequests, setCollaborationRequests] = useState<CollaborationRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,14 +71,12 @@ const SponsorDashboard: React.FC = () => {
       setSponsor(sponsorData);
 
       // Fetch additional dashboard data
-      const [statsData, tiersData, requestsData] = await Promise.all([
+      const [statsData, requestsData] = await Promise.all([
         sponsorApi.getSponsorStats(sponsorUsername),
-        sponsorApi.getSponsorshipTiers(sponsorUsername),
         sponsorApi.getCollaborationRequests(sponsorUsername)
       ]);
 
       setStats(statsData);
-      setTiers(tiersData);
       setCollaborationRequests(requestsData);
 
     } catch (err: any) {
@@ -92,15 +90,6 @@ const SponsorDashboard: React.FC = () => {
   const handleSponsorUpdate = async (updatedSponsor: Sponsor) => {
     setSponsor(updatedSponsor);
     toast.success('Sponsor profile updated successfully');
-  };
-
-  const handleTiersUpdate = () => {
-    // Refresh tiers data
-    if (sponsorUsername) {
-      sponsorApi.getSponsorshipTiers(sponsorUsername)
-        .then(setTiers)
-        .catch(console.error);
-    }
   };
 
   const handleCollaborationUpdate = () => {
@@ -207,6 +196,8 @@ const SponsorDashboard: React.FC = () => {
               { id: 'profile', label: 'Profile', icon: CogIcon },
               { id: 'packages', label: 'Sponsorship Packages', icon: GiftIcon },
               { id: 'collaborations', label: `Collaborations ${pendingRequestsCount > 0 ? `(${pendingRequestsCount})` : ''}`, icon: HandRaisedIcon },
+              { id: 'team', label: 'Team', icon: UserGroupIcon },
+              { id: 'requests', label: 'Sponsorship Requests', icon: StarIcon },
             ].map((tab) => {
               const Icon = tab.icon;
               return (
@@ -321,6 +312,19 @@ const SponsorDashboard: React.FC = () => {
           <CollaborationRequestsList
             requests={collaborationRequests}
             onRequestUpdate={handleCollaborationUpdate}
+          />
+        )}
+
+        {activeTab === 'team' && (
+          <SponsorTeamManager
+            sponsor={sponsor}
+            onTeamUpdate={fetchSponsorData}
+          />
+        )}
+
+        {activeTab === 'requests' && (
+          <SponsorshipRequestsManager
+            sponsor={sponsor}
           />
         )}
       </div>

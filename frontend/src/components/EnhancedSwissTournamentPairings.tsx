@@ -15,6 +15,7 @@ interface EnhancedSwissTournamentPairingsProps {
 
 interface MatchCardProps {
   match: TournamentMatch;
+  matchIndex: number;
   onReportResult: (match: TournamentMatch, result: 'win' | 'loss' | 'draw') => void;
   isOrganizer: boolean;
   allowDraws: boolean;
@@ -63,6 +64,7 @@ const ByePlayerCard: React.FC<ByePlayerCardProps> = ({ player, roundNumber }) =>
 
 const SwissMatchCard: React.FC<MatchCardProps> = ({
   match,
+  matchIndex,
   onReportResult,
   isOrganizer,
   allowDraws,
@@ -110,6 +112,8 @@ const SwissMatchCard: React.FC<MatchCardProps> = ({
         return 'bg-green-50/80 dark:bg-green-900/20 border-green-300 dark:border-green-700';
       case 'submitted': 
         return 'bg-orange-50/80 dark:bg-orange-900/20 border-orange-300 dark:border-orange-700';
+      case 'confirmed': 
+        return 'bg-blue-50/80 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700';
       case 'disputed': 
         return 'bg-red-50/80 dark:bg-red-900/20 border-red-300 dark:border-red-700';
       case 'pending': 
@@ -122,15 +126,12 @@ const SwissMatchCard: React.FC<MatchCardProps> = ({
   };
 
   const handleResult = (result: 'win' | 'loss' | 'draw') => {
-    // Check if match is still pending before submitting
-    if (match.status !== 'pending') {
-      console.warn('🚫 Attempted to submit result for non-pending match:', {
-        matchId: match.matchId,
-        currentStatus: match.status
-      });
-      setShowReportModal(false);
-      return;
-    }
+    // Allow result submission for pending matches or admin override for completed matches
+    console.log('🏓 Submitting match result:', {
+      matchId: match.matchId,
+      currentStatus: match.status,
+      result: result
+    });
     
     onReportResult(match, result);
     setShowReportModal(false);
@@ -189,7 +190,12 @@ const SwissMatchCard: React.FC<MatchCardProps> = ({
   return (
     <div className={`border-2 rounded-lg p-4 m-2 backdrop-blur-sm ${getMatchStatusColor()} transition-colors duration-200`}>
       <div className="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">
-        Match {match.matchId ? match.matchId.slice(-8) : 'Unknown'}
+        {match.status === 'completed' && (
+          <span className="text-gray-600 dark:text-gray-400">Match {matchIndex + 1} Complete</span>
+        )}
+        {match.status !== 'completed' && (
+          <span className="text-gray-600 dark:text-gray-400">Match {matchIndex + 1}</span>
+        )}
       </div>
       
       {/* Players */}
@@ -247,18 +253,18 @@ const SwissMatchCard: React.FC<MatchCardProps> = ({
       <div className="mt-4">
         {match.status === 'completed' && (
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
-            <div className="flex items-center text-green-700 dark:text-green-300">
+            <div className="flex items-center justify-center text-green-700 dark:text-green-300 mb-2">
               <CheckIcon className="h-4 w-4 mr-2" />
               <span className="text-sm font-medium">
-                {isDraw ? 'Draw - 0.5 points each' : 'Match Completed'}
+                {isDraw ? 'Draw' : match.winnerId === match.player1.id ? `${match.player1.name} Won` : `${match.player2.name} Won`}
               </span>
             </div>
             {isOrganizer && (
               <button 
                 onClick={() => setShowReportModal(true)}
-                className="mt-2 text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 underline"
+                className="w-full btn btn-outline btn-sm mt-2 text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 border-orange-300 dark:border-orange-600"
               >
-                Set Result (Admin)
+                Override Result (Admin)
               </button>
             )}
           </div>
@@ -329,6 +335,26 @@ const SwissMatchCard: React.FC<MatchCardProps> = ({
           </div>
         )}
 
+        {match.status === 'confirmed' && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+            <div className="flex items-center text-blue-700 dark:text-blue-300 mb-2">
+              <CheckIcon className="h-4 w-4 mr-2" />
+              <span className="text-sm font-medium">Result Confirmed - Processing</span>
+            </div>
+            <div className="text-xs text-blue-600 dark:text-blue-400 mb-2">
+              Both players have confirmed the result
+            </div>
+            {isOrganizer && (
+              <button 
+                onClick={() => setShowReportModal(true)}
+                className="w-full btn btn-secondary text-sm py-2"
+              >
+                Override Result (Admin)
+              </button>
+            )}
+          </div>
+        )}
+
         {match.status === 'pending' && (
           <div className="space-y-2">
             {canReport && !isOrganizer && (
@@ -344,7 +370,6 @@ const SwissMatchCard: React.FC<MatchCardProps> = ({
               <button 
                 onClick={() => setShowReportModal(true)}
                 className="w-full btn btn-primary"
-                disabled={match.status !== 'pending'}
               >
                 Set Result (Admin)
               </button>
@@ -520,10 +545,11 @@ export const EnhancedSwissTournamentPairings: React.FC<EnhancedSwissTournamentPa
       {/* Matches Grid - 4 per row to match single elimination style */}
       {round.matches.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {round.matches.map((match) => (
+          {round.matches.map((match, index) => (
             <SwissMatchCard
               key={match.matchId}
               match={match}
+              matchIndex={index}
               onReportResult={onReportResult}
               isOrganizer={isOrganizer}
               allowDraws={allowDraws}

@@ -40,6 +40,12 @@ export interface EventFormData {
   clubName?: string;
   clubLogoUrl?: string;
   invitedUsers: string[];
+  sponsors: {
+    sponsorId: string;
+    status: 'pending' | 'approved' | 'rejected';
+    requestedAt: string;
+    respondedAt?: string;
+  }[];
 }
 
 export interface Event extends EventFormData {
@@ -78,6 +84,12 @@ export interface PublicEvent {
   clubName?: string;
   clubLogoUrl?: string;
   rsvps: string[];
+  sponsors?: {
+    sponsorId: any;
+    status: 'pending' | 'approved' | 'rejected';
+    requestedAt: string;
+    respondedAt?: string;
+  }[];
 }
 
 export interface SubGroup {

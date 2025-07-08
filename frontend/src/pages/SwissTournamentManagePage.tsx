@@ -55,11 +55,29 @@ const SwissTournamentManagePage: React.FC = () => {
     }
   }, [tournamentId]);
 
+  // Periodic refresh to ensure state consistency
+  useEffect(() => {
+    if (!tournamentId || !tournament?.isStarted) return;
+    
+    const interval = setInterval(async () => {
+      try {
+        console.log('🔄 Periodic tournament state refresh');
+        const updatedTournament = await tournamentService.getTournament(tournamentId);
+        setTournament(updatedTournament);
+      } catch (error) {
+        console.error('❌ Error in periodic refresh:', error);
+      }
+    }, 10000); // Refresh every 10 seconds for active tournaments
+    
+    return () => clearInterval(interval);
+  }, [tournamentId, tournament?.isStarted]);
+
   // WebSocket handling for real-time updates
   useEffect(() => {
-    if (!tournament?.eventId) return;
+    if (!tournament?.eventId || !tournamentId) return;
 
     webSocketService.joinEventChat(tournament.eventId);
+    webSocketService.joinTournament(tournamentId);
 
     const handleTournamentUpdate = (data: any) => {
       console.log('🔔 Tournament Management WebSocket update received:', data);
@@ -73,8 +91,10 @@ const SwissTournamentManagePage: React.FC = () => {
         const refreshTournament = async () => {
           try {
             if (tournamentId) {
+              console.log('🔄 WebSocket triggered tournament refresh');
               const updatedTournament = await tournamentService.getTournament(tournamentId);
               setTournament(updatedTournament);
+              console.log('✅ Tournament state refreshed from WebSocket update');
             }
           } catch (error) {
             console.error('❌ Error refreshing tournament data:', error);
@@ -97,6 +117,9 @@ const SwissTournamentManagePage: React.FC = () => {
 
     return () => {
       webSocketService.removeTournamentListeners();
+      if (tournamentId) {
+        webSocketService.leaveTournament(tournamentId);
+      }
     };
   }, [tournament?.eventId, tournamentId]);
 
@@ -184,27 +207,81 @@ const SwissTournamentManagePage: React.FC = () => {
     }
   };
 
+  const handleForceRoundCompletion = async () => {
+    if (!tournament) return;
+
+    const tournamentId = tournament._id || tournament.id;
+    try {
+      const updatedTournament = await tournamentService.forceRoundCompletion(tournamentId);
+      setTournament(updatedTournament);
+      toast.success('Round completion check completed!');
+    } catch (error) {
+      console.error('Error forcing round completion:', error);
+      toast.error('Failed to force round completion check');
+    }
+  };
+
   const handleReportResult = async (match: TournamentMatch, result: 'win' | 'loss' | 'draw') => {
     if (!tournament || !user) return;
 
-    // Check if match is already completed to prevent double submission
-    if (match.status === 'completed') {
+    const isOrganizer = String(tournament.organizerId) === user.id;
+    
+    // Check if match is already completed to prevent double submission for non-organizers
+    if (match.status === 'completed' && !isOrganizer) {
       toast.error('This match has already been completed');
       return;
     }
-
-    const isOrganizer = String(tournament.organizerId) === user.id;
     const isPlayer1 = match.player1.id === user.id;
     const isPlayer2 = match.player2.id === user.id;
     const isParticipant = isPlayer1 || isPlayer2;
 
-    console.log('🏓 Submitting result for match:', {
-      matchId: match.matchId,
-      currentStatus: match.status,
-      result,
-      isOrganizer,
-      tournamentId: tournament.id
-    });
+    const tournamentId = tournament._id || tournament.id;
+    
+    // Get fresh tournament state before submitting
+    console.log('🔄 Refreshing tournament state before submission...');
+    try {
+      const freshTournament = await tournamentService.getTournament(tournamentId);
+      setTournament(freshTournament);
+      
+      // Find the fresh match state
+      const freshMatch = freshTournament.rounds
+        .flatMap(round => round.matches)
+        .find(m => m.matchId === match.matchId);
+      
+      if (!freshMatch) {
+        toast.error('Match not found in tournament');
+        return;
+      }
+      
+      console.log('🏓 Submitting result for match:', {
+        matchId: match.matchId,
+        originalStatus: match.status,
+        freshStatus: freshMatch.status,
+        result,
+        isOrganizer,
+        tournamentId: tournamentId
+      });
+      
+      // Use fresh match state for decision making
+      if (freshMatch.status === 'completed' && !isOrganizer) {
+        toast.error('This match has already been completed');
+        return;
+      }
+      
+      // For submitted/confirmed matches, only allow organizer or appropriate player actions
+      if ((freshMatch.status === 'submitted' || freshMatch.status === 'confirmed') && !isOrganizer) {
+        toast.error('This match result is awaiting confirmation. Only organizers can override.');
+        return;
+      }
+      
+      // Update match reference to fresh state
+      match = freshMatch;
+      
+    } catch (error) {
+      console.error('Error refreshing tournament state:', error);
+      toast.error('Failed to refresh tournament state');
+      return;
+    }
 
     try {
       let winnerId: string | null = null;
@@ -229,27 +306,38 @@ const SwissTournamentManagePage: React.FC = () => {
         }
       }
 
-      // Use override method since this is admin action on management page
+      // Use appropriate endpoint based on match status and user role
       let updatedTournament;
-      if (isDraw) {
-        // For draws, set both to null and specify result as 'draw'
-        updatedTournament = await tournamentService.overrideMatchResult(
-          tournament.id, 
-          match.matchId, 
-          null, 
-          null,
-          'completed',
-          'draw'
+      
+      if (match.status === 'completed' && isOrganizer) {
+        // Organizer overriding completed match - use override endpoint
+        updatedTournament = await tournamentService.overrideResult(
+          tournamentId,
+          match.matchId,
+          winnerId,
+          loserId,
+          result,
+          'Organizer override'
         );
       } else {
-        updatedTournament = await tournamentService.overrideMatchResult(
-          tournament.id, 
-          match.matchId, 
-          winnerId!, 
-          loserId!,
-          'completed',
-          'win'
-        );
+        // Normal submission for pending matches
+        if (isDraw) {
+          updatedTournament = await tournamentService.submitMatchResult(
+            tournamentId, 
+            match.matchId, 
+            null, 
+            null,
+            true // isDraw = true
+          );
+        } else {
+          updatedTournament = await tournamentService.submitMatchResult(
+            tournamentId, 
+            match.matchId, 
+            winnerId!, 
+            loserId!,
+            false // isDraw = false
+          );
+        }
       }
       
       // Immediately update the tournament state to prevent race conditions
@@ -258,7 +346,7 @@ const SwissTournamentManagePage: React.FC = () => {
       // Also force a refresh after a short delay to ensure consistency
       setTimeout(async () => {
         try {
-          const refreshedTournament = await tournamentService.getTournament(tournament.id);
+          const refreshedTournament = await tournamentService.getTournament(tournamentId);
           setTournament(refreshedTournament);
         } catch (refreshError) {
           console.error('Error refreshing tournament after result submission:', refreshError);
@@ -266,7 +354,7 @@ const SwissTournamentManagePage: React.FC = () => {
       }, 500);
 
       toast.success(
-        isOrganizer && match.status !== 'pending'
+        match.status === 'completed' && isOrganizer
           ? 'Match result overridden successfully!'
           : 'Match result submitted successfully!'
       );
@@ -275,7 +363,7 @@ const SwissTournamentManagePage: React.FC = () => {
       
       // Refresh tournament state even on error to ensure UI is consistent
       try {
-        const refreshedTournament = await tournamentService.getTournament(tournament.id);
+        const refreshedTournament = await tournamentService.getTournament(tournamentId);
         setTournament(refreshedTournament);
       } catch (refreshError) {
         console.error('Error refreshing tournament after failed submission:', refreshError);
@@ -313,7 +401,7 @@ const SwissTournamentManagePage: React.FC = () => {
     );
   }
 
-  const canStartTournament = !tournament?.isStarted && tournament && tournament.players.length >= 2;
+  const canStartTournament = Boolean(!tournament?.isStarted && tournament && tournament.players.length >= 2);
 
   if (loading) {
     return (
@@ -424,60 +512,191 @@ const SwissTournamentManagePage: React.FC = () => {
               <div className="space-y-8">
                 {/* Tournament Status Overview */}
                 <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tournament Status</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                        Round {tournament.currentRound || 1} of {tournament.numRounds || 3}
+                  {tournament.isFinished ? (
+                    // Completed Tournament Status
+                    <div className="text-center py-4">
+                      <div className="flex items-center justify-center mb-4">
+                        <TrophyIcon className="h-16 w-16 text-yellow-500 mr-4" />
+                        <div>
+                          <h3 className="text-3xl font-bold text-green-600 dark:text-green-400 mb-2">
+                            🏁 TOURNAMENT COMPLETE
+                          </h3>
+                          <p className="text-lg text-gray-600 dark:text-gray-400">
+                            Finished • {tournament.players.length} Players • {tournament.rounds.reduce((total, round) => total + round.matches.length, 0)} Matches
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">Current Round</div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                        <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                          <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                            {tournament.numRounds || 3} / {tournament.numRounds || 3}
+                          </div>
+                          <div className="text-sm text-green-600 dark:text-green-400">Rounds Completed</div>
+                        </div>
+                        <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                            {tournament.players.length}
+                          </div>
+                          <div className="text-sm text-blue-600 dark:text-blue-400">Total Players</div>
+                        </div>
+                        <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                          <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                            {tournament.rounds.reduce((total, round) => total + round.matches.length, 0)}
+                          </div>
+                          <div className="text-sm text-purple-600 dark:text-purple-400">Total Matches</div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                        {tournament.players.length}
+                  ) : (
+                    // Active Tournament Status
+                    <>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tournament Status</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                            Round {tournament.currentRound || 1} of {tournament.numRounds || 3}
+                          </div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">Current Round</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                            {tournament.players.length}
+                          </div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">Total Players</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                            {tournament.rounds.reduce((total, round) => total + round.matches.length, 0)}
+                          </div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">Total Matches</div>
+                        </div>
                       </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">Total Players</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                        {tournament.rounds.reduce((total, round) => total + round.matches.length, 0)}
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">Total Matches</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Current Round */}
-                <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Current Round</h3>
-                    {!tournament.isFinished && tournament.rounds[(tournament.currentRound || 1) - 1] && !tournament.rounds[(tournament.currentRound || 1) - 1]?.isComplete && (
-                      <div className="text-sm text-blue-600 dark:text-blue-400 font-medium">
-                        ⚡ Next round starts automatically when all matches complete
-                      </div>
-                    )}
-                  </div>
-                  {tournament.rounds[(tournament.currentRound || 1) - 1] && (
-                    <EnhancedSwissTournamentPairings
-                      round={tournament.rounds[(tournament.currentRound || 1) - 1]}
-                      currentRound={tournament.currentRound || 1}
-                      totalRounds={tournament.numRounds || 3}
-                      onReportResult={handleReportResult}
-                      isOrganizer={true}
-                      allowDraws={true}
-                      currentUserId={user?.id}
-                    />
+                    </>
                   )}
                 </div>
 
-                {/* Standings */}
-                <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Current Standings</h3>
-                  <SwissTournamentStandings
-                    players={tournament.players}
-                    isFinished={tournament.isFinished}
-                  />
-                </div>
+                {/* Final Standings - Priority for Completed Tournaments */}
+                {tournament.isFinished ? (
+                  <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6">
+                    <SwissTournamentStandings
+                      players={tournament.players}
+                      rounds={tournament.rounds}
+                      isFinished={tournament.isFinished}
+                    />
+                  </div>
+                ) : (
+                  <>
+                    {/* Current Round - Only for Active Tournaments */}
+                    <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6">
+                      <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Current Round</h3>
+                        {tournament.rounds[(tournament.currentRound || 1) - 1] && !tournament.rounds[(tournament.currentRound || 1) - 1]?.isComplete && (
+                          <div className="flex items-center gap-4">
+                            <div className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                              ⚡ Next round starts automatically when all matches complete
+                            </div>
+                            <button
+                              onClick={handleForceRoundCompletion}
+                              className="px-3 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700"
+                            >
+                              Force Check Completion
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {tournament.rounds[(tournament.currentRound || 1) - 1] && (
+                        <EnhancedSwissTournamentPairings
+                          round={tournament.rounds[(tournament.currentRound || 1) - 1]}
+                          currentRound={tournament.currentRound || 1}
+                          totalRounds={tournament.numRounds || 3}
+                          onReportResult={handleReportResult}
+                          isOrganizer={true}
+                          allowDraws={true}
+                          currentUserId={user?.id}
+                        />
+                      )}
+                    </div>
+
+                    {/* Current Standings - Only for Active Tournaments */}
+                    <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6">
+                      <SwissTournamentStandings
+                        players={tournament.players}
+                        rounds={tournament.rounds}
+                        isFinished={tournament.isFinished}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Round History - Bottom Section for Completed Tournaments */}
+                {tournament.isFinished && (
+                  <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6">
+                    <details className="group">
+                      <summary className="flex items-center justify-between cursor-pointer list-none">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                          <FireIcon className="h-5 w-5 mr-2" />
+                          📋 Round History
+                        </h3>
+                        <div className="text-sm text-gray-500 dark:text-gray-400 group-open:rotate-180 transition-transform">
+                          ▼
+                        </div>
+                      </summary>
+                      <div className="mt-4 space-y-6">
+                        {tournament.rounds.map((round, index) => (
+                          <div key={round.roundNumber} className="border-l-4 border-gray-300 dark:border-gray-600 pl-4">
+                            <h4 className="text-md font-medium text-gray-900 dark:text-white mb-3">
+                              Round {round.roundNumber} {round.isComplete && '✅'}
+                            </h4>
+                            <div className="space-y-2">
+                              {round.matches.map((match, matchIndex) => (
+                                <div 
+                                  key={match.matchId} 
+                                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-sm"
+                                >
+                                  <div className="flex items-center space-x-3">
+                                    <span className="font-medium">{match.player1.name}</span>
+                                    <span className="text-gray-500">vs</span>
+                                    <span className="font-medium">{match.player2.name}</span>
+                                  </div>
+                                  <div className="text-right">
+                                    {match.status === 'completed' ? (
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                        {match.result === 'draw' ? 'Draw' : 
+                                         match.winnerId === match.player1.id ? `${match.player1.name} Won` : 
+                                         `${match.player2.name} Won`}
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400">
+                                        {match.status}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                              
+                              {/* Show bye players for this round */}
+                              {round.byePlayers && round.byePlayers.length > 0 && (
+                                <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-sm border border-blue-200 dark:border-blue-800">
+                                  <div className="flex items-center space-x-3">
+                                    <span className="font-medium text-blue-700 dark:text-blue-300">
+                                      {round.byePlayers.map(player => player.name).join(', ')}
+                                    </span>
+                                    <span className="text-blue-600 dark:text-blue-400">had BYE</span>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                      +1 point
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  </div>
+                )}
               </div>
             )}
           </div>

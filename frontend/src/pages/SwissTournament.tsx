@@ -11,6 +11,7 @@ import { EventFeatures } from '../types/event';
 import { log, LogCategory } from '../utils/logger';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { webSocketService } from '../services/websocket.service';
 
 const SwissTournament: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -20,6 +21,7 @@ const SwissTournament: React.FC = () => {
   const eventTitle = searchParams.get('eventTitle') || '';
   const eventCreatorId = searchParams.get('creatorId') || '';
   const { user } = useAuth();
+
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,12 +31,104 @@ const SwissTournament: React.FC = () => {
   // Check if current user is the event creator
   const isEventCreator = user && eventCreatorId && user.id === eventCreatorId;
 
-  // Check if current user is registered
-  const isUserRegistered = tournament && user && tournament.players.some(p => p.userId === user.id);
+  // Check if current user is registered (handle different ID formats)
+  const isUserRegistered = tournament && user && tournament.players.some(p => {
+    // Check multiple possible ID formats
+    const userIdString = user.id?.toString() || user._id?.toString();
+    
+    // Handle ObjectId objects properly
+    let playerUserIdString;
+    if (p.userId && typeof p.userId === 'object') {
+      // Handle MongoDB ObjectId objects
+      if (p.userId.$oid) {
+        playerUserIdString = p.userId.$oid;
+      } else if (p.userId._id) {
+        playerUserIdString = p.userId._id.toString();
+      } else if (p.userId.toHexString) {
+        playerUserIdString = p.userId.toHexString();
+      } else {
+        playerUserIdString = String(p.userId);
+      }
+    } else if (p.userId) {
+      playerUserIdString = p.userId.toString();
+    } else {
+      playerUserIdString = null;
+    }
+    
+    return userIdString === playerUserIdString;
+  });
+  
+  // Debug user registration check
+  if (tournament && user) {
+    console.log('🔍 User Registration Debug:', {
+      userId: user.id,
+      userIdString: user.id?.toString(),
+      user_id: user._id,
+      tournamentPlayersCount: tournament.players.length,
+      tournamentPlayers: tournament.players.map(p => ({ 
+        id: p.id, 
+        name: p.name, 
+        userId: p.userId,
+        userIdString: p.userId?.toString(),
+        isMatch: (user.id?.toString() || user._id?.toString()) === p.userId?.toString()
+      })),
+      isUserRegistered
+    });
+    
+    // Additional debugging - check each player individually
+    tournament.players.forEach((player, index) => {
+      let playerUserIdString;
+      if (player.userId && typeof player.userId === 'object') {
+        // Handle MongoDB ObjectId objects
+        if (player.userId.$oid) {
+          playerUserIdString = player.userId.$oid;
+        } else if (player.userId._id) {
+          playerUserIdString = player.userId._id.toString();
+        } else if (player.userId.toHexString) {
+          playerUserIdString = player.userId.toHexString();
+        } else {
+          playerUserIdString = String(player.userId);
+        }
+      } else if (player.userId) {
+        playerUserIdString = player.userId.toString();
+      } else {
+        playerUserIdString = null;
+      }
+      
+      console.log(`🔍 Player ${index + 1}:`, {
+        name: player.name,
+        userId: player.userId,
+        userIdType: typeof player.userId,
+        playerUserIdString,
+        currentUserId: user.id,
+        currentUserIdType: typeof user.id,
+        currentUserIdString: user.id?.toString(),
+        stringMatch: user.id?.toString() === playerUserIdString,
+        directMatch: user.id === player.userId
+      });
+    });
+  }
   
 
   // Check if user can register
-  const canRegister = user && !isUserRegistered && !tournament?.isStarted && !tournament?.isFinished && tournament?.registrationOpen !== false;
+  const canRegister = tournament && user && !isUserRegistered && !tournament?.isStarted && !tournament?.isFinished && tournament?.registrationOpen !== false;
+
+  // Debug logging for tournament state
+  console.log('🔍 Tournament State Debug:', {
+    hasTournament: !!tournament,
+    tournamentName: tournament?.name,
+    tournamentId: tournament?.id || tournament?._id,
+    playersCount: tournament?.players?.length || 0,
+    isStarted: tournament?.isStarted,
+    registrationOpen: tournament?.registrationOpen,
+    eventTitle,
+    eventId,
+    userLoggedIn: !!user,
+    isUserRegistered,
+    canRegister,
+    showRegistrationModal
+  });
+
 
   useEffect(() => {
     if (tournamentId) {
@@ -45,6 +139,38 @@ const SwissTournament: React.FC = () => {
       loadTournamentByEvent();
     } else {
       setLoading(false);
+    }
+  }, [tournamentId, eventId]);
+
+  // WebSocket effect for real-time tournament updates
+  useEffect(() => {
+    if (tournamentId && eventId) {
+      // Join tournament room and event room for real-time updates
+      webSocketService.joinTournament(tournamentId);
+      webSocketService.joinEventChat(eventId);
+      
+      // Listen for tournament updates
+      webSocketService.onTournamentUpdate((update) => {
+        console.log('🔄 Tournament update received:', update);
+        
+        // Handle different types of tournament updates
+        if (update.type === 'player-registered' || update.type === 'player-removed' || 
+            update.type === 'guest-player-added' || update.type === 'tournament-started') {
+          // Reload tournament data for registration-related updates
+          if (tournamentId) {
+            loadTournamentById(tournamentId);
+          } else {
+            loadTournamentByEvent();
+          }
+        }
+      });
+      
+      // Cleanup on unmount
+      return () => {
+        webSocketService.leaveTournament(tournamentId);
+        webSocketService.leaveEventChat(eventId);
+        webSocketService.removeTournamentListeners();
+      };
     }
   }, [tournamentId, eventId]);
 
@@ -62,10 +188,28 @@ const SwissTournament: React.FC = () => {
 
   const loadTournamentByEvent = async () => {
     try {
+      console.log('🔍 Loading tournaments for eventId:', eventId);
       const tournaments = await tournamentService.getTournamentsByEvent(eventId);
+      console.log('📋 Found tournaments:', tournaments);
+      
       const swissTournament = tournaments.find(t => t.type === TournamentType.SWISS);
+      console.log('🏆 Swiss tournament found:', swissTournament);
+      
       if (swissTournament) {
         setTournament(swissTournament);
+        console.log('✅ Tournament set in state');
+        
+        // If we found a tournament and we're not already on the specific tournament URL,
+        // redirect to the specific tournament URL for better UX
+        if (!tournamentId && swissTournament.id) {
+          const currentParams = new URLSearchParams(window.location.search);
+          const redirectUrl = `/tournament/swiss/${swissTournament.id}?${currentParams.toString()}`;
+          console.log('🔄 Redirecting to:', redirectUrl);
+          navigate(redirectUrl);
+          return;
+        }
+      } else {
+        console.log('❌ No Swiss tournament found for this event');
       }
     } catch (error) {
       console.error('Error loading tournament:', error);
@@ -142,11 +286,11 @@ const SwissTournament: React.FC = () => {
 
     try {
       if (result === 'draw') {
-        await tournamentService.submitMatchResult(tournament.id, match.matchId, null, true);
+        await tournamentService.submitMatchResult(tournament.id, match.matchId, null, null, true);
       } else if (result === 'win') {
-        await tournamentService.submitMatchResult(tournament.id, match.matchId, match.player1.id, false);
+        await tournamentService.submitMatchResult(tournament.id, match.matchId, match.player1.id, match.player2.id, false);
       } else {
-        await tournamentService.submitMatchResult(tournament.id, match.matchId, match.player2.id, false);
+        await tournamentService.submitMatchResult(tournament.id, match.matchId, match.player2.id, match.player1.id, false);
       }
       if (tournamentId) {
         loadTournamentById(tournamentId);
@@ -160,10 +304,22 @@ const SwissTournament: React.FC = () => {
   };
 
   const handleRegisterForTournament = async () => {
-    if (!tournament) return;
+    console.log('🎯 handleRegisterForTournament called', { 
+      tournament: !!tournament, 
+      tournamentId: tournament?.id,
+      tournamentObjectId: tournament?._id,
+      finalId: tournament?.id || tournament?._id
+    });
+    if (!tournament) {
+      console.error('❌ No tournament available for registration');
+      return;
+    }
 
     try {
-      await tournamentService.registerForTournament(tournament.id);
+      console.log('🔄 Calling registerForTournament API...');
+      await tournamentService.registerForTournament(tournament.id || tournament._id);
+      console.log('✅ Registration API call successful');
+      
       if (tournamentId) {
         loadTournamentById(tournamentId);
       } else {
@@ -214,7 +370,7 @@ const SwissTournament: React.FC = () => {
     );
   }
 
-  // Show tournament creation page only for event creators, or coming soon for others
+  // Show tournament creation page only for event creators, or waiting message for others
   if (!tournament) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
@@ -222,8 +378,12 @@ const SwissTournament: React.FC = () => {
           {/* Tournament Title */}
           <div className="text-center mb-8">
             <TrophyIcon className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Tournament for "{eventTitle}"</h1>
-            <p className="text-gray-600 dark:text-gray-400">Registration is now open!</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              Swiss Tournament for "{eventTitle || 'Event'}"
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              {isEventCreator ? 'Create your Swiss tournament below' : 'Tournament not created yet'}
+            </p>
           </div>
 
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
@@ -296,11 +456,16 @@ const SwissTournament: React.FC = () => {
               </div>
             ) : (
               <button
-                onClick={() => setShowRegistrationModal(true)}
+                onClick={() => {
+                  console.log('🎯 Register button clicked!', { tournament: !!tournament, user: !!user, canRegister });
+                  console.log('🎯 Setting showRegistrationModal to true...');
+                  setShowRegistrationModal(true);
+                  console.log('🎯 showRegistrationModal state updated');
+                }}
                 className="w-full flex justify-center items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow transition-colors"
               >
                 <UserPlusIcon className="h-5 w-5 mr-2" />
-                Register Now
+                Register for Tournament
               </button>
             )}
 
@@ -346,7 +511,7 @@ const SwissTournament: React.FC = () => {
                               </span>
                             </div>
                           </div>
-                          {isEventCreator && tournament && !tournament.isStarted && (
+                          {false && (
                             <button
                               onClick={() => handleRemovePlayer(player.id)}
                               className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
@@ -368,7 +533,7 @@ const SwissTournament: React.FC = () => {
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                     Guests ({tournament?.players?.filter(p => p.isGuest)?.length || 0})
                   </h3>
-                  {isEventCreator && tournament && !tournament.isStarted && (
+                  {false && (
                     <div className="flex space-x-2">
                       <input
                         type="text"
@@ -406,7 +571,7 @@ const SwissTournament: React.FC = () => {
                               </div>
                             </div>
                           </div>
-                          {isEventCreator && tournament && !tournament.isStarted && (
+                          {false && (
                             <button
                               onClick={() => handleRemovePlayer(player.id)}
                               className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
@@ -424,6 +589,40 @@ const SwissTournament: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Registration Confirmation Modal */}
+        {showRegistrationModal && (
+          <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+              <div className="text-center">
+                <TrophyIcon className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Join Swiss Tournament
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300 mb-6">
+                  Are you sure you want to register for this Swiss tournament? You'll be able to play multiple rounds and compete against players with similar records.
+                </p>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => setShowRegistrationModal(false)}
+                    className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowRegistrationModal(false);
+                      handleRegisterForTournament();
+                    }}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    Join Tournament
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -436,7 +635,9 @@ const SwissTournament: React.FC = () => {
           {/* Tournament Title */}
           <div className="text-center mb-8">
             <TrophyIcon className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Tournament for "{eventTitle}"</h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              {tournament?.name || `Tournament for "${eventTitle || 'Swiss Tournament'}"`}
+            </h1>
             <p className="text-gray-600 dark:text-gray-400">Registration is now open!</p>
           </div>
 
@@ -510,11 +711,16 @@ const SwissTournament: React.FC = () => {
               </div>
             ) : (
               <button
-                onClick={() => setShowRegistrationModal(true)}
+                onClick={() => {
+                  console.log('🎯 Register button clicked!', { tournament: !!tournament, user: !!user, canRegister });
+                  console.log('🎯 Setting showRegistrationModal to true...');
+                  setShowRegistrationModal(true);
+                  console.log('🎯 showRegistrationModal state updated');
+                }}
                 className="w-full flex justify-center items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow transition-colors"
               >
                 <UserPlusIcon className="h-5 w-5 mr-2" />
-                Register Now
+                Register for Tournament
               </button>
             )}
 
@@ -560,7 +766,7 @@ const SwissTournament: React.FC = () => {
                               </span>
                             </div>
                           </div>
-                          {isEventCreator && tournament && !tournament.isStarted && (
+                          {false && (
                             <button
                               onClick={() => handleRemovePlayer(player.id)}
                               className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
@@ -582,7 +788,7 @@ const SwissTournament: React.FC = () => {
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                     Guests ({tournament?.players?.filter(p => p.isGuest)?.length || 0})
                   </h3>
-                  {isEventCreator && tournament && !tournament.isStarted && (
+                  {false && (
                     <div className="flex space-x-2">
                       <input
                         type="text"
@@ -620,7 +826,7 @@ const SwissTournament: React.FC = () => {
                               </div>
                             </div>
                           </div>
-                          {isEventCreator && tournament && !tournament.isStarted && (
+                          {false && (
                             <button
                               onClick={() => handleRemovePlayer(player.id)}
                               className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
@@ -638,6 +844,40 @@ const SwissTournament: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Registration Confirmation Modal */}
+        {showRegistrationModal && (
+          <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+              <div className="text-center">
+                <TrophyIcon className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Join Swiss Tournament
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300 mb-6">
+                  Are you sure you want to register for this Swiss tournament? You'll be able to play multiple rounds and compete against players with similar records.
+                </p>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => setShowRegistrationModal(false)}
+                    className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowRegistrationModal(false);
+                      handleRegisterForTournament();
+                    }}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    Join Tournament
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -708,6 +948,10 @@ const SwissTournament: React.FC = () => {
                   <UserPlusIcon className="h-5 w-5 mr-2 inline" />
                   Register for Tournament
                 </button>
+              </div>
+            ) : tournament && tournament.registrationOpen === false ? (
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4">
+                <p className="text-gray-600 dark:text-gray-400">Tournament registration is closed.</p>
               </div>
             ) : (
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4">

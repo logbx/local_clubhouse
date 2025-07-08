@@ -268,13 +268,21 @@ export const eventApi = {
     const response = await api.post(endpoints.events.publish(id));
     return response.data;
   },
-  rsvpEvent: async (id: string, status: 'going' | 'maybe' | 'not_going') => {
-    const response = await api.post(endpoints.events.rsvp(id), { status });
-    return response.data;
+  rsvpEvent: async (eventId: string, status: string): Promise<Event> => {
+    const response = await api.post(`/events/${eventId}/rsvp`, { status });
+    return response.data.event;
   },
   toggleRsvp: async (id: string) => {
     const response = await api.post(`/events/${id}/rsvp`, {});
     return response.data;
+  },
+  approveSponsorshipRequest: async (eventId: string, sponsorId: string): Promise<Event> => {
+    const response = await api.post(`/events/${eventId}/sponsors/${sponsorId}/approve`);
+    return response.data.event;
+  },
+  rejectSponsorshipRequest: async (eventId: string, sponsorId: string): Promise<Event> => {
+    const response = await api.post(`/events/${eventId}/sponsors/${sponsorId}/reject`);
+    return response.data.event;
   },
 };
 

@@ -44,9 +44,16 @@ export const MatchResultModal: React.FC<MatchResultModalProps> = ({
       if (selectedResult === 'draw') {
         isDraw = true;
       } else {
-        const isPlayer1 = match.player1.id === currentUserId;
-        winnerId = selectedResult === 'win' ? currentUserId : (isPlayer1 ? match.player2.id : match.player1.id);
-        loserId = selectedResult === 'win' ? (isPlayer1 ? match.player2.id : match.player1.id) : currentUserId;
+        if (isCreator) {
+          // Organizer is reporting the result - use explicit player selection
+          winnerId = selectedResult === 'win' ? match.player1.id : match.player2.id;
+          loserId = selectedResult === 'win' ? match.player2.id : match.player1.id;
+        } else {
+          // Player is reporting their own result
+          const isPlayer1 = match.player1.id === currentUserId;
+          winnerId = selectedResult === 'win' ? currentUserId : (isPlayer1 ? match.player2.id : match.player1.id);
+          loserId = selectedResult === 'win' ? (isPlayer1 ? match.player2.id : match.player1.id) : currentUserId;
+        }
       }
 
       await onSubmitResult(winnerId, loserId, isDraw, notes);

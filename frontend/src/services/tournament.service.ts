@@ -53,7 +53,7 @@ export interface TournamentMatch {
     fullName?: string;
     isGuest?: boolean;
   };
-  status: 'pending' | 'submitted' | 'disputed' | 'completed' | 'forfeit';
+  status: 'pending' | 'submitted' | 'confirmed' | 'disputed' | 'completed' | 'forfeit';
   winnerId?: string | null;
   loserId?: string | null;
   isDraw?: boolean;
@@ -246,11 +246,11 @@ export class TournamentService {
         status,
       };
 
-      // Only include winnerId and loserId if they are not null
-      if (winnerId !== null) {
+      // Only include winnerId and loserId if they are not null and not undefined
+      if (winnerId !== null && winnerId !== undefined) {
         payload.winnerId = winnerId;
       }
-      if (loserId !== null) {
+      if (loserId !== null && loserId !== undefined) {
         payload.loserId = loserId;
       }
 
@@ -264,6 +264,7 @@ export class TournamentService {
         payload.reason = reason;
       }
 
+      console.log('🏓 Override result payload:', payload);
       const response = await api.post('/api/tournaments/override-result', payload);
       return response.data.data;
     } catch (error) {
@@ -345,17 +346,55 @@ export class TournamentService {
     notes?: string
   ): Promise<Tournament> {
     try {
+      console.log('📤 Submitting match result:', {
+        tournamentId,
+        matchId,
+        winnerId,
+        loserId,
+        result: isDraw ? 'draw' : 'win',
+        isDraw,
+        notes
+      });
+      
       const response = await api.post('/api/tournaments/submit-result', {
         tournamentId,
         matchId,
         winnerId,
         loserId,
         result: isDraw ? 'draw' : 'win',
+        isDraw,
         notes
       });
       return response.data.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting match result:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      throw error;
+    }
+  }
+
+  async overrideResult(
+    tournamentId: string,
+    matchId: string,
+    winnerId: string | null,
+    loserId: string | null,
+    result: 'win' | 'loss' | 'draw',
+    reason?: string
+  ): Promise<Tournament> {
+    try {
+      const response = await api.post('/api/tournaments/override-result', {
+        tournamentId,
+        matchId,
+        winnerId,
+        loserId,
+        result,
+        reason,
+        status: 'completed'
+      });
+      return response.data.data;
+    } catch (error) {
+      console.error('Error overriding match result:', error);
       throw error;
     }
   }
@@ -372,6 +411,11 @@ export class TournamentService {
 
   async startNextRound(tournamentId: string): Promise<void> {
     await api.post(`/api/tournaments/${tournamentId}/next-round`);
+  }
+
+  async forceRoundCompletion(tournamentId: string): Promise<Tournament> {
+    const response = await api.post(`/api/tournaments/${tournamentId}/force-round-completion`);
+    return response.data.data;
   }
 }
 

@@ -166,9 +166,9 @@ const SingleEliminationTournament: React.FC = () => {
         const backendTournaments = await tournamentService.getTournamentsByEvent(eventId);
         
         console.log('🔍 Backend tournaments loaded:', backendTournaments);
-        console.log('🔍 Number of tournaments:', backendTournaments.length);
+        console.log('🔍 Number of tournaments:', backendTournaments?.length || 0);
         
-        if (backendTournaments.length > 0) {
+        if (backendTournaments && backendTournaments.length > 0) {
           const backendTournament = backendTournaments[0];
           console.log('🔍 Tournament data:', {
             name: backendTournament.name,

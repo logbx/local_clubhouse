@@ -4,7 +4,8 @@ import { Event, EventFormData, EventStatus, EventVisibility, RecurrenceType, Eve
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { eventApi } from '../services/api';
 import { clubApi } from '../services/club.service';
-import { XMarkIcon, PhotoIcon, CalendarIcon, MapPinIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { sponsorApi } from '../services/sponsor.service';
+import { XMarkIcon, PhotoIcon, CalendarIcon, MapPinIcon, ClockIcon, UserPlusIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import TagInput from './TagInput';
 import { commonEventTags } from '../data/suggestions';
 import { FileUpload } from './FileUpload';
@@ -34,6 +35,7 @@ const initialFormData: EventFormData = {
   features: [],
   status: EventStatus.DRAFT,
   invitedUsers: [],
+  sponsors: [], // Array of sponsor requests with approval status
 };
 
 // Popular tags for suggestions
@@ -62,6 +64,12 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const [availableClubs, setAvailableClubs] = useState<any[]>([]);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [isDraft, setIsDraft] = useState<boolean>(true);
+
+  // Sponsor selection state
+  const [sponsorSearchTerm, setSponsorSearchTerm] = useState<string>('');
+  const [availableSponsors, setAvailableSponsors] = useState<any[]>([]);
+  const [selectedSponsors, setSelectedSponsors] = useState<any[]>([]);
+  const [showSponsorSearch, setShowSponsorSearch] = useState<boolean>(false);
 
   // Generate time options in 10-minute increments
   const generateTimeOptions = () => {
@@ -164,6 +172,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
         clubId: event.clubId,
         clubUsername: event.clubUsername,
         invitedUsers: event.invitedUsers || [],
+        sponsors: event.sponsors || [],
       });
       if (event.imageUrl) {
         setImagePreview(event.imageUrl);
@@ -194,6 +203,62 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
       fetchClubs();
     }
   }, [isSponsorship]);
+
+  // Fetch available sponsors for selection
+  useEffect(() => {
+    if (!isSponsorship) { // Only for regular club events, not sponsor events
+      const fetchSponsors = async () => {
+        try {
+          const sponsors = await sponsorApi.getSponsors();
+          setAvailableSponsors(sponsors);
+        } catch (error) {
+          console.error('Failed to fetch sponsors:', error);
+        }
+      };
+      fetchSponsors();
+    }
+  }, [isSponsorship]);
+
+  // Sync selectedSponsors with form data
+  useEffect(() => {
+    if (event?.sponsors && availableSponsors.length > 0) {
+      console.log('🔄 Syncing sponsors for event edit:', {
+        eventSponsors: event.sponsors,
+        availableSponsors: availableSponsors.length
+      });
+      
+      const eventSponsors = availableSponsors.filter(sponsor => 
+        event.sponsors?.some(s => {
+          // Handle both object format {sponsorId: "id", status: "pending"} and string format
+          const sponsorId = typeof s === 'object' ? s.sponsorId : s;
+          const matchesId = typeof sponsorId === 'string' ? 
+            sponsorId === sponsor._id : 
+            (sponsorId && typeof sponsorId === 'object' && '_id' in sponsorId) ? (sponsorId as any)._id === sponsor._id : false;
+          
+          console.log('🔍 Checking sponsor match:', {
+            eventSponsor: s,
+            sponsorId,
+            availableSponsor: sponsor._id,
+            matches: matchesId
+          });
+          
+          return matchesId;
+        })
+      );
+      
+      console.log('✅ Found matching sponsors:', eventSponsors);
+      setSelectedSponsors(eventSponsors);
+      
+      // Also update formData to ensure consistency
+      setFormData(prev => ({
+        ...prev,
+        sponsors: event.sponsors || []
+      }));
+    } else if (!event) {
+      // Clear sponsors when no event is selected
+      setSelectedSponsors([]);
+    }
+  }, [event?.sponsors, availableSponsors]);
 
   const createMutation = useMutation({
     mutationFn: (data: FormData) => eventApi.createEvent(data),
@@ -231,10 +296,19 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
         status: EventStatus.DRAFT
       };
       
+      console.log('💾 Saving draft with data:', {
+        eventData,
+        sponsors: eventData.sponsors,
+        selectedSponsors
+      });
+      
       // Append all form data
       Object.entries(eventData).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
           if (Array.isArray(value)) {
+            if (key === 'sponsors') {
+              console.log('📤 Sending sponsors to backend:', value);
+            }
             formDataToSubmit.append(key, JSON.stringify(value));
           } else {
             formDataToSubmit.append(key, value.toString());
@@ -242,12 +316,22 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
         }
       });
 
+      // Log what's actually in FormData
+      console.log('📋 FormData contents:');
+      for (let [key, value] of formDataToSubmit.entries()) {
+        if (key === 'sponsors') {
+          console.log(`  ${key}:`, value);
+        }
+      }
+
       if (event?.id) {
         // Update existing event
+        console.log('🔄 Updating existing event:', event.id);
         await eventApi.updateEvent(event.id, formDataToSubmit);
         toast.success('Draft saved successfully!');
       } else {
         // Create new event
+        console.log('🆕 Creating new event');
         await createMutation.mutateAsync(formDataToSubmit);
         toast.success('Draft created successfully!');
       }
@@ -272,10 +356,19 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
         status: EventStatus.LIVE
       };
       
+      console.log('🚀 Publishing event with data:', {
+        eventData,
+        sponsors: eventData.sponsors,
+        selectedSponsors
+      });
+      
       // Append all form data
       Object.entries(eventData).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
           if (Array.isArray(value)) {
+            if (key === 'sponsors') {
+              console.log('📤 Sending sponsors to backend:', value);
+            }
             formDataToSubmit.append(key, JSON.stringify(value));
           } else {
             formDataToSubmit.append(key, value.toString());
@@ -283,10 +376,20 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
         }
       });
 
+      // Log what's actually in FormData
+      console.log('📋 FormData contents:');
+      for (let [key, value] of formDataToSubmit.entries()) {
+        if (key === 'sponsors') {
+          console.log(`  ${key}:`, value);
+        }
+      }
+
       if (event?.id) {
+        console.log('🔄 Updating existing event:', event.id);
         await eventApi.updateEvent(event.id, formDataToSubmit);
         toast.success('Event updated successfully!');
       } else {
+        console.log('🆕 Creating new event');
         await createMutation.mutateAsync(formDataToSubmit);
         toast.success('Event created successfully!');
       }
@@ -390,6 +493,53 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
       tags: prev.tags.filter(tag => tag !== tagToRemove)
     }));
   };
+
+  // Sponsor management functions
+  const handleAddSponsor = (sponsor: any) => {
+    if (!selectedSponsors.find(s => s._id === sponsor._id)) {
+      const newSelectedSponsors = [...selectedSponsors, sponsor];
+      setSelectedSponsors(newSelectedSponsors);
+      
+      // Create sponsor request objects with pending status
+      const sponsorRequests = newSelectedSponsors.map(s => ({
+        sponsorId: s._id,
+        status: 'pending' as const,
+        requestedAt: new Date().toISOString()
+      }));
+      
+      console.log('🎯 Adding sponsor:', {
+        sponsor,
+        newSelectedSponsors,
+        sponsorRequests
+      });
+      
+      setFormData(prev => ({
+        ...prev,
+        sponsors: sponsorRequests
+      }));
+      
+      setSponsorSearchTerm('');
+      setShowSponsorSearch(false);
+    }
+  };
+
+  const handleRemoveSponsor = (sponsorId: string) => {
+    const updatedSponsors = selectedSponsors.filter(s => s._id !== sponsorId);
+    setSelectedSponsors(updatedSponsors);
+    setFormData(prev => ({ 
+      ...prev, 
+      sponsors: updatedSponsors.map(s => ({
+        sponsorId: s._id,
+        status: 'pending' as const,
+        requestedAt: new Date().toISOString()
+      }))
+    }));
+  };
+
+  const filteredSponsors = availableSponsors.filter(sponsor =>
+    sponsor.name.toLowerCase().includes(sponsorSearchTerm.toLowerCase()) ||
+    sponsor.username.toLowerCase().includes(sponsorSearchTerm.toLowerCase())
+  ).filter(sponsor => !selectedSponsors.find(s => s._id === sponsor._id));
 
   return (
     <Dialog
@@ -716,18 +866,6 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 <label htmlFor="visibility" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Event Visibility
                 </label>
-                {clubId && (
-                  <div className="mt-1 mb-2 p-3 bg-blue-50/80 dark:bg-blue-900/20 border border-blue-200/50 dark:border-blue-800/50 rounded-md">
-                    <p className="text-sm text-blue-800 dark:text-blue-300 font-medium">
-                      💡 Club Event Options:
-                    </p>
-                    <ul className="mt-1 text-xs text-blue-700 dark:text-blue-300 space-y-1">
-                      <li>• <strong>Public:</strong> Appears on everyone's dashboard + your club page</li>
-                      <li>• <strong>Club Only:</strong> Only visible to club members</li>
-                      <li>• <strong>Private:</strong> Only visible to specific invited users</li>
-                    </ul>
-                  </div>
-                )}
                 <select
                   id="visibility"
                   value={formData.visibility}
@@ -800,6 +938,139 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
                       maxTags={10}
                     />
                 </div>
+
+                {/* Event Sponsors Section */}
+                {!isSponsorship && clubId && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Event Sponsors
+                    </label>
+                    <div className="space-y-3">
+                      {/* Selected Sponsors */}
+                      {selectedSponsors.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {selectedSponsors.map((sponsor) => (
+                            <div
+                              key={sponsor._id}
+                              className="flex items-center gap-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg px-3 py-2"
+                            >
+                              {sponsor.logoUrl ? (
+                                <img
+                                  src={sponsor.logoUrl}
+                                  alt={sponsor.name}
+                                  className="w-6 h-6 rounded-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-6 h-6 rounded-full bg-yellow-200 dark:bg-yellow-700 flex items-center justify-center">
+                                  <span className="text-xs font-medium text-yellow-800 dark:text-yellow-200">
+                                    {sponsor.name.charAt(0).toUpperCase()}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="flex flex-col">
+                                <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                                  {sponsor.name}
+                                </span>
+                                <span className="text-xs text-yellow-600 dark:text-yellow-400">
+                                  ⏳ Pending approval
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSponsor(sponsor._id)}
+                                className="text-yellow-600 hover:text-yellow-800 dark:text-yellow-400 dark:hover:text-yellow-200"
+                              >
+                                <XCircleIcon className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Add Sponsor Button and Search */}
+                      <div className="relative">
+                        {!showSponsorSearch ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowSponsorSearch(true)}
+                            className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                          >
+                            <UserPlusIcon className="h-4 w-4" />
+                            Add Event Sponsor
+                          </button>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={sponsorSearchTerm}
+                                onChange={(e) => setSponsorSearchTerm(e.target.value)}
+                                placeholder="Search sponsors by name or username..."
+                                className="flex-1 rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 dark:focus:border-primary-400 focus:ring-primary-500 dark:focus:ring-primary-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowSponsorSearch(false);
+                                  setSponsorSearchTerm('');
+                                }}
+                                className="px-3 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                              >
+                                <XMarkIcon className="h-5 w-5" />
+                              </button>
+                            </div>
+
+                            {/* Sponsor Search Results */}
+                            {sponsorSearchTerm && filteredSponsors.length > 0 && (
+                              <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700">
+                                {filteredSponsors.map((sponsor) => (
+                                  <button
+                                    key={sponsor._id}
+                                    type="button"
+                                    onClick={() => handleAddSponsor(sponsor)}
+                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                                  >
+                                    {sponsor.logoUrl ? (
+                                      <img
+                                        src={sponsor.logoUrl}
+                                        alt={sponsor.name}
+                                        className="w-8 h-8 rounded-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
+                                        <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                                          {sponsor.name.charAt(0).toUpperCase()}
+                                        </span>
+                                      </div>
+                                    )}
+                                    <div className="text-left">
+                                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                        {sponsor.name}
+                                      </p>
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        @{sponsor.username}
+                                      </p>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+
+                            {sponsorSearchTerm && filteredSponsors.length === 0 && (
+                              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
+                                No sponsors found matching "{sponsorSearchTerm}"
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        💡 Add sponsors to your event to give them visibility and show partnership
+                      </p>
+                    </div>
+                  </div>
+                )}
                 </div>
               </div>
             </div>

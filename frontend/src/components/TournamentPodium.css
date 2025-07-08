@@ -1,0 +1,197 @@
+/* Tournament Podium Styles - Wide & Clean */
+.tournament-podium {
+  width: 100%;
+  padding: 40px 20px;
+  margin: 20px 0;
+}
+
+.podium-container {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-end;
+  width: 100%;
+  max-width: 700px;
+  margin: 0 auto;
+  gap: 30px;
+}
+
+.podium-placement {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  position: relative;
+}
+
+/* Floating Avatar Section */
+.floating-avatar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 15px;
+  z-index: 2;
+}
+
+.avatar-circle {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.1);
+  border: 3px solid rgba(255,255,255,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: bold;
+  color: white;
+  margin-bottom: 10px;
+  backdrop-filter: blur(10px);
+  transition: transform 0.3s ease;
+}
+
+.avatar-circle:hover {
+  transform: scale(1.05);
+}
+
+.player-name {
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+}
+
+/* Clean Podium Steps */
+.podium-step {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border-radius: 8px 8px 0 0;
+  padding: 20px 16px;
+  min-width: 140px;
+  width: 100%;
+  max-width: 160px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+  transition: transform 0.3s ease;
+}
+
+.podium-step:hover {
+  transform: translateY(-3px);
+}
+
+/* Clean Medal Colors */
+.gold {
+  background: #FFD700;
+  color: #000;
+  height: 140px;
+  border: 2px solid #FFA500;
+}
+
+.silver {
+  background: #C0C0C0;
+  color: #000;
+  height: 110px;
+  border: 2px solid #A8A8A8;
+}
+
+.bronze {
+  background: #CD7F32;
+  color: #fff;
+  height: 90px;
+  border: 2px solid #B8860B;
+}
+
+/* Stats Display */
+.stat {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 6px 0;
+  text-align: center;
+  opacity: 0.95;
+}
+
+/* First place gets slightly larger stats */
+.first .stat {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .tournament-podium {
+    padding: 30px 15px;
+  }
+  
+  .podium-container {
+    gap: 20px;
+    max-width: 500px;
+  }
+  
+  .podium-step {
+    min-width: 100px;
+    max-width: 120px;
+    padding: 16px 12px;
+  }
+  
+  .gold { height: 110px; }
+  .silver { height: 90px; }
+  .bronze { height: 75px; }
+  
+  .avatar-circle {
+    width: 55px;
+    height: 55px;
+    font-size: 22px;
+    margin-bottom: 8px;
+  }
+  
+  .player-name {
+    font-size: 15px;
+  }
+  
+  .stat {
+    font-size: 13px;
+    margin: 4px 0;
+  }
+  
+  .first .stat {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .podium-container {
+    gap: 15px;
+    max-width: 350px;
+  }
+  
+  .podium-step {
+    min-width: 80px;
+    max-width: 90px;
+    padding: 12px 8px;
+  }
+  
+  .gold { height: 90px; }
+  .silver { height: 75px; }
+  .bronze { height: 60px; }
+  
+  .avatar-circle {
+    width: 45px;
+    height: 45px;
+    font-size: 18px;
+    margin-bottom: 6px;
+  }
+  
+  .player-name {
+    font-size: 13px;
+  }
+  
+  .stat {
+    font-size: 11px;
+    margin: 3px 0;
+  }
+  
+  .first .stat {
+    font-size: 13px;
+  }
+}
