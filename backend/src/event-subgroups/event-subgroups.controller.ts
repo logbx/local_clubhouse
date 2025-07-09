@@ -26,7 +26,7 @@ export class EventSubGroupsController {
       const event = await this.eventModel.findById(eventId);
       if (!event) {
         return { success: false, message: 'Event not found' };
-      }
+    }
 
       const subGroups = await this.eventSubGroupModel.find({ eventId }).populate('members', 'username profileImage').populate('createdBy', 'username profileImage');
       
@@ -43,19 +43,19 @@ export class EventSubGroupsController {
   @Get(':subGroupId/messages')
   async getSubGroupMessages(@Param('subGroupId') subGroupId: string, @Request() req: AuthenticatedRequest) {
     const userId = req.user.sub;
-    
+      
     try {
       const subGroup = await this.eventSubGroupModel.findById(subGroupId);
       if (!subGroup) {
         return { success: false, message: 'Sub-group not found' };
       }
-
+      
       // Check if user is a member of the sub-group
       const isMember = (subGroup as any).members.some((m: any) => m.toString() === userId);
       if (!isMember) {
         return { success: false, message: 'Access denied: You are not a member of this sub-group' };
       }
-
+      
       const messages = await this.eventSubGroupMessageModel.find({ subGroupId }).populate('senderId', 'username fullName profileImage').sort({ createdAt: 1 });
       
       return { success: true, messages };
@@ -72,13 +72,13 @@ export class EventSubGroupsController {
     @Request() req: AuthenticatedRequest
   ) {
     const userId = req.user.sub;
-    
+      
     try {
       const subGroup = await this.eventSubGroupModel.findById(subGroupId);
       if (!subGroup) {
         return { success: false, message: 'Sub-group not found' };
       }
-
+      
       // Check if user is a member
       const isMember = (subGroup as any).members.some((m: any) => m.toString() === userId);
       if (!isMember) {
@@ -89,7 +89,7 @@ export class EventSubGroupsController {
       if (!user) {
         return { success: false, message: 'User not found' };
       }
-
+      
       const message = new this.eventSubGroupMessageModel({
         subGroupId,
         senderId: userId,
@@ -100,7 +100,7 @@ export class EventSubGroupsController {
 
       await message.save();
       await message.populate('senderId', 'username fullName profileImage');
-
+      
       // Emit to WebSocket
       this.webSocketGateway.server.to(`subgroup-${subGroupId}`).emit('newSubGroupMessage', message);
 
@@ -151,7 +151,7 @@ export class EventSubGroupsController {
 
       // Also delete all messages in this sub-group
       await this.eventSubGroupMessageModel.deleteMany({ subGroupId });
-
+      
       return { success: true, message: 'Sub-group deleted successfully' };
     } catch (error) {
       console.error('Error deleting event sub-group:', error);

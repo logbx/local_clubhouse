@@ -69,6 +69,11 @@ import { EventMessageService } from './services/eventMessage.service';
       rootPath: join(__dirname, '..', 'uploads'),
       serveRoot: '/uploads',
     }),
+    ServeStaticModule.forRoot({
+      rootPath: '/root/saas-app/frontend/dist',
+      serveRoot: '/',
+      exclude: ['/api*'],
+    }),
     RedisModule,
     WebSocketModule,
     AuthModule,

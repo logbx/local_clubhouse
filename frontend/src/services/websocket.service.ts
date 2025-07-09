@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import { envConfig } from '../config/env';
+// Removed envConfig import - using environment variables directly
 
 class WebSocketService {
   private socket: Socket | null = null;
@@ -12,7 +12,7 @@ class WebSocketService {
     }
 
     this.token = token;
-    this.socket = io(envConfig.wsUrl, {
+    this.socket = io(import.meta.env.VITE_WS_URL || 'wss://localclubhouse.com', {
       auth: {
         token: token
       },

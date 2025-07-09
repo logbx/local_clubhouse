@@ -1,17 +1,17 @@
 import axios, { AxiosResponse, AxiosError } from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
 import { endpoints } from '../config/api';
-import { envConfig } from '../config/env';
+// Removed envConfig import - using environment variables directly
 import { Event, CreateEventDto, UpdateEventDto, SubGroup } from '../types/event';
 import { log, LogCategory } from '../utils/logger';
 import { API_BASE_URL } from '../config/api';
 
-const baseURL = envConfig.apiUrl;
+const baseURL = import.meta.env.VITE_API_URL || 'https://localclubhouse.com';
 
 // Use logger instead of direct console.log
 log.debug(LogCategory.API, 'API Configuration', {
   baseURL,
-  envConfig,
+  apiUrl: import.meta.env.VITE_API_URL,
   nodeEnv: process.env.NODE_ENV,
   viteMode: import.meta.env.MODE,
   viteDev: import.meta.env.DEV,
@@ -19,7 +19,7 @@ log.debug(LogCategory.API, 'API Configuration', {
 });
 
 export const api = axios.create({
-  baseURL: 'http://localhost:3001',
+  baseURL: import.meta.env.VITE_API_URL || 'https://localclubhouse.com',
   headers: {
     'Content-Type': 'application/json',
   },

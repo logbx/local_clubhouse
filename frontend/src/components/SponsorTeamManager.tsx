@@ -196,13 +196,13 @@ const SponsorTeamManager: React.FC<SponsorTeamManagerProps> = ({ sponsor, onTeam
           </p>
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="btn btn-primary flex items-center gap-2"
-          >
-            <UserPlusIcon className="h-4 w-4" />
-            Add Team Member
-          </button>
+        <button
+          onClick={() => setShowAddForm(true)}
+          className="btn btn-primary flex items-center gap-2"
+        >
+          <UserPlusIcon className="h-4 w-4" />
+          Add Team Member
+        </button>
         </div>
       </div>
 
@@ -498,17 +498,17 @@ const SponsorTeamManager: React.FC<SponsorTeamManagerProps> = ({ sponsor, onTeam
                       <ArrowRightIcon className="h-5 w-5" />
                     </button>
                   )}
-                  
-                  {/* Remove Button - Hidden for Leader */}
+                
+                {/* Remove Button - Hidden for Leader */}
                   {member._id !== 'leader' && isCurrentUserLeader && (
-                    <button
-                      onClick={() => handleRemoveMember(member._id)}
-                      className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                      title="Remove team member"
-                    >
-                      <TrashIcon className="h-5 w-5" />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleRemoveMember(member._id)}
+                    className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                    title="Remove team member"
+                  >
+                    <TrashIcon className="h-5 w-5" />
+                  </button>
+                )}
                 </div>
               </div>
             ))

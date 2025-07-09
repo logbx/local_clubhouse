@@ -334,7 +334,28 @@ const SingleEliminationTournament: React.FC = () => {
     });
 
     try {
-      // First, validate that the event exists
+      // First, check if a tournament already exists for this event
+      log.info(LogCategory.TOURNAMENT, 'Checking for existing tournaments', { eventId });
+      const existingTournaments = await tournamentService.getTournamentsByEvent(eventId);
+      
+      if (existingTournaments && existingTournaments.length > 0) {
+        const existingTournament = existingTournaments[0];
+        log.info(LogCategory.TOURNAMENT, 'Found existing tournament, navigating to it', { 
+          tournamentId: existingTournament.id, 
+          type: existingTournament.type,
+          name: existingTournament.name
+        });
+        
+        // Navigate to the existing tournament
+        if (existingTournament.type === TournamentType.SINGLE_ELIMINATION) {
+          navigate(`/tournament/single-elimination/${existingTournament.id}/manage?eventId=${eventId}&eventTitle=${encodeURIComponent(eventTitle)}&creatorId=${eventCreatorId}`);
+        } else {
+          alert(`A ${existingTournament.type} tournament already exists for this event. Only one tournament per event is allowed.`);
+        }
+        return;
+      }
+
+      // Validate that the event exists
       log.info(LogCategory.TOURNAMENT, 'Validating event exists before creating tournament', { eventId });
       
       try {
@@ -382,7 +403,23 @@ const SingleEliminationTournament: React.FC = () => {
       log.info(LogCategory.TOURNAMENT, 'Tournament created and state updated');
     } catch (error) {
       log.error(LogCategory.TOURNAMENT, 'Failed to create tournament', error);
-      alert('Failed to create tournament. Please try again.');
+      
+      // Provide more specific error messages
+      if (error instanceof Error) {
+        if (error.message.includes('Tournament already exists')) {
+          alert('A tournament already exists for this event. Only one tournament per event is allowed.');
+        } else if (error.message.includes('Event not found')) {
+          alert('The event was not found. Please check the event ID and try again.');
+        } else if (error.message.includes('Only the event creator can create tournaments')) {
+          alert('Only the event creator can create tournaments for this event.');
+        } else if (error.message.includes('Cannot create tournament for a draft event')) {
+          alert('Cannot create tournament for a draft event. Please publish the event first.');
+        } else {
+          alert(`Failed to create tournament: ${error.message}`);
+        }
+      } else {
+        alert('Failed to create tournament. Please try again.');
+      }
     }
   };
 

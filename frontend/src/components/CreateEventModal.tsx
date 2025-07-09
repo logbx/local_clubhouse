@@ -965,7 +965,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
                                   <span className="text-xs font-medium text-yellow-800 dark:text-yellow-200">
                                     {sponsor.name.charAt(0).toUpperCase()}
                                   </span>
-                                </div>
+                </div>
                               )}
                               <div className="flex flex-col">
                                 <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
@@ -974,7 +974,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
                                 <span className="text-xs text-yellow-600 dark:text-yellow-400">
                                   ⏳ Pending approval
                                 </span>
-                              </div>
+              </div>
                               <button
                                 type="button"
                                 onClick={() => handleRemoveSponsor(sponsor._id)}

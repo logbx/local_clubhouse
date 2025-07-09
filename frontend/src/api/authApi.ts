@@ -1,7 +1,7 @@
 import axios from 'axios';
-import { envConfig } from '../config/env';
+// Removed envConfig import - using environment variables directly
 
-const API_URL = envConfig.apiUrl;
+const API_URL = import.meta.env.VITE_API_URL || 'https://localclubhouse.com';
 
 export const authApi = {
   login: async (credentials: { email: string; password: string }) => {
