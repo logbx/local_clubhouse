@@ -9,7 +9,9 @@
     "start:prod": "NODE_ENV=production node dist/main.js",
     "dev": "NODE_ENV=development ts-node-dev --respawn --transpile-only src/main.ts",
     "build": "tsc",
+    "build:dev": "NODE_ENV=development tsc",
     "build:prod": "NODE_ENV=production tsc",
+    "serve:prod": "NODE_ENV=production node dist/main.js",
     "test": "jest",
     "migrate:profile-images": "ts-node src/scripts/migrateProfileImages.ts"
   },

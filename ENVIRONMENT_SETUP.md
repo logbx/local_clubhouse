@@ -1,157 +1,183 @@
-# Environment Configuration Guide
+# Environment Setup Guide
 
-This application supports both development and production environments with separate configuration files.
+This guide explains how to run Local Clubhouse in different environments with proper environment variable configurations.
 
-## Framework Architecture
+## 📁 Environment Files
 
-### Backend: **NestJS** (Fully NestJS Architecture)
-- TypeScript-first framework with excellent decorators support
-- Built-in dependency injection and modular architecture
-- Integrated WebSocket support for real-time features
-- Production-ready with built-in logging, validation, and error handling
+### Backend Environment Files:
+- `backend/.env.development` - Development configuration (localhost:3001)
+- `backend/.env.production` - Production configuration (port 3000)
 
-### Frontend: **React + Vite**
-- Modern React with TypeScript
-- Vite for fast development and optimized production builds
-- Real-time WebSocket integration with backend
+### Frontend Environment Files:
+- `frontend/.env.development` - Development configuration (API: localhost:3001)
+- `frontend/.env.production` - Production configuration (API: https://localclubhouse.com)
 
-## Environment Files
+## 🏠 Development Mode (Localhost)
 
-### Backend (NestJS)
-- `.env.development` - Development environment variables
-- `.env.production` - Production environment variables
-
-### Frontend (Vite)
-- `.env.development` - Development environment variables (Vite)
-- `.env.production` - Production environment variables (Vite)
-
-## How It Works
-
-### Backend (NestJS)
-The NestJS backend automatically loads the correct environment file based on the `NODE_ENV` variable:
-- `NODE_ENV=development` → loads `.env.development`
-- `NODE_ENV=production` → loads `.env.production`
-- Falls back to `.env` if specific environment file doesn't exist
-
-### Frontend (Vite)
-The frontend loads environment files based on the `--mode` flag:
-- `--mode development` → loads `.env.development`
-- `--mode production` → loads `.env.production`
-
-## Running the Applications
-
-### Development Mode
+### Manual Commands:
 ```bash
-# Backend
-cd backend
-npm run start:dev  # Sets NODE_ENV=development
+# Start Backend (runs on localhost:3001)
+cd saas-app/backend && npm run start:dev
 
-# Frontend
-cd frontend
-npm run dev        # Sets mode=development
+# Start Frontend (runs on localhost:5173)  
+cd saas-app/frontend && npm run dev
 ```
 
-### Production Mode
+### Using Startup Script:
 ```bash
-# Backend
-cd backend
-npm run build:prod  # Build with NODE_ENV=production
-npm run start:prod  # Run with NODE_ENV=production
-
-# Frontend
-cd frontend
-npm run build:prod  # Build with mode=production
-npm run preview:prod # Preview with mode=production
+# Automated development startup
+cd saas-app && ./scripts/start-development.sh
 ```
 
-## Environment Variables
+### Development URLs:
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:3001/api
+- **Health Check**: http://localhost:3001/api/health
 
-### Backend (.env.development / .env.production)
+### Environment Loading:
+- Backend automatically loads `backend/.env.development`
+- Frontend automatically loads `frontend/.env.development`
+- Uses `VITE_API_URL=http://localhost:3001` for API calls
+
+---
+
+## 🌐 Production Mode (VPS/Server)
+
+### Manual Commands:
 ```bash
-# Server Configuration
+# Build and Start Backend
+cd saas-app/backend && npm run build:prod && npm run serve:prod
+
+# Build Frontend (served by backend)
+cd saas-app/frontend && npm run build:prod
+```
+
+### Using PM2 (Recommended for VPS):
+```bash
+# Build backend
+cd saas-app/backend && npm run build:prod
+
+# Build frontend  
+cd saas-app/frontend && npm run build:prod
+
+# Start with PM2
+cd saas-app/backend && pm2 start dist/main.js --name saas-backend --env production
+```
+
+### Using Startup Script:
+```bash
+# Automated production startup
+cd saas-app && ./scripts/start-production.sh
+```
+
+### Production URLs:
+- **Frontend & API**: https://localclubhouse.com (port 3000)
+- **Health Check**: https://localclubhouse.com/api/health
+
+### Environment Loading:
+- Backend automatically loads `backend/.env.production`
+- Frontend uses build-time variables from `frontend/.env.production`
+- Uses `VITE_API_URL=https://localclubhouse.com` for API calls
+
+---
+
+## 🚀 VPS Deployment Workflow
+
+### Initial Setup:
+```bash
+# SSH into VPS
+ssh root@62.72.26.151
+
+# Navigate to project
+cd ~/saas-app
+
+# Pull latest changes
+git pull origin main
+```
+
+### Deploy Latest Changes:
+```bash
+# SSH into VPS
+ssh root@62.72.26.151
+
+# Update code
+cd ~/saas-app && git pull origin main
+
+# Run production startup script
+./scripts/start-production.sh
+```
+
+### Manual VPS Commands:
+```bash
+# Build and start manually
+cd ~/saas-app/backend && npm run build:prod
+cd ~/saas-app/frontend && npm run build:prod
+
+# Start with PM2
+cd ~/saas-app/backend && pm2 start dist/main.js --name saas-backend --env production
+
+# Monitor
+pm2 status
+pm2 logs saas-backend
+```
+
+---
+
+## 📊 Available npm Scripts
+
+### Backend Scripts:
+- `npm run start:dev` - Start development server (uses .env.development)
+- `npm run start:prod` - Start production server (uses .env.production)
+- `npm run build:dev` - Build for development
+- `npm run build:prod` - Build for production
+- `npm run serve:prod` - Start built production server
+
+### Frontend Scripts:
+- `npm run dev` - Start development server (uses .env.development)
+- `npm run build:dev` - Build for development
+- `npm run build:prod` - Build for production  
+- `npm run serve:prod` - Serve built production files
+
+---
+
+## 🔧 Environment Variables
+
+### Development (.env.development):
+```bash
+# Backend
 PORT=3001
-NODE_ENV=development
 CLIENT_URL=http://localhost:5173
 
-# MongoDB
-MONGODB_URI=mongodb://...
-
-# JWT Configuration
-JWT_ACCESS_SECRET=...
-JWT_REFRESH_SECRET=...
-
-# Redis
-REDIS_URL=redis://localhost:6379/0
-
-# AWS S3
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-AWS_REGION=us-east-2
-AWS_S3_BUCKET_NAME=...
-
-# CORS
-CORS_ORIGIN=http://localhost:5173
-```
-
-### Frontend (.env.development / .env.production)
-```bash
-VITE_API_URL=http://localhost:3001/api
+# Frontend  
+VITE_API_URL=http://localhost:3001
 VITE_WS_URL=ws://localhost:3001
-VITE_APP_NAME=Local Clubhouse (Dev)
-VITE_MODE=development
-VITE_AWS_REGION=us-east-2
-VITE_AWS_S3_BUCKET=localclubhouse-images
-VITE_ENABLE_ANALYTICS=false
-VITE_ENABLE_DEBUG_MODE=true
 ```
 
-## Environment Switching Script
-
-Use the provided script to easily switch environments:
-
+### Production (.env.production):
 ```bash
-# Set development environment
-./scripts/set-env.sh development
+# Backend
+PORT=3000
+CLIENT_URL=https://localclubhouse.com
 
-# Set production environment
-./scripts/set-env.sh production
+# Frontend
+VITE_API_URL=https://localclubhouse.com  
+VITE_WS_URL=wss://localclubhouse.com
 ```
 
-## Key Differences Between Environments
+---
 
-### Development
-- Uses localhost URLs
-- Debug mode enabled
-- Analytics disabled
-- Detailed logging
-- Redis database 0
+## 🐛 Troubleshooting
 
-### Production
-- Uses production domain URLs
-- Debug mode disabled
-- Analytics enabled
-- Minimal logging
-- Redis database 1
-- Optimized builds
+### Port Conflicts:
+- Development: Backend (3001), Frontend (5173)
+- Production: Everything on port 3000 (backend serves frontend)
 
-## Troubleshooting
+### Environment Issues:
+- Check `NODE_ENV` is set correctly
+- Verify `.env.development` vs `.env.production` files exist
+- Frontend env vars must start with `VITE_`
 
-1. **Environment file not found**: Ensure `.env.development` and `.env.production` files exist in both `backend/` and `frontend/` directories.
-
-2. **Wrong environment loaded**: Check that `NODE_ENV` is set correctly for backend and `--mode` flag is used for frontend.
-
-3. **Environment variables not working**: 
-   - Backend: Ensure variables don't have `VITE_` prefix
-   - Frontend: Ensure variables have `VITE_` prefix
-
-4. **WebSocket connection issues**: Verify `VITE_WS_URL` matches the backend server URL and protocol (ws:// for development, wss:// for production).
-
-5. **API 404 errors (double /api/ in URL)**: 
-   - Issue: URLs like `POST /api/api/auth/login` instead of `POST /api/auth/login`
-   - Cause: `VITE_API_URL` includes `/api` suffix but endpoints also have `/api/` prefix
-   - Solution: Set `VITE_API_URL=http://localhost:3001` (without `/api` suffix)
-   - The endpoints in `src/config/api.ts` already include the `/api/` prefix
-
-6. **Port already in use errors**: 
-   - Backend: `pkill -f "ts-node-dev" && pkill -f "node.*3001"`
-   - Frontend: `pkill -f "vite"` 
+### VPS Issues:
+- Ensure PM2 is running: `pm2 status`
+- Check logs: `pm2 logs saas-backend`
+- Restart if needed: `pm2 restart saas-backend` 

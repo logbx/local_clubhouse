@@ -5,12 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "NODE_ENV=development vite --host 0.0.0.0 --port 5173 --mode development",
-    "build": "NODE_ENV=production tsc && vite build --mode production",
-    "build:dev": "NODE_ENV=development tsc && vite build --mode development",
-    "build:prod": "NODE_ENV=production tsc && vite build --mode production",
+    "build": "NODE_ENV=production vite build --mode production",
+    "build:dev": "NODE_ENV=development vite build --mode development", 
+    "build:prod": "NODE_ENV=production vite build --mode production",
+    "serve": "NODE_ENV=production vite preview --host 0.0.0.0 --port 3000 --mode production",
+    "serve:prod": "NODE_ENV=production vite preview --host 0.0.0.0 --port 3000 --mode production",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "preview:prod": "NODE_ENV=production vite preview --mode production",
     "test": "jest"
   },
   "dependencies": {
