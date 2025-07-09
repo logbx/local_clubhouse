@@ -1,7 +1,5 @@
 // API Configuration
-import { envConfig } from './env';
-
-export const API_BASE_URL = envConfig.apiUrl;
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://localclubhouse.com';
 
 export const endpoints = {
   auth: {
