@@ -12,30 +12,53 @@ class WebSocketService {
     }
 
     this.token = token;
-    this.socket = io(import.meta.env.VITE_WS_URL || 'wss://localclubhouse.com', {
+    
+    // Use localhost for development, production URL otherwise
+    const wsUrl = import.meta.env.VITE_WS_URL || 
+                  (import.meta.env.DEV ? 'http://localhost:3001' : 'wss://localclubhouse.com');
+    
+    console.log('🔌 WebSocketService: Connecting to:', wsUrl);
+    
+    this.socket = io(wsUrl, {
       auth: {
         token: token
       },
-      transports: ['websocket', 'polling']
+      transports: ['websocket', 'polling'],
+      timeout: 20000,
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5
     });
 
     this.socket.on('connect', () => {
-      console.log('WebSocket connected');
+      console.log('🔌 WebSocket connected successfully');
       // Notify any waiting callbacks
       this.connectionCallbacks.forEach(callback => callback());
       this.connectionCallbacks = [];
     });
 
-    this.socket.on('disconnect', () => {
-      console.log('WebSocket disconnected');
+    this.socket.on('disconnect', (reason) => {
+      console.log('🔌 WebSocket disconnected:', reason);
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('WebSocket connection error:', error);
+      console.error('🔌 WebSocket connection error:', error);
+    });
+
+    this.socket.on('reconnect', (attemptNumber) => {
+      console.log('🔌 WebSocket reconnected after', attemptNumber, 'attempts');
+    });
+
+    this.socket.on('reconnect_error', (error) => {
+      console.error('🔌 WebSocket reconnection error:', error);
+    });
+
+    this.socket.on('reconnect_failed', () => {
+      console.error('🔌 WebSocket failed to reconnect after maximum attempts');
     });
 
     // Debug: Log all incoming events
-    const originalOn = this.socket.on.bind(this.socket);
     this.socket.onAny((eventName, ...args) => {
       console.log(`🔌 WebSocket Event: ${eventName}`, args);
     });

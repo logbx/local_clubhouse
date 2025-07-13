@@ -42,7 +42,7 @@ export class InstagramService {
 
       // Fallback to curated content if no public posts found
       return this.getFallbackPosts(handle);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error fetching Instagram posts for ${handle}:`, error.message);
       return this.getFallbackPosts(handle);
     }
@@ -71,12 +71,12 @@ export class InstagramService {
               type: 'image'
             });
           }
-        } catch (postError) {
+        } catch (postError: any) {
           this.logger.warn(`Failed to fetch post ${postId}:`, postError.message);
           continue;
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(`Failed to fetch public posts for ${handle}:`, error.message);
     }
 
@@ -106,7 +106,7 @@ export class InstagramService {
           timeout: 10000,
         });
         return response.data;
-      } catch (legacyError) {
+      } catch (legacyError: any) {
         throw error;
       }
     }
@@ -154,7 +154,7 @@ export class InstagramService {
 
       // If no posts found, try alternative method
       return await this.getPostIdsFromGraphQL(handle);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(`Failed to get post IDs for ${handle}:`, error.message);
       return [];
     }
@@ -185,7 +185,7 @@ export class InstagramService {
       }
 
       return postIds;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn('Error extracting post IDs from HTML:', error.message);
       return [];
     }
@@ -200,7 +200,7 @@ export class InstagramService {
       // Note: This approach is more complex and may require additional headers/tokens
       // For now, we'll return empty array and rely on fallback content
       return [];
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(`GraphQL fallback failed for ${handle}:`, error.message);
       return [];
     }
@@ -257,7 +257,7 @@ export class InstagramService {
           }
         }
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error scraping Instagram handle ${handle}:`, error.message);
       
       return {
@@ -290,7 +290,7 @@ export class InstagramService {
         this.logger.warn(`oEmbed returned null for ${postUrl}`);
         return null;
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`oEmbed test failed for ${postUrl}:`, error.message);
       throw error;
     }
@@ -303,7 +303,7 @@ export class InstagramService {
       
       this.logger.log(`Discovered ${postIds.length} post IDs for ${handle}`);
       return postIds;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Failed to discover post IDs for ${handle}:`, error.message);
       throw error;
     }
@@ -320,7 +320,7 @@ export class InstagramService {
         if (oembedData && oembedData.thumbnail_url) {
           validIds.push(postId);
         }
-      } catch (error) {
+      } catch (error: any) {
         // Post doesn't exist or isn't accessible, skip it
         continue;
       }

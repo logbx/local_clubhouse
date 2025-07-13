@@ -28,6 +28,7 @@ import {
 import { toast } from 'react-toastify';
 import { EventStatus } from '../types/event';
 
+
 const ClubProfilePage: React.FC = () => {
   const { clubUsername } = useParams<{ clubUsername: string }>();
   const { user } = useAuth();
@@ -79,21 +80,21 @@ const ClubProfilePage: React.FC = () => {
     };
 
     const fetchClubEvents = async () => {
-    if (!clubUsername || !user) return;
+      if (!clubUsername || !user) return;
 
-    try {
+      try {
         const eventsCount = await clubApi.getClubEventsCount(clubUsername);
         setClubEventsCount(eventsCount);
-    } catch (err: any) {
+      } catch (err: any) {
         console.error('Failed to fetch club events count:', err);
         setClubEventsCount(0);
-    }
-  };
+      }
+    };
 
     if (clubUsername) {
       fetchClub();
       if (user) {
-      fetchMembershipStatus();
+        fetchMembershipStatus();
         fetchClubEvents();
       }
     }
@@ -677,7 +678,6 @@ const ClubProfilePage: React.FC = () => {
         onTabChange={setActiveTab}
         showChat={membershipStatus.isMember || false}
         showMembers={true}
-        footerElementId="global-footer"
       />
 
       {/* Sponsors Modal */}

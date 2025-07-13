@@ -8,13 +8,56 @@ class WorkingTournamentCreator {
     this.db = null;
     this.tournamentId = null;
     this.eventId = null;
-    this.organizerId = '683f542376bb2553a9946fef'; // The actual logged-in user
+    
+    // Configure organizerId from command-line args, environment variables, or fallback
+    this.organizerId = this.getOrganizerId();
+  }
+
+  getOrganizerId() {
+    // Check command-line arguments first (node script.js --organizerId=123 or node script.js 123)
+    const args = process.argv.slice(2);
+    
+    // Look for --organizerId=value format
+    const argFlag = args.find(arg => arg.startsWith('--organizerId='));
+    if (argFlag) {
+      const organizerId = argFlag.split('=')[1];
+      if (organizerId && organizerId.trim()) {
+        console.log(`🔧 Using organizerId from command-line argument: ${organizerId}`);
+        return organizerId.trim();
+      }
+    }
+    
+    // Look for positional argument (first argument that's not a flag)
+    const positionalArg = args.find(arg => !arg.startsWith('--') && arg.trim());
+    if (positionalArg) {
+      console.log(`🔧 Using organizerId from positional argument: ${positionalArg}`);
+      return positionalArg.trim();
+    }
+    
+    // Check environment variable
+    if (process.env.TOURNAMENT_ORGANIZER_ID) {
+      console.log(`🔧 Using organizerId from environment variable: ${process.env.TOURNAMENT_ORGANIZER_ID}`);
+      return process.env.TOURNAMENT_ORGANIZER_ID;
+    }
+    
+    // Fall back to hardcoded value
+    const defaultId = '683f542376bb2553a9946fef';
+    console.log(`🔧 Using default organizerId: ${defaultId}`);
+    return defaultId;
   }
 
   async connect() {
     try {
       require('dotenv').config({ path: '.env.development' });
       const uri = process.env.MONGODB_URI;
+      
+      // Validate MongoDB URI
+      if (!uri || uri.trim() === '') {
+        console.error('❌ MongoDB URI is not defined or empty!');
+        console.error('   Please check your .env.development file and ensure MONGODB_URI is set.');
+        process.exit(1);
+      }
+      
       this.dbClient = new MongoClient(uri);
       await this.dbClient.connect();
       this.db = this.dbClient.db();
@@ -192,6 +235,13 @@ class WorkingTournamentCreator {
     console.log('='.repeat(80));
     console.log();
     
+    console.log('🔧 USAGE - Configure Organizer ID:');
+    console.log('   Command-line flag:      node create-working-tournament.js --organizerId=YOUR_USER_ID');
+    console.log('   Positional argument:    node create-working-tournament.js YOUR_USER_ID');
+    console.log('   Environment variable:   TOURNAMENT_ORGANIZER_ID=YOUR_USER_ID node create-working-tournament.js');
+    console.log('   Default (no config):    Uses hardcoded fallback ID');
+    console.log();
+    
     console.log('🌐 Frontend URLs to test:');
     console.log();
     
@@ -213,7 +263,7 @@ class WorkingTournamentCreator {
     console.log('📋 Tournament Details:');
     console.log(`├── Tournament ID: ${this.tournamentId}`);
     console.log(`├── Event ID: ${this.eventId}`);
-    console.log(`├── Organizer ID: ${this.organizerId} (Your logged-in user)`);
+    console.log(`├── Organizer ID: ${this.organizerId} (Your configured user)`);
     console.log(`├── Players: 13 (mix of registered users and guests)`);
     console.log(`├── Current Round: 1 of 4`);
     console.log(`└── Status: Started and ready for testing`);

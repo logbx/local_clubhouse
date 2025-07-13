@@ -54,8 +54,8 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
       const events = await eventApi.getEvents();
       const filteredForClub = events.filter((event: Event) => {
         if (isSponsorship) {
-          // For sponsors, show events they're directly associated with as sponsors,
-          // tagged in, mentioned in, or created
+          // For sponsors, ONLY show events where they have an actual sponsorship relationship
+          // (either approved sponsorship or pending/rejected sponsorship requests)
           const isDirectSponsor = event.sponsors?.some((sponsor: any) => {
             if (typeof sponsor === 'object') {
               // New structure with approval status
@@ -68,15 +68,8 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
             }
           });
           
-          const isTagged = event.tags?.some(tag => 
-            tag.toLowerCase() === clubUsername.toLowerCase()
-          );
-          
-          const isMentioned = event.description?.toLowerCase().includes(clubUsername.toLowerCase());
-          
-          const isCreator = event.creator?.id === user?.id;
-          
-          return isDirectSponsor || isTagged || isMentioned || isCreator;
+          // Only show events with direct sponsorship relationship
+          return isDirectSponsor;
         } else {
           // For clubs, show events they created or are visible to them
           return event.clubId === clubId || 
@@ -87,7 +80,7 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
       
       // Debug logging for sponsors
       if (isSponsorship) {
-        console.log('🔍 Sponsor Events Debug:', {
+        console.log('🔍 Sponsor Events Debug (Only Direct Sponsorships):', {
           clubId,
           clubUsername,
           userId: user?.id,

@@ -96,7 +96,7 @@ export class S3Service implements OnModuleInit {
       });
       
       return { signedUrl, publicUrl };
-    } catch (error) {
+    } catch (error: any) {
       console.error('[S3Service] Error generating signed URL:', error);
       throw new Error(`Failed to generate upload URL: ${error.message}`);
     }
@@ -127,7 +127,7 @@ export class S3Service implements OnModuleInit {
       console.log('[S3Service] Sending PutObjectCommand to S3...');
       await this.s3Client.send(command);
       console.log('[S3Service] File uploaded successfully');
-    } catch (error) {
+    } catch (error: any) {
       console.error('[S3Service] Detailed S3 upload error:', error);
       throw new Error(`Failed to upload file to S3: ${error.message}`);
     }
@@ -148,7 +148,7 @@ export class S3Service implements OnModuleInit {
 
       await this.s3Client.send(command);
       console.log('File deleted successfully from S3');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting file from S3:', error);
       throw new Error(`Failed to delete file from S3: ${error.message}`);
     }

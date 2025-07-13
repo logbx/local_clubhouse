@@ -122,6 +122,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, onlineUsers }) => 
         setLoading(true);
         let fetchedMessages: any[] = [];
         
+        // Mark notifications as read for this chat when it's opened
+        const { notificationService } = await import('../../services/notification.service');
+        let notificationType: string = chat.type;
+        if (chat.type === 'individual') notificationType = 'direct';
+        if (chat.type === 'club-chat') notificationType = 'group';
+        if (chat.type === 'event-chat') notificationType = 'event';
+        if (chat.type === 'event-subgroup') notificationType = 'subgroup';
+        if (chat.type === 'friend-group') notificationType = 'friend-group';
+        
+        notificationService.markChatAsRead(notificationType, chat.id);
+        
         // Fetch messages based on chat type
         switch (chat.type) {
           case 'individual':

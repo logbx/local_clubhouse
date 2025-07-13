@@ -10,7 +10,7 @@ export class InstagramController {
     try {
       const posts = await this.instagramService.scrapeInstagramPosts(handle);
       return { posts };
-    } catch (error) {
+    } catch (error: any) {
       throw new HttpException(
         `Failed to scrape Instagram posts: ${error.message}`,
         HttpStatus.INTERNAL_SERVER_ERROR

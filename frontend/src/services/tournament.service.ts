@@ -1,4 +1,5 @@
 import { api } from './api';
+import { AxiosError } from 'axios';
 
 export enum TournamentType {
   SINGLE_ELIMINATION = 'single_elimination',
@@ -203,11 +204,12 @@ export class TournamentService {
   ): Promise<Tournament> {
     try {
       console.log('🏓 Reporting match result:', { tournamentId, matchId, winnerId, loserId });
-      const response = await api.post(`/api/tournaments/report-result`, {
+      const response = await api.post(`/api/tournaments/${tournamentId}/report-result`, {
         tournamentId,
         matchId,
         winnerId,
         loserId,
+        result: 'win' // Required by ReportResultDto
       });
       console.log('✅ Match result reported successfully:', response.data);
       return response.data.data;
@@ -219,13 +221,19 @@ export class TournamentService {
 
   async confirmMatchResult(tournamentId: string, matchId: string): Promise<Tournament> {
     try {
-      const response = await api.post('/api/tournaments/confirm-result', {
+      const requestData = {
         tournamentId,
         matchId,
-      });
+      };
+      console.log('🔍 Confirming match result with data:', requestData);
+      const response = await api.post('/api/tournaments/confirm-result', requestData);
       return response.data.data;
     } catch (error) {
       console.error('Error confirming match result:', error);
+      if (error instanceof AxiosError) {
+        console.error('Response data:', error.response?.data);
+        console.error('Response status:', error.response?.status);
+      }
       throw error;
     }
   }
@@ -366,10 +374,12 @@ export class TournamentService {
         notes
       });
       return response.data.data;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error submitting match result:', error);
-      console.error('Error response:', error.response?.data);
-      console.error('Error status:', error.response?.status);
+      if (error instanceof AxiosError) {
+        console.error('Error response:', error.response?.data);
+        console.error('Error status:', error.response?.status);
+      }
       throw error;
     }
   }

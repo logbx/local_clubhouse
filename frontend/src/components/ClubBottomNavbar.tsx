@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
 import {
   InformationCircleIcon,
   CalendarIcon,
@@ -13,7 +13,6 @@ interface ClubBottomNavbarProps {
   onTabChange: (tab: 'about' | 'events' | 'comments' | 'chat' | 'members') => void;
   showChat: boolean;
   showMembers: boolean;
-  footerElementId?: string; // ID of the footer element where navbar should stop
 }
 
 const ClubBottomNavbar: React.FC<ClubBottomNavbarProps> = ({
@@ -21,47 +20,8 @@ const ClubBottomNavbar: React.FC<ClubBottomNavbarProps> = ({
   onTabChange,
   showChat,
   showMembers,
-  footerElementId = 'global-footer'
 }) => {
-  const [isVisible, setIsVisible] = useState(true);
-  const [isSticky, setIsSticky] = useState(true);
   const navbarRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (footerElementId) {
-      const handleScroll = () => {
-        const footerElement = document.getElementById(footerElementId);
-        const navbarElement = navbarRef.current;
-        
-        if (footerElement && navbarElement) {
-          const footerRect = footerElement.getBoundingClientRect();
-          const navbarHeight = navbarElement.offsetHeight;
-          const spacingBuffer = 24; // 24px spacing buffer between navbar and footer
-          
-          // Check if footer is approaching the bottom of the viewport
-          const shouldStick = footerRect.top > window.innerHeight - navbarHeight - spacingBuffer;
-          setIsSticky(shouldStick);
-        }
-      };
-
-      // Use requestAnimationFrame for smoother performance
-      let rafId: number;
-      const smoothHandleScroll = () => {
-        if (rafId) cancelAnimationFrame(rafId);
-        rafId = requestAnimationFrame(handleScroll);
-      };
-
-      window.addEventListener('scroll', smoothHandleScroll, { passive: true });
-      window.addEventListener('resize', smoothHandleScroll, { passive: true });
-      handleScroll(); // Check initial position
-
-      return () => {
-        window.removeEventListener('scroll', smoothHandleScroll);
-        window.removeEventListener('resize', smoothHandleScroll);
-        if (rafId) cancelAnimationFrame(rafId);
-      };
-    }
-  }, [footerElementId]);
 
   const handleTabClick = (tabId: 'about' | 'events' | 'comments' | 'chat' | 'members') => {
     onTabChange(tabId);
@@ -106,16 +66,10 @@ const ClubBottomNavbar: React.FC<ClubBottomNavbarProps> = ({
     },
   ].filter(tab => tab.show);
 
-  if (!isVisible) {
-    return null;
-  }
-
   return (
     <div
       ref={navbarRef}
-      className={`fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg transition-transform duration-300 ${
-        isSticky ? 'translate-y-0' : 'translate-y-full'
-      }`}
+      className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg"
     >
       <div className="max-w-6xl mx-auto px-4">
         <nav className="flex justify-around items-center py-2">

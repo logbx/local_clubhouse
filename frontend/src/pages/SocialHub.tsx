@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useLocation } from 'react-router-dom';
 import { SocialSidebar } from '../components/social/SocialSidebar';
 import { ChatWindow } from '../components/social/ChatWindow';
 import { webSocketService } from '../services/websocket.service';
@@ -20,8 +21,50 @@ export interface ChatSession {
 
 const SocialHub: React.FC = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const [selectedChat, setSelectedChat] = useState<ChatSession | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const [autoSelectChat, setAutoSelectChat] = useState<{
+    chatType: string;
+    chatId: string;
+    chatName: string;
+  } | null>(null);
+
+  // Track global chat selection for notification service
+  useEffect(() => {
+    if (selectedChat) {
+      (window as any).selectedChatId = selectedChat.id;
+      (window as any).selectedChatType = selectedChat.type;
+    } else {
+      (window as any).selectedChatId = null;
+      (window as any).selectedChatType = null;
+    }
+    
+    return () => {
+      (window as any).selectedChatId = null;
+      (window as any).selectedChatType = null;
+    };
+  }, [selectedChat]);
+
+  // Parse URL parameters to auto-select chat
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const chatType = params.get('chatType');
+    const chatId = params.get('chatId');
+    const chatName = params.get('chatName');
+    
+    if (chatType && chatId && chatName) {
+      setAutoSelectChat({
+        chatType,
+        chatId,
+        chatName: decodeURIComponent(chatName)
+      });
+      
+      // Clear URL parameters after extracting them
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [location.search]);
 
   useEffect(() => {
     if (user) {
@@ -48,6 +91,10 @@ const SocialHub: React.FC = () => {
 
   const handleChatSelect = (chat: ChatSession) => {
     setSelectedChat(chat);
+    
+    // Update global tracking for notification service
+    (window as any).selectedChatId = chat.id;
+    (window as any).selectedChatType = chat.type;
   };
 
   return (
@@ -58,6 +105,7 @@ const SocialHub: React.FC = () => {
           selectedChat={selectedChat}
           onChatSelect={handleChatSelect}
           onlineUsers={onlineUsers}
+          autoSelectChat={autoSelectChat}
         />
       </div>
 

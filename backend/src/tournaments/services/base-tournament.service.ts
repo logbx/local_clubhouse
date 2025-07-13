@@ -734,7 +734,7 @@ export class BaseTournamentService {
   /**
    * Update an existing round with new player assignments
    */
-  private updateRoundWithNewPlayers(existingRound: any, newRound: any): void {
+  public updateRoundWithNewPlayers(existingRound: any, newRound: any): void {
     console.log(`🔧 Updating round ${existingRound.roundNumber} with new players`);
     
     // For single elimination, update TBD placeholders with real players

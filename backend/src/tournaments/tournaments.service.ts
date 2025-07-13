@@ -21,6 +21,13 @@ export class TournamentsService {
     private readonly baseTournamentService: BaseTournamentService,
   ) {}
 
+  /**
+   * Get strategy for tournament type
+   */
+  private getStrategy(type: TournamentType) {
+    return this.strategyFactory.getStrategy(type);
+  }
+
   async create(createTournamentDto: CreateTournamentDto, organizerId: string): Promise<ITournament> {
     // Validate tournament type and number of rounds
     if (createTournamentDto.type === TournamentType.SWISS && !createTournamentDto.numRounds) {
@@ -955,54 +962,86 @@ export class TournamentsService {
     // Check if match was already completed to decide whether to trigger advancement
     const wasAlreadyCompleted = match.status === 'completed';
 
+    // For admin overrides, directly update the match without triggering advancement
+    // This ensures consistent behavior and prevents unwanted round regeneration
+    console.log('🔧 Admin override: Updating match result directly without advancement check');
+    
     // Handle different result types
     if (overrideResultDto.result === 'draw') {
       match.result = 'draw';
       match.isDraw = true;
       match.winnerId = undefined;
       match.loserId = undefined;
-    } else {
+    } else if (overrideResultDto.winnerId && overrideResultDto.loserId) {
       match.winnerId = overrideResultDto.winnerId;
       match.loserId = overrideResultDto.loserId;
-      match.result = overrideResultDto.result;
+      match.result = overrideResultDto.result || 'win';
       match.isDraw = false;
+    } else {
+      console.log('❌ Missing winnerId or loserId for non-draw result');
+      throw new BadRequestException('Winner and loser must be specified for non-draw results');
     }
     
     match.status = 'completed';
     match.overriddenBy = organizerId;
     match.overrideReason = overrideResultDto.reason;
-
-    // Save the match result first
-    await tournament.save();
-
-    // Only trigger advancement logic if match wasn't already completed
-    // This prevents double-processing and allows for result changes on completed matches
-    if (!wasAlreadyCompleted) {
-      console.log('🔄 Match was not previously completed, triggering advancement check...');
+    
+    // Check if this completes the round and trigger advancement if needed
+    const finalStatuses = ['completed', 'forfeit'];
+    const allMatchesComplete = matchRound.matches.every(m => finalStatuses.includes(m.status));
+    
+    if (allMatchesComplete && !matchRound.isComplete) {
+      console.log('🔄 All matches in round completed, marking round as complete and checking advancement');
+      matchRound.isComplete = true;
       
-      // Now trigger tournament advancement through the base service
-      const reportOptions: any = {
-        tournament: tournament,
-        matchId: overrideResultDto.matchId,
-        reporterId: organizerId
-      };
-
-      // Only add winnerId/loserId if it's not a draw
-      if (overrideResultDto.result === 'draw') {
-        reportOptions.result = 'draw';
-        reportOptions.isDraw = true;
-      } else {
-        reportOptions.winnerId = overrideResultDto.winnerId;
-        reportOptions.loserId = overrideResultDto.loserId;
-        reportOptions.result = overrideResultDto.result;
+      // Check for automatic advancement using the strategy
+      const strategy = this.getStrategy(tournament.type);
+      const advancementResult = strategy.checkAdvancement(tournament, matchRound.roundNumber);
+      
+      if (advancementResult.shouldAdvance && advancementResult.nextRound) {
+        console.log('🚀 Automatically advancing to next round');
+        
+        // Check if next round already exists
+        const nextRoundNumber = matchRound.roundNumber + 1;
+        const existingNextRound = tournament.rounds.find(r => r.roundNumber === nextRoundNumber);
+        
+        if (!existingNextRound) {
+          // Add the new round
+          tournament.rounds.push(advancementResult.nextRound);
+          console.log(`✅ Added new round ${nextRoundNumber} to tournament`);
+        } else {
+          // Update existing round with new player assignments
+          this.baseTournamentService.updateRoundWithNewPlayers(existingNextRound, advancementResult.nextRound);
+          console.log(`✅ Updated existing round ${nextRoundNumber} with new players`);
+        }
       }
-
-      const updatedTournament = await this.baseTournamentService.reportMatchResult(reportOptions);
-      return updatedTournament;
-    } else {
-      console.log('⏭️ Match was already completed, skipping advancement check (result override only)');
-      return tournament;
+      
+      // Check if tournament is complete
+      if (advancementResult.isComplete) {
+        tournament.isFinished = true;
+        tournament.winnerId = advancementResult.winnerId;
+        console.log('🏁 Tournament completed with winner:', advancementResult.winnerId);
+      }
     }
+    
+    // Save the updated match result
+    await tournament.save();
+    
+    // Broadcast the update via WebSocket
+    this.webSocketGateway.broadcastTournamentToParticipants(tournament._id.toString(), {
+      type: 'match-result-submitted',
+      tournamentId: tournament._id.toString(),
+      matchId: overrideResultDto.matchId,
+      result: {
+        winnerId: match.winnerId,
+        loserId: match.loserId,
+        result: match.result,
+        isDraw: match.isDraw,
+        status: match.status
+      }
+    });
+    
+    return tournament;
   }
 
   /**

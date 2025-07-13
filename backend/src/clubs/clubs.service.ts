@@ -545,7 +545,7 @@ export class ClubsService {
 
     const count = await this.eventModel.countDocuments({ 
       clubId: club._id,
-      status: { $in: ['live', 'past'] }
+      status: { $in: ['LIVE', 'PAST'] }
     });
 
     return count;

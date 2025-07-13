@@ -74,7 +74,7 @@ export class InstagramService {
       ];
 
       return posts;
-    } catch (error) {
+    } catch (error: any) {
       throw new HttpException(
         `Failed to scrape Instagram posts for ${handle}: ${error.message}`,
         HttpStatus.INTERNAL_SERVER_ERROR
@@ -94,7 +94,7 @@ export class InstagramService {
       // For now, return empty to fall back to curated content
       // You can enhance this with actual scraping logic or third-party API calls
       return [];
-    } catch (error) {
+    } catch (error: any) {
       console.error('Instagram public data fetch error:', error);
       return [];
     }
@@ -139,7 +139,7 @@ export class InstagramService {
       }));
       
       return instagramPosts;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Instagram embed fetch error:', error);
       return [];
     }
@@ -158,7 +158,7 @@ export class InstagramService {
       
       const data = await response.json() as { data?: InstagramPost[] };
       return data.data || [];
-    } catch (error) {
+    } catch (error: any) {
       throw new HttpException(
         `Instagram API error: ${error.message}`,
         HttpStatus.INTERNAL_SERVER_ERROR

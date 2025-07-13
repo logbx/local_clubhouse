@@ -19,7 +19,7 @@ log.debug(LogCategory.API, 'API Configuration', {
 });
 
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://localclubhouse.com',
+  baseURL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -71,7 +71,7 @@ api.interceptors.request.use(
     }
     
     // Don't add Authorization header for auth endpoints and public endpoints
-    const publicEndpoints = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh', '/api/users/public/'];
+    const publicEndpoints = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh', '/api/auth/forgot-password', '/api/auth/reset-password', '/api/users/public/'];
     const isPublicEndpoint = publicEndpoints.some(endpoint => config.url?.includes(endpoint));
     
     if (!isPublicEndpoint) {
@@ -98,7 +98,7 @@ api.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
     // Don't auto-refresh for auth endpoints and public endpoints
-    const publicEndpoints = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh', '/api/users/public/'];
+    const publicEndpoints = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh', '/api/auth/forgot-password', '/api/auth/reset-password', '/api/users/public/'];
     const isPublicEndpoint = publicEndpoints.some(endpoint => originalRequest.url?.includes(endpoint));
     
     if (error.response?.status === 401 && !originalRequest._retry && !isPublicEndpoint) {
@@ -184,15 +184,15 @@ export const authApi = {
     return response.data;
   },
   forgotPassword: async (email: string) => {
-    const response = await api.post('/api/auth/forgot-password', { email });
+    const response = await api.post(endpoints.auth.forgotPassword, { email });
     return response.data;
   },
   resetPasswordWithToken: async (token: string, newPassword: string) => {
-    const response = await api.post('/api/auth/reset-password', { token, newPassword });
+    const response = await api.post(endpoints.auth.resetPassword, { token, newPassword });
     return response.data;
   },
   resetPassword: async (email: string, newPassword: string) => {
-    const response = await api.post('/api/auth/reset-password', { email, newPassword });
+    const response = await api.post(endpoints.auth.resetPassword, { email, newPassword });
     return response.data;
   },
 };
@@ -269,19 +269,19 @@ export const eventApi = {
     return response.data;
   },
   rsvpEvent: async (eventId: string, status: string): Promise<Event> => {
-    const response = await api.post(`/events/${eventId}/rsvp`, { status });
+    const response = await api.post(endpoints.events.rsvp(eventId), { status });
     return response.data.event;
   },
   toggleRsvp: async (id: string) => {
-    const response = await api.post(`/events/${id}/rsvp`, {});
+    const response = await api.post(endpoints.events.rsvp(id), {});
     return response.data;
   },
   approveSponsorshipRequest: async (eventId: string, sponsorId: string): Promise<Event> => {
-    const response = await api.post(`/events/${eventId}/sponsors/${sponsorId}/approve`);
+    const response = await api.post(endpoints.events.approveSponsor(eventId, sponsorId));
     return response.data.event;
   },
   rejectSponsorshipRequest: async (eventId: string, sponsorId: string): Promise<Event> => {
-    const response = await api.post(`/events/${eventId}/sponsors/${sponsorId}/reject`);
+    const response = await api.post(endpoints.events.rejectSponsor(eventId, sponsorId));
     return response.data.event;
   },
 };
@@ -384,7 +384,7 @@ export const publicApi = {
     return response.data;
   },
   getSubGroups: async (eventId: string) => {
-    const response = await api.get(`/events/${eventId}/sub-groups`);
+    const response = await api.get(endpoints.events.subGroups(eventId));
     return response.data;
   },
   search: async (query: string) => {

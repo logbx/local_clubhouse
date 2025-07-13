@@ -42,7 +42,7 @@ export class FriendsController {
       });
       
       return result;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Friend request error:', {
         message: error.message,
         stack: error.stack,
@@ -113,7 +113,7 @@ export class FriendsController {
         received: user.receivedRequests as any[],
         sent: user.sentRequests as any[]
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching friend requests:', error);
       throw new BadRequestException('Failed to fetch friend requests');
     }

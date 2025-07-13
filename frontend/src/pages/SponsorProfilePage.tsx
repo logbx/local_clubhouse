@@ -74,7 +74,8 @@ const SponsorProfilePage: React.FC = () => {
     try {
       const events = await eventApi.getEvents();
       const sponsorEvents = events.filter((event: Event) => {
-        // Priority 1: Check if the sponsor is directly associated with the event
+        // Only show events where the sponsor has an actual sponsorship relationship
+        // (either approved sponsorship or pending/rejected sponsorship requests)
         const isDirectSponsor = event.sponsors?.some((eventSponsor: any) => {
           if (typeof eventSponsor === 'object') {
             // New structure with approval status
@@ -87,21 +88,8 @@ const SponsorProfilePage: React.FC = () => {
           }
         });
 
-        // Priority 2: Check if the sponsor is tagged
-        const isTagged = event.tags?.some(tag => 
-          tag.toLowerCase() === sponsor.username.toLowerCase() ||
-          tag.toLowerCase() === sponsor.name.toLowerCase()
-        );
-
-        // Priority 3: Check if the sponsor is mentioned in the description
-        const isMentioned = event.description?.toLowerCase().includes(sponsor.username.toLowerCase()) ||
-                          event.description?.toLowerCase().includes(sponsor.name.toLowerCase());
-
-        // Priority 4: Check if the event was created by the sponsor
-        const creatorId = typeof sponsor.createdBy === 'object' ? sponsor.createdBy._id : sponsor.createdBy;
-        const isCreator = event.creator?.id === creatorId;
-
-        return isDirectSponsor || isTagged || isMentioned || isCreator;
+        // Only return events with direct sponsorship relationship
+        return isDirectSponsor;
       });
       setSponsorEventsCount(sponsorEvents.length);
     } catch (err: any) {
@@ -259,34 +247,40 @@ const SponsorProfilePage: React.FC = () => {
             </div>
 
             {/* Instagram-Style Metrics Row */}
-            <div className="flex justify-center sm:justify-start gap-8 mb-6">
+            <div className="grid grid-cols-3 gap-6 mb-6 max-w-sm mx-auto sm:mx-0">
               <div className="text-center">
                 <button 
                   onClick={() => {
                     setEventsTabInitialTab(EventStatus.LIVE);
                     setActiveTab('events');
                   }}
-                  className="cursor-pointer hover:opacity-80 transition-opacity"
+                  className="cursor-pointer hover:opacity-80 transition-opacity w-full"
                 >
-                  <span className="block text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
+                  <div className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white leading-none">
                     {sponsorEventsCount}
-                  </span>
-                  <span className="text-sm text-gray-500 dark:text-gray-400 font-normal">events</span>
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400 font-normal h-8 flex items-center justify-center mt-1">
+                    events
+                  </div>
                 </button>
               </div>
               
               <div className="text-center">
-                <span className="block text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
+                <div className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white leading-none">
                   {sponsor.stats.totalClubsPartnered}
-                </span>
-                <span className="text-sm text-gray-500 dark:text-gray-400 font-normal">clubs partnered</span>
+                </div>
+                <div className="text-sm text-gray-500 dark:text-gray-400 font-normal h-8 flex items-center justify-center mt-1">
+                  <span className="leading-none">clubs<br/>partnered</span>
+                </div>
               </div>
               
               <div className="text-center">
-                <span className="block text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
+                <div className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white leading-none">
                   {sponsor.followers.length}
-                </span>
-                <span className="text-sm text-gray-500 dark:text-gray-400 font-normal">followers</span>
+                </div>
+                <div className="text-sm text-gray-500 dark:text-gray-400 font-normal h-8 flex items-center justify-center mt-1">
+                  followers
+                </div>
               </div>
             </div>
 

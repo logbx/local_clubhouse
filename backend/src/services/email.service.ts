@@ -66,19 +66,61 @@ export class EmailService {
           from: this.configService.get<string>('FROM_EMAIL', 'noreply@localclubhouse.com'),
           subject: 'Reset Your Password - Local Clubhouse',
           html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #2563eb;">Password Reset Request</h2>
-              <p>We received a request to reset your password for your Local Clubhouse account.</p>
-              <p>Click the button below to reset your password:</p>
-              <a href="${resetUrl}" style="background: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Password</a>
-              <p>If you can't click the button, copy and paste this link into your browser:</p>
-              <p><a href="${resetUrl}">${resetUrl}</a></p>
-              <p><strong>This link will expire in 1 hour.</strong></p>
-              <p>If you didn't request this password reset, please ignore this email.</p>
-              <hr style="margin: 20px 0;">
-              <small style="color: #666;">
-                This is an automated email from Local Clubhouse. Please do not reply to this email.
-              </small>
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f8fafc;">
+              <div style="background: white; border-radius: 12px; padding: 32px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);">
+                <h2 style="color: #2563eb; font-size: 24px; margin-bottom: 16px; text-align: center;">Password Reset Request</h2>
+                <p style="color: #374151; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
+                  We received a request to reset your password for your Local Clubhouse account.
+                </p>
+                <p style="color: #374151; font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
+                  Click the button below to reset your password:
+                </p>
+                
+                <!-- Mobile-optimized button -->
+                <div style="text-align: center; margin: 32px 0;">
+                  <a href="${resetUrl}" 
+                     style="
+                       background: #dc2626; 
+                       color: white; 
+                       padding: 16px 32px; 
+                       text-decoration: none; 
+                       border-radius: 8px; 
+                       display: inline-block; 
+                       font-weight: 600; 
+                       font-size: 16px;
+                       min-width: 200px;
+                       text-align: center;
+                       box-shadow: 0 2px 4px rgba(220, 38, 38, 0.3);
+                       transition: all 0.2s ease;
+                     "
+                     target="_blank">
+                    Reset Password
+                  </a>
+                </div>
+                
+                <p style="color: #6b7280; font-size: 14px; line-height: 1.5; margin-bottom: 16px;">
+                  If the button doesn't work, copy and paste this link into your mobile browser:
+                </p>
+                <div style="background: #f3f4f6; padding: 12px; border-radius: 6px; margin-bottom: 24px; word-break: break-all;">
+                  <a href="${resetUrl}" style="color: #2563eb; font-size: 14px; text-decoration: none;" target="_blank">${resetUrl}</a>
+                </div>
+                
+                <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 12px; margin-bottom: 24px;">
+                  <p style="color: #92400e; font-size: 14px; margin: 0; font-weight: 600;">
+                    ⚠️ This link will expire in 1 hour for security reasons.
+                  </p>
+                </div>
+                
+                <p style="color: #6b7280; font-size: 14px; line-height: 1.5; margin-bottom: 0;">
+                  If you didn't request this password reset, please ignore this email or contact our support team if you have concerns.
+                </p>
+              </div>
+              
+              <div style="text-align: center; margin-top: 20px;">
+                <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+                  This is an automated email from Local Clubhouse. Please do not reply to this email.
+                </p>
+              </div>
             </div>
           `,
         });

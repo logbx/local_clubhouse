@@ -62,7 +62,7 @@ export class HealthController {
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         status: 'error',
         timestamp: new Date().toISOString(),

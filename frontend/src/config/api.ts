@@ -6,7 +6,9 @@ export const endpoints = {
     register: '/api/auth/register',
     login: '/api/auth/login',
     logout: '/api/auth/logout',
-    refreshToken: '/api/auth/refresh-token',
+    refreshToken: '/api/auth/refresh',
+    forgotPassword: '/api/auth/forgot-password',
+    resetPassword: '/api/auth/reset-password',
   },
   user: {
     me: '/api/users/me',
@@ -23,6 +25,9 @@ export const endpoints = {
     delete: (id: string) => `/api/events/${id}`,
     publish: (id: string) => `/api/events/${id}/publish`,
     rsvp: (id: string) => `/api/events/${id}/rsvp`,
+    subGroups: (id: string) => `/api/events/${id}/sub-groups`,
+    approveSponsor: (eventId: string, sponsorId: string) => `/api/events/${eventId}/sponsors/${sponsorId}/approve`,
+    rejectSponsor: (eventId: string, sponsorId: string) => `/api/events/${eventId}/sponsors/${sponsorId}/reject`,
   },
   friends: {
     status: (userId: string) => `/api/friends/status/${userId}`,

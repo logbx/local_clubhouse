@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
+import { endpoints } from '../config/api';
 import { Logo } from '../components/Logo';
 
 const ForgotPasswordPage: React.FC = () => {
@@ -21,7 +22,7 @@ const ForgotPasswordPage: React.FC = () => {
     setMessage('');
 
     try {
-      const response = await api.post('/auth/forgot-password', { email: email.trim() });
+      const response = await api.post(endpoints.auth.forgotPassword, { email: email.trim() });
       setMessage(response.data.message || 'If an account with that email exists, a password reset link has been sent.');
       setEmail(''); // Clear form on success
     } catch (err: any) {

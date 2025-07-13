@@ -33,23 +33,23 @@ const NotificationToast: React.FC = () => {
       });
     };
 
-    // Listen for new messages (only show if not on the conversation page)
-    const handleNewMessage = (message: any) => {
-      // Only show notification if we're not currently viewing this conversation
-      const currentPath = window.location.pathname;
-      const isOnConversationPage = currentPath.includes('/messages/');
-      
-      if (!isOnConversationPage) {
-        toast.info(`New message from ${message.sender?.username || 'Someone'}`, {
-          position: "top-right",
-          autoClose: 4000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
-        });
-      }
-    };
+    // Message notifications are now handled by NotificationPopupManager
+    // const handleNewMessage = (message: any) => {
+    //   // Only show notification if we're not currently viewing this conversation
+    //   const currentPath = window.location.pathname;
+    //   const isOnConversationPage = currentPath.includes('/messages/');
+    //   
+    //   if (!isOnConversationPage) {
+    //     toast.info(`New message from ${message.sender?.username || 'Someone'}`, {
+    //       position: "top-right",
+    //       autoClose: 4000,
+    //       hideProgressBar: false,
+    //       closeOnClick: true,
+    //       pauseOnHover: true,
+    //       draggable: true,
+    //     });
+    //   }
+    // };
 
     // Listen for user online/offline status
     const handleUserOnline = (data: { userId: string }) => {
@@ -65,7 +65,7 @@ const NotificationToast: React.FC = () => {
     // Set up listeners
     webSocketService.onNewFriendRequest(handleFriendRequest);
     webSocketService.onFriendRequestUpdate(handleFriendRequestUpdate);
-    webSocketService.onNewMessage(handleNewMessage);
+    // webSocketService.onNewMessage(handleNewMessage); // Disabled - using NotificationPopupManager
     webSocketService.onUserOnline(handleUserOnline);
     webSocketService.onUserOffline(handleUserOffline);
 

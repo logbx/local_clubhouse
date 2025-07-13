@@ -44,9 +44,14 @@ class NotificationService {
   }
 
   private initializeWebSocketListeners() {
-    // Listen for new direct messages
-    webSocketService.onNewMessage((message: any) => {
-      console.log('🔔 NotificationService: Received new message event:', message);
+    // Wait for WebSocket connection before setting up listeners
+    const setupListeners = () => {
+      console.log('🔔 NotificationService: Setting up WebSocket listeners');
+      
+      // Listen for new direct messages
+      webSocketService.onNewMessage((message: any) => {
+      console.log('🔔 NotificationService: ✅ NEW MESSAGE RECEIVED!', message);
+      console.log('🔔 NotificationService: Current user ID:', this.getCurrentUserId());
       
       // The backend now sends message with populated sender object
       // message.sender is the full user object with _id, username, fullName, profileImage
@@ -65,6 +70,7 @@ class NotificationService {
       
       // Only add notification if we have valid sender info
       if (senderId && senderName) {
+        console.log('🔔 NotificationService: ✅ Adding notification for message from', senderName);
         this.addNotification({
           id: message._id || Date.now().toString(),
           type: 'direct',
@@ -78,7 +84,7 @@ class NotificationService {
           read: false
         });
       } else {
-        console.warn('🔔 NotificationService: Could not extract sender info from message:', message);
+        console.warn('🔔 NotificationService: ❌ Could not extract sender info from message:', message);
       }
     });
 
@@ -179,6 +185,28 @@ class NotificationService {
         read: false
       });
     });
+    };
+    
+    // Set up listeners immediately if WebSocket is already connected
+    if (webSocketService.isConnected()) {
+      console.log('🔔 NotificationService: WebSocket already connected, setting up listeners immediately');
+      setupListeners();
+    } else {
+      console.log('🔔 NotificationService: WebSocket not connected, waiting for connection');
+      // Wait for WebSocket connection
+      webSocketService.onConnected(() => {
+        console.log('🔔 NotificationService: WebSocket connected, setting up listeners now');
+        setupListeners();
+      });
+    }
+    
+    // Also set up listeners after a short delay to handle any timing issues
+    setTimeout(() => {
+      if (webSocketService.isConnected()) {
+        console.log('🔔 NotificationService: Setting up listeners after delay (backup)');
+        setupListeners();
+      }
+    }, 2000);
   }
 
   private async initializeConversationRooms() {
@@ -227,7 +255,7 @@ class NotificationService {
     return null;
   }
 
-  private addNotification(notification: NotificationMessage) {
+  addNotification(notification: NotificationMessage) {
     console.log('🔔 NotificationService: Attempting to add notification:', notification);
     
     // Don't add notification if we're currently viewing this chat
@@ -258,10 +286,34 @@ class NotificationService {
     this.notifyListeners();
     
     console.log('🔔 NotificationService: Notification added successfully. Total notifications:', this.notifications.length);
+    console.log('🔔 NotificationService: Current unread counts:', this.getUnreadCountsByChat());
   }
 
   private isCurrentlyViewingChat(type: string, chatId: string): boolean {
     const currentPath = window.location.pathname;
+    
+    // Check if we're in Social Hub and if there's a selected chat
+    const isSocialHub = currentPath === '/social-hub';
+    if (isSocialHub) {
+      // Get the currently selected chat from the Social Hub
+      // We'll use a global variable or localStorage to track this
+      const selectedChatId = (window as any).selectedChatId;
+      const selectedChatType = (window as any).selectedChatType;
+      
+      if (selectedChatId && selectedChatType) {
+        // Map notification types to chat types
+        const typeMapping: Record<string, string[]> = {
+          'direct': ['individual'],
+          'group': ['club-chat', 'group'],
+          'event': ['event-chat'],
+          'subgroup': ['event-subgroup'],
+          'friend-group': ['friend-group']
+        };
+        
+        const allowedTypes = typeMapping[type] || [];
+        return allowedTypes.includes(selectedChatType) && selectedChatId === chatId;
+      }
+    }
     
     switch (type) {
       case 'direct':
@@ -269,15 +321,13 @@ class NotificationService {
       case 'group':
         // Handle both club chats and general group chats
         return (currentPath === '/messages' && currentPath.includes('group')) ||
-               (currentPath === '/social-hub' && window.location.hash.includes(chatId)) ||
                currentPath.includes(`/clubs/${chatId}`);
       case 'event':
         return currentPath.includes(`/events/${chatId}`);
       case 'subgroup':
         return currentPath.includes('subgroup') && currentPath.includes(chatId);
       case 'friend-group':
-        return currentPath.includes(`/friend-groups/${chatId}`) ||
-               (currentPath === '/social-hub' && window.location.hash.includes(chatId));
+        return currentPath.includes(`/friend-groups/${chatId}`);
       default:
         return false;
     }
@@ -424,25 +474,117 @@ class NotificationService {
   navigateToChat(notification: NotificationMessage) {
     this.markAsRead(notification.id);
     
-    switch (notification.type) {
-      case 'direct':
-        window.location.href = `/messages/${notification.chatId}`;
-        break;
-      case 'group':
-        window.location.href = '/messages';
-        break;
-      case 'event':
-        window.location.href = `/events/${notification.chatId}`;
-        break;
-      case 'subgroup':
-        // This would need more context to navigate properly
-        window.location.href = `/events`; // Fallback to events page
-        break;
-      case 'friend-group':
-        window.location.href = `/friend-groups/${notification.chatId}`;
-        break;
+    // Navigate to the social page with the specific chat selected
+    // We'll use URL parameters to indicate which chat to open
+    const chatType = notification.type === 'direct' ? 'individual' : 
+                    notification.type === 'group' ? 'club-chat' : 
+                    notification.type === 'event' ? 'event-chat' : 
+                    notification.type === 'friend-group' ? 'friend-group' : 
+                    notification.type;
+    
+    // Navigate to social page with chat parameters
+    const socialUrl = `/social-hub?chatType=${chatType}&chatId=${notification.chatId}&chatName=${encodeURIComponent(notification.chatName)}`;
+    window.location.href = socialUrl;
+  }
+
+  // Debug methods for testing
+  testNotification() {
+    console.log('🧪 Testing notification system...');
+    const testNotification: NotificationMessage = {
+      id: `test-${Date.now()}`,
+      type: 'direct',
+      chatId: 'test-user-id',
+      chatName: 'Test User',
+      senderId: 'test-sender-id',
+      senderName: 'Test Sender',
+      content: 'This is a test notification',
+      timestamp: new Date().toISOString(),
+      read: false
+    };
+    
+    this.addNotification(testNotification);
+    console.log('🧪 Test notification added');
+  }
+  
+  testWebSocketListeners() {
+    console.log('🧪 Testing WebSocket listeners...');
+    console.log('🧪 WebSocket connected:', webSocketService.isConnected());
+    
+    // Test by manually triggering the listener
+    const testMessage = {
+      _id: 'test-message-id',
+      sender: {
+        _id: 'test-sender-id',
+        username: 'TestUser',
+        profileImage: null
+      },
+      content: 'Test message from WebSocket listener',
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log('🧪 Manually triggering message listener with:', testMessage);
+    // This should trigger the notification service to process the message
+    webSocketService.onNewMessage((message) => {
+      console.log('🧪 Manual WebSocket listener triggered:', message);
+    });
+  }
+
+  testWebSocketConnection() {
+    console.log('🧪 Testing WebSocket connection...');
+    console.log('🧪 WebSocket connected:', webSocketService.isConnected());
+    
+    // Test sending a ping
+    if (webSocketService.isConnected()) {
+      console.log('🧪 WebSocket is connected - testing ping...');
+    } else {
+      console.log('🧪 WebSocket is NOT connected');
+    }
+  }
+
+  getDebugInfo() {
+    return {
+      notifications: this.notifications,
+      unreadCount: this.unreadCount,
+      listeners: this.listeners.length,
+      countListeners: this.countListeners.length,
+      webSocketConnected: webSocketService.isConnected(),
+      currentPath: window.location.pathname,
+      selectedChat: {
+        id: (window as any).selectedChatId,
+        type: (window as any).selectedChatType
+      }
+    };
+  }
+
+  async testSendMessage(receiverId: string, content: string = 'Test notification message') {
+    console.log('🧪 Sending test message to:', receiverId);
+    try {
+      const response = await messageService.sendMessage(receiverId, content);
+      console.log('🧪 Test message sent successfully:', response);
+      return response;
+    } catch (error) {
+      console.error('🧪 Failed to send test message:', error);
+      throw error;
     }
   }
 }
 
-export const notificationService = new NotificationService(); 
+export const notificationService = new NotificationService();
+
+// Expose debug functions globally for testing
+if (typeof window !== 'undefined') {
+  (window as any).notificationService = notificationService;
+  (window as any).testNotification = () => notificationService.testNotification();
+  (window as any).testWebSocket = () => notificationService.testWebSocketConnection();
+  (window as any).testWebSocketListeners = () => notificationService.testWebSocketListeners();
+  (window as any).getNotificationDebug = () => notificationService.getDebugInfo();
+  (window as any).testSendMessage = (receiverId: string, content?: string) => 
+    notificationService.testSendMessage(receiverId, content);
+  
+  console.log('🧪 Notification debug functions available:');
+  console.log('🧪 - testNotification() - Add a test notification');
+  console.log('🧪 - testWebSocket() - Check WebSocket connection');
+  console.log('🧪 - testWebSocketListeners() - Test WebSocket listeners');
+  console.log('🧪 - getNotificationDebug() - Get debug info');
+  console.log('🧪 - testSendMessage(receiverId, content?) - Send real test message');
+} 

@@ -70,7 +70,7 @@ import { EventMessageService } from './services/eventMessage.service';
       serveRoot: '/uploads',
     }),
     ServeStaticModule.forRoot({
-      rootPath: '/root/saas-app/frontend/dist',
+      rootPath: join(__dirname, '..', '..', 'frontend', 'dist'),
       serveRoot: '/',
       exclude: ['/api*'],
     }),

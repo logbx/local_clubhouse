@@ -10,6 +10,7 @@ interface TournamentBracketProps {
   tournament: Tournament;
   onTournamentUpdate?: (tournament: Tournament) => void;
   isManageMode?: boolean;
+  hideRoundHeaders?: boolean;
 }
 
 interface MatchCardProps {
@@ -18,6 +19,9 @@ interface MatchCardProps {
   currentUserId?: string;
   isOrganizer: boolean;
   onTournamentUpdate?: (tournament: Tournament) => void;
+  showAdminControls?: boolean;
+  matchNumber?: number;
+  roundName?: string;
 }
 
 interface ByePlayerCardProps {
@@ -65,7 +69,10 @@ const MatchCard: React.FC<MatchCardProps> = ({
   tournamentId,
   currentUserId,
   isOrganizer,
-  onTournamentUpdate
+  onTournamentUpdate,
+  showAdminControls = true,
+  matchNumber,
+  roundName
 }) => {
   const [showReportModal, setShowReportModal] = useState(false);
   const [showDisputeModal, setShowDisputeModal] = useState(false);
@@ -95,7 +102,28 @@ const MatchCard: React.FC<MatchCardProps> = ({
   const canReport = isOrganizer || isPlayerInMatch;
   
   // Check if current user submitted the result (more robust checking)
-  const hasSubmittedResult = match.resultReportedBy?.includes(currentUserId || '') || false;
+  // Handle multiple ID formats that might be stored in resultReportedBy
+  const hasSubmittedResult = match.resultReportedBy?.some(reporterId => {
+    if (!currentUserId) return false;
+    // Direct match
+    if (reporterId === currentUserId) return true;
+    // Try both string formats in case of ObjectId vs string mismatch
+    if (reporterId === String(currentUserId)) return true;
+    if (String(reporterId) === currentUserId) return true;
+    return false;
+  }) || false;
+  
+  // Debug logging for ID matching issues
+  if (match.status === 'submitted' && process.env.NODE_ENV === 'development') {
+    console.log('🔍 Match result debug:', {
+      matchId: match.matchId,
+      currentUserId,
+      resultReportedBy: match.resultReportedBy,
+      hasSubmittedResult,
+      canConfirm: match.status === 'submitted' && isPlayerInMatch && !hasSubmittedResult && !isOrganizer,
+      canDispute: match.status === 'submitted' && isPlayerInMatch && !hasSubmittedResult
+    });
+  }
   
   // Updated logic: Allow both players in match AND organizers to confirm submitted results
   // Players can confirm if they're in the match and didn't submit the result
@@ -105,11 +133,11 @@ const MatchCard: React.FC<MatchCardProps> = ({
     (isOrganizer && hasGuestPlayer) // Organizer confirmation for guest matches
   );
   
-  // Add canConfirm variable for the UI
-  const canConfirm = match.status === 'submitted' && (
-    (isPlayerInMatch && !hasSubmittedResult) || 
-    isOrganizer
-  );
+  // Add canConfirm variable for the UI - Only non-organizer players can confirm
+  const canConfirm = match.status === 'submitted' && 
+    isPlayerInMatch && 
+    !hasSubmittedResult && 
+    !isOrganizer;
   
   // Show dispute button if user is in match, match is submitted, and user did NOT submit the result
   const canDispute = match.status === 'submitted' && isPlayerInMatch && !hasSubmittedResult;
@@ -132,25 +160,44 @@ const MatchCard: React.FC<MatchCardProps> = ({
         loserId = result === 'win' ? match.player2.id : match.player1.id;
       }
       
-      console.log('🏓 Setting match result (admin):', {
+      console.log('🏓 Setting match result:', {
         matchId: match.matchId,
         result,
         winnerId,
         loserId,
         reason,
-        matchStatus: match.status
+        matchStatus: match.status,
+        isOrganizer,
+        userType: isOrganizer ? 'organizer' : 'player'
       });
 
-      // Always use override since this is admin-only
-      const updatedTournament = await tournamentService.overrideMatchResult(
-        tournamentId,
-        match.matchId,
-        winnerId,
-        loserId,
-        'completed',
-        result,
-        reason
-      );
+      let updatedTournament: any;
+      
+      if (isOrganizer) {
+        // Organizers use override endpoint
+        updatedTournament = await tournamentService.overrideMatchResult(
+          tournamentId,
+          match.matchId,
+          winnerId,
+          loserId,
+          'completed',
+          result,
+          reason
+        );
+      } else {
+        // Players use submit result endpoint (puts match in "submitted" status)
+        if (!winnerId || !loserId) {
+          throw new Error('Winner and loser must be specified');
+        }
+        updatedTournament = await tournamentService.submitMatchResult(
+          tournamentId,
+          match.matchId,
+          winnerId,
+          loserId,
+          false, // isDraw - false for SET
+          reason
+        );
+      }
       onTournamentUpdate?.(updatedTournament);
       
       setShowReportModal(false);
@@ -320,7 +367,7 @@ const MatchCard: React.FC<MatchCardProps> = ({
   return (
     <div className={`border-2 rounded-lg p-4 m-2 backdrop-blur-sm ${getMatchStatusColor()} transition-colors duration-200`}>
       <div className="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">
-        Match {match.matchId ? match.matchId.slice(-8) : 'Unknown'}
+        {roundName ? `${roundName} - Match ${matchNumber || 1}` : `Match ${matchNumber || 1}`}
       </div>
       
       {/* Players */}
@@ -372,7 +419,7 @@ const MatchCard: React.FC<MatchCardProps> = ({
               <CheckIcon className="h-4 w-4 mr-2" />
               <span className="text-sm font-medium">Match Completed</span>
             </div>
-            {isOrganizer && (
+            {isOrganizer && showAdminControls && (
               <button 
                 onClick={() => setShowReportModal(true)}
                 className="mt-2 text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 underline"
@@ -406,7 +453,7 @@ const MatchCard: React.FC<MatchCardProps> = ({
                   Dispute Result
                 </button>
               )}
-              {isOrganizer && (
+              {isOrganizer && showAdminControls && (
                 <button 
                   onClick={() => setShowOverrideModal(true)}
                   className="w-full btn btn-primary text-sm py-2"
@@ -429,7 +476,7 @@ const MatchCard: React.FC<MatchCardProps> = ({
                 Reason: {match.result.disputeReason}
               </div>
             )}
-            {isOrganizer && (
+            {isOrganizer && showAdminControls && (
               <div className="space-y-2">
                 <button 
                   onClick={() => setShowResolveModal(true)}
@@ -458,7 +505,7 @@ const MatchCard: React.FC<MatchCardProps> = ({
                 Report Result
               </button>
             )}
-            {isOrganizer && (
+            {isOrganizer && showAdminControls && (
               <button 
                 onClick={() => setShowReportModal(true)}
                 className="w-full btn btn-primary"
@@ -640,6 +687,86 @@ const MatchCard: React.FC<MatchCardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Override Result Modal */}
+      {showOverrideModal && (
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center" 
+          style={{ zIndex: 999999 }}
+        >
+          <div 
+            className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl border border-gray-200 dark:border-gray-700"
+            style={{ zIndex: 1000000 }}
+          >
+            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+              Override Match Result
+            </h3>
+            
+            <div className="space-y-3 mb-6">
+              <label className="flex items-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors">
+                <input 
+                  type="radio" 
+                  name="overrideWinner" 
+                  value={match.player1.id}
+                  checked={selectedWinner === match.player1.id}
+                  onChange={(e) => setSelectedWinner(e.target.value)}
+                  className="mr-3"
+                />
+                <span className="text-gray-900 dark:text-white font-medium">
+                  {match.player1.name} wins
+                </span>
+              </label>
+              
+              <label className="flex items-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors">
+                <input 
+                  type="radio" 
+                  name="overrideWinner" 
+                  value={match.player2.id}
+                  checked={selectedWinner === match.player2.id}
+                  onChange={(e) => setSelectedWinner(e.target.value)}
+                  className="mr-3"
+                />
+                <span className="text-gray-900 dark:text-white font-medium">
+                  {match.player2.name} wins
+                </span>
+              </label>
+              
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Reason for override (optional)
+                </label>
+                <textarea
+                  value={overrideReason}
+                  onChange={(e) => setOverrideReason(e.target.value)}
+                  placeholder="Add any notes about why you're overriding this result..."
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  rows={3}
+                />
+              </div>
+            </div>
+
+            <div className="flex space-x-3">
+              <button 
+                onClick={handleOverrideResult}
+                disabled={!selectedWinner || overriding}
+                className="flex-1 btn btn-primary"
+              >
+                {overriding ? 'Overriding...' : 'Override Result'}
+              </button>
+              <button 
+                onClick={() => {
+                  setShowOverrideModal(false);
+                  setSelectedWinner('');
+                  setOverrideReason('');
+                }}
+                className="flex-1 btn btn-secondary"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -647,7 +774,8 @@ const MatchCard: React.FC<MatchCardProps> = ({
 const TournamentBracket: React.FC<TournamentBracketProps> = ({
   tournament,
   onTournamentUpdate,
-  isManageMode = false
+  isManageMode = false,
+  hideRoundHeaders = false
 }) => {
   const { user } = useAuth();
   const [isUpdating, setIsUpdating] = useState(false);
@@ -666,9 +794,9 @@ const TournamentBracket: React.FC<TournamentBracketProps> = ({
       console.log('🔔 Tournament Bracket WebSocket update received:', data);
       
       // Handle various tournament update types
-      if (data.type === 'match-result-reported') {
+      if (data.type === 'match-result-reported' || data.type === 'match-result-submitted') {
         // Show specific match update notification
-        console.log('🏓 Match result reported by another user:', data.matchId);
+        console.log('🏓 Match result submitted/reported:', data.matchId);
         setIsUpdating(true);
         
         // Refresh tournament data
@@ -779,15 +907,21 @@ const TournamentBracket: React.FC<TournamentBracketProps> = ({
       )}
 
       {tournament.rounds.map((round: TournamentRound, roundIndex: number) => {
+        // Determine if this is the current active round (first incomplete round)
+        const currentActiveRound = tournament.rounds.find(r => !r.isComplete);
+        const isCurrentActiveRound = currentActiveRound && round.roundNumber === currentActiveRound.roundNumber;
+        
         return (
           <div key={roundIndex} className="space-y-4">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white text-center">
-              {roundIndex === tournament.rounds.length - 1 && tournament.rounds.length > 1
-                ? 'Final'
-                : roundIndex === tournament.rounds.length - 2 && tournament.rounds.length > 2
-                ? 'Semi-Final'
-                : `Round ${roundIndex + 1}`}
-            </h3>
+            {!hideRoundHeaders && (
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white text-center">
+                {roundIndex === tournament.rounds.length - 1 && tournament.rounds.length > 1
+                  ? 'Final'
+                  : roundIndex === tournament.rounds.length - 2 && tournament.rounds.length > 2
+                  ? 'Semi-Final'
+                  : `Round ${roundIndex + 1}`}
+              </h3>
+            )}
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {/* Regular Matches */}
@@ -799,6 +933,13 @@ const TournamentBracket: React.FC<TournamentBracketProps> = ({
                   currentUserId={user?.id}
                   isOrganizer={isOrganizer}
                   onTournamentUpdate={onTournamentUpdate}
+                  showAdminControls={isCurrentActiveRound}
+                  matchNumber={index + 1}
+                  roundName={roundIndex === tournament.rounds.length - 1 && tournament.rounds.length > 1
+                    ? 'Final'
+                    : roundIndex === tournament.rounds.length - 2 && tournament.rounds.length > 2
+                    ? 'Semi-Final'
+                    : `Round ${roundIndex + 1}`}
                 />
               ))}
               
@@ -814,21 +955,6 @@ const TournamentBracket: React.FC<TournamentBracketProps> = ({
           </div>
         );
       })}
-      
-      {/* Tournament Winner */}
-      {tournament.isFinished && tournament.winnerId && (
-        <div className="text-center py-8">
-          <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-lg p-6 max-w-md mx-auto shadow-lg">
-            <div className="text-white">
-              <div className="text-4xl mb-2">🏆</div>
-              <h2 className="text-2xl font-bold mb-2">Tournament Champion</h2>
-              <p className="text-xl">
-                {tournament.players.find(p => p.id === tournament.winnerId)?.name || 'Unknown'}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

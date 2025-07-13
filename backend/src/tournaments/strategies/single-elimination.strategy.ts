@@ -413,14 +413,6 @@ export class SingleEliminationStrategy extends TournamentStrategy {
     // Update next round with actual players
     nextRound.matches = nextRoundMatches;
     nextRound.byePlayers = byePlayer ? [byePlayer] : undefined;
-    
-    // If there's a bye player, advance them to the round after next
-    if (byePlayer && nextRoundNumber < tournament.rounds.length) {
-      const roundAfterNext = tournament.rounds.find(r => r.roundNumber === nextRoundNumber + 1);
-      if (roundAfterNext) {
-        this.placeByes(roundAfterNext, [byePlayer]);
-      }
-    }
 
     return { 
       shouldAdvanceToNextRound: true, 

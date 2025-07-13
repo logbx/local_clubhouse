@@ -14,7 +14,7 @@ class EventService {
       });
       
       return await event.save();
-    } catch (error) {
+    } catch (error: any) {
       throw createError(400, 'Failed to create event');
     }
   }
@@ -87,7 +87,7 @@ class EventService {
       return await Event.find(query)
         .populate('creator', 'username email')
         .sort({ startDate: 1 });
-    } catch (error) {
+    } catch (error: any) {
       throw createError(400, 'Failed to fetch events');
     }
   }
@@ -109,7 +109,7 @@ class EventService {
       }
 
       return event;
-    } catch (error) {
+    } catch (error: any) {
       if (error.status) throw error;
       throw createError(400, 'Failed to fetch event');
     }
@@ -134,7 +134,7 @@ class EventService {
 
       // Return populated event
       return await Event.findById(eventId).populate('creator', 'username email') as IEvent;
-    } catch (error) {
+    } catch (error: any) {
       if (error.status) throw error;
       throw createError(400, 'Failed to update event');
     }
@@ -154,7 +154,7 @@ class EventService {
       }
 
       await Event.findByIdAndDelete(eventId);
-    } catch (error) {
+    } catch (error: any) {
       if (error.status) throw error;
       throw createError(400, 'Failed to delete event');
     }
@@ -179,7 +179,7 @@ class EventService {
       await event.save();
 
       return await Event.findById(eventId).populate('creator', 'username email') as IEvent;
-    } catch (error) {
+    } catch (error: any) {
       if (error.status) throw error;
       throw createError(400, 'Failed to RSVP to event');
     }
@@ -205,7 +205,7 @@ class EventService {
       await event.save();
 
       return await Event.findById(eventId).populate('creator', 'username email') as IEvent;
-    } catch (error) {
+    } catch (error: any) {
       if (error.status) throw error;
       throw createError(400, 'Failed to cancel RSVP');
     }
@@ -221,7 +221,7 @@ class EventService {
       return await Event.find(query)
         .populate('creator', 'username email')
         .sort({ startDate: 1 });
-    } catch (error) {
+    } catch (error: any) {
       throw createError(400, 'Failed to fetch user events');
     }
   }

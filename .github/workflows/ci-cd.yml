@@ -1,0 +1,408 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - preview
+          - production
+
+env:
+  NODE_VERSION: '18'
+  EXPO_CLI_VERSION: 'latest'
+
+jobs:
+  # Quality checks
+  quality:
+    name: Code Quality & Testing
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🏗️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: 📱 Setup Expo CLI
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: ${{ env.EXPO_CLI_VERSION }}
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📦 Install mobile app dependencies
+        working-directory: ./mobile-app
+        run: npm ci
+
+      - name: 📦 Install backend dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: 🔍 Lint mobile app
+        working-directory: ./mobile-app
+        run: npm run lint
+
+      - name: 🔍 Lint backend
+        working-directory: ./backend
+        run: npm run lint
+
+      - name: 🏗️ Type check mobile app
+        working-directory: ./mobile-app
+        run: npm run typecheck
+
+      - name: 🏗️ Type check backend
+        working-directory: ./backend
+        run: npm run typecheck
+
+      - name: 🧪 Test mobile app
+        working-directory: ./mobile-app
+        run: npm run test:coverage
+
+      - name: 🧪 Test backend
+        working-directory: ./backend
+        run: npm run test:coverage
+
+      - name: 📊 Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./mobile-app/coverage
+          flags: mobile
+          name: mobile-coverage
+
+      - name: 📊 Upload backend coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./backend/coverage
+          flags: backend
+          name: backend-coverage
+
+  # Security scanning
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔒 Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: 📤 Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: 🔍 Audit mobile app dependencies
+        working-directory: ./mobile-app
+        run: npm audit --audit-level high
+
+      - name: 🔍 Audit backend dependencies
+        working-directory: ./backend
+        run: npm audit --audit-level high
+
+  # Build web application
+  build-web:
+    name: Build Web App
+    runs-on: ubuntu-latest
+    needs: [quality, security]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🏗️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: 📱 Setup Expo CLI
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: ${{ env.EXPO_CLI_VERSION }}
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📦 Install dependencies
+        working-directory: ./mobile-app
+        run: npm ci
+
+      - name: 🏗️ Build web app
+        working-directory: ./mobile-app
+        run: npm run build:web
+        env:
+          EXPO_PUBLIC_API_URL: ${{ secrets.API_URL }}
+          EXPO_PUBLIC_WS_URL: ${{ secrets.WS_URL }}
+          EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+
+      - name: 📦 Upload web build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: web-build
+          path: ./mobile-app/dist/web
+          retention-days: 7
+
+  # Build mobile apps
+  build-mobile:
+    name: Build Mobile Apps
+    runs-on: ubuntu-latest
+    needs: [quality, security]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    strategy:
+      matrix:
+        platform: [ios, android]
+        profile: [preview, production]
+        exclude:
+          - platform: ios
+            profile: preview
+          - platform: android
+            profile: preview
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🏗️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: 📱 Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: ${{ env.EXPO_CLI_VERSION }}
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📦 Install dependencies
+        working-directory: ./mobile-app
+        run: npm ci
+
+      - name: 🏗️ Build ${{ matrix.platform }} app (${{ matrix.profile }})
+        working-directory: ./mobile-app
+        run: eas build --platform ${{ matrix.platform }} --profile ${{ matrix.profile }} --non-interactive --no-wait
+        env:
+          EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
+
+  # Deploy web application
+  deploy-web:
+    name: Deploy Web App
+    runs-on: ubuntu-latest
+    needs: [build-web]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    environment:
+      name: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'preview') }}
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📦 Download web build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: web-build
+          path: ./dist
+
+      - name: 🚀 Deploy to Vercel
+        id: deploy
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: ./dist
+          scope: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-args: ${{ github.ref == 'refs/heads/main' && '--prod' || '' }}
+
+      - name: 📝 Comment deployment URL on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 Web app deployed to: ${{ steps.deploy.outputs.preview-url }}`
+            })
+
+  # Deploy backend
+  deploy-backend:
+    name: Deploy Backend
+    runs-on: ubuntu-latest
+    needs: [quality, security]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🏗️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: 📦 Install dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: 🏗️ Build backend
+        working-directory: ./backend
+        run: npm run build
+
+      - name: 🐳 Build Docker image
+        working-directory: ./backend
+        run: |
+          docker build -t saas-club-backend:${{ github.sha }} .
+          docker tag saas-club-backend:${{ github.sha }} saas-club-backend:latest
+
+      - name: 🔑 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: 🔑 Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: 📤 Push image to ECR
+        working-directory: ./backend
+        run: |
+          docker tag saas-club-backend:latest ${{ steps.login-ecr.outputs.registry }}/saas-club-backend:${{ github.sha }}
+          docker tag saas-club-backend:latest ${{ steps.login-ecr.outputs.registry }}/saas-club-backend:latest
+          docker push ${{ steps.login-ecr.outputs.registry }}/saas-club-backend:${{ github.sha }}
+          docker push ${{ steps.login-ecr.outputs.registry }}/saas-club-backend:latest
+
+      - name: 🚀 Deploy to ECS
+        run: |
+          aws ecs update-service \
+            --cluster ${{ secrets.ECS_CLUSTER_NAME }} \
+            --service ${{ secrets.ECS_SERVICE_NAME }} \
+            --force-new-deployment
+
+  # OTA Updates for mobile
+  ota-update:
+    name: OTA Update
+    runs-on: ubuntu-latest
+    needs: [quality, security]
+    if: github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip-ota]')
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🏗️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: 📱 Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: ${{ env.EXPO_CLI_VERSION }}
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📦 Install dependencies
+        working-directory: ./mobile-app
+        run: npm ci
+
+      - name: 🚀 Publish OTA update
+        working-directory: ./mobile-app
+        run: eas update --branch production --message "${{ github.event.head_commit.message }}"
+        env:
+          EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
+
+  # Performance monitoring
+  lighthouse:
+    name: Lighthouse Performance
+    runs-on: ubuntu-latest
+    needs: [deploy-web]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔍 Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          urls: |
+            https://saasclub.app
+            https://saasclub.app/clubs
+            https://saasclub.app/events
+            https://saasclub.app/tournaments
+          configPath: ./lighthouse.config.js
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+  # Notify on completion
+  notify:
+    name: Notify Deployment
+    runs-on: ubuntu-latest
+    needs: [deploy-web, deploy-backend, ota-update]
+    if: always() && github.ref == 'refs/heads/main'
+    steps:
+      - name: 📱 Notify Slack
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          text: '🚀 Deployment successful! Web app and backend updated.'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: 📱 Notify Slack on failure
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          text: '❌ Deployment failed! Check logs for details.'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: 📧 Send email notification
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: 'SaaS Club App - Deployment Failed'
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: 'CI/CD Pipeline <noreply@saasclub.app>'
+          body: |
+            The deployment pipeline has failed.
+            
+            Commit: ${{ github.sha }}
+            Branch: ${{ github.ref }}
+            Author: ${{ github.actor }}
+            
+            Please check the GitHub Actions logs for more details.
+            
+            View logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

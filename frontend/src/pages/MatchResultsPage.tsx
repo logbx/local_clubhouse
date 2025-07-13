@@ -109,10 +109,19 @@ export const MatchResultsPage: React.FC = () => {
   const userMatches = allMatches.filter(match => 
     match.player1.id === user?.id || match.player2.id === user?.id
   );
-  const pendingMatches = userMatches.filter(match => match.status === 'pending');
-  const submittedMatches = userMatches.filter(match => match.status === 'submitted');
-  const disputedMatches = userMatches.filter(match => match.status === 'disputed');
-  const completedMatches = userMatches.filter(match => match.status === 'completed' || match.status === 'forfeit');
+  
+  // Find current round - the round with pending or submitted matches
+  const currentRound = tournament.rounds?.find(round => 
+    round.matches.some(match => 
+      (match.player1.id === user?.id || match.player2.id === user?.id) && 
+      (match.status === 'pending' || match.status === 'submitted')
+    )
+  );
+  
+  const currentRoundMatches = currentRound ? currentRound.matches.filter(match => 
+    (match.player1.id === user?.id || match.player2.id === user?.id) && 
+    (match.status === 'pending' || match.status === 'submitted')
+  ) : [];
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -128,46 +137,86 @@ export const MatchResultsPage: React.FC = () => {
                 {tournament.name} • Single Elimination Tournament
               </p>
             </div>
-            <button
-              onClick={() => navigate(`/tournament/single-elimination/${tournamentId}`)}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-            >
-              Back to Tournament
-            </button>
           </div>
         </div>
 
-        {/* Match Status Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
-            <div className="text-2xl font-bold text-yellow-600">{pendingMatches.length}</div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Your Pending Matches</div>
+        {/* Tournament Winner */}
+        {tournament.isFinished && tournament.winnerId && (
+          <div className="mb-8">
+            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+              <div className="flex items-center justify-center">
+                <div className="text-center">
+                  <div className="text-2xl mb-1">🏆</div>
+                  <div className="text-lg font-semibold text-yellow-800 dark:text-yellow-200">
+                    {tournament.players.find(p => p.id === tournament.winnerId)?.name || 'Champion'}
+                  </div>
+                  <div className="text-sm text-yellow-600 dark:text-yellow-400">
+                    Tournament Winner
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
-            <div className="text-2xl font-bold text-blue-600">{submittedMatches.length}</div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Awaiting Confirmation</div>
+        )}
+
+        {/* Current Round */}
+        {currentRoundMatches.length > 0 && (
+          <div className="mb-8">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-600">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Current Round
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {currentRound?.name || `Round ${currentRound?.round}`} - Matches requiring your input
+                </p>
+              </div>
+              <div className="p-6">
+                <div className="space-y-4">
+                  {currentRoundMatches.map((match, index) => (
+                    <div key={match.matchId} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            Match {index + 1}
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm text-gray-700 dark:text-gray-300">
+                              {match.player1.name || 'Guest'}
+                            </span>
+                            <span className="text-gray-500">vs</span>
+                            <span className="text-sm text-gray-700 dark:text-gray-300">
+                              {match.player2.name || 'Guest'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            match.status === 'pending' 
+                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100'
+                              : 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100'
+                          }`}>
+                            {match.status === 'pending' ? 'Awaiting Result' : 'Awaiting Confirmation'}
+                          </span>
+                          <button
+                            onClick={() => openMatchResultModal(match)}
+                            className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                          >
+                            {match.status === 'pending' ? 'Submit Result' : 'Confirm/Dispute'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
-            <div className="text-2xl font-bold text-red-600">{disputedMatches.length}</div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Disputed Results</div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
-            <div className="text-2xl font-bold text-green-600">{completedMatches.length}</div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Completed Matches</div>
-          </div>
-        </div>
+        )}
 
         {/* Tournament Matches */}
         <div className="mb-8">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-600">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Your Tournament Matches
-              </h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Submit your match results or confirm your opponent's submissions
-              </p>
-            </div>
             <div className="p-6">
               <TournamentBracket 
                 tournament={tournament} 

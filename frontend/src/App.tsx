@@ -41,9 +41,9 @@ import SponsorsExplorePage from './pages/SponsorsExplorePage';
 import SponsorDashboard from './pages/SponsorDashboard';
 import SocialHub from './pages/SocialHub';
 import NotificationToast from './components/NotificationToast';
-import { notificationService } from './services/notification.service';
+import NotificationPopupManager from './components/NotificationPopupManager';
 import SwissTournament from './pages/SwissTournament';
-import SwissTournamentAdmin from './pages/SwissTournamentAdmin';
+// import SwissTournamentAdmin from './pages/SwissTournamentAdmin';
 import SwissTournamentManagePage from './pages/SwissTournamentManagePage';
 import { SwissMatchResultsPage } from './pages/SwissMatchResultsPage';
 
@@ -84,6 +84,7 @@ const App: React.FC = () => {
         <ThemeProvider>
         <AuthProvider>
           <NotificationToast />
+          <NotificationPopupManager />
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<LandingPage />} />
@@ -128,7 +129,7 @@ const App: React.FC = () => {
                 <Route path="/sponsors/:sponsorUsername/dashboard" element={<SponsorDashboard />} />
               </Route>
               {/* Full-screen Social Hub */}
-              <Route path="/social" element={<AuthLayout fullScreen><SocialHub /></AuthLayout>} />
+              <Route path="/social-hub" element={<AuthLayout fullScreen><SocialHub /></AuthLayout>} />
             </Route>
 
             {/* Admin Routes */}

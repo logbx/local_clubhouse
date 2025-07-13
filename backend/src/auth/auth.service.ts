@@ -187,7 +187,7 @@ export class AuthService {
       });
 
       return this.generateTokens(user);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Registration error:', error);
       if (error.code === 11000) {
         // MongoDB duplicate key error

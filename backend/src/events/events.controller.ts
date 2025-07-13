@@ -186,7 +186,7 @@ export class EventsController {
       .findById(id)
       .populate('creator', 'username email profileImage')
       .populate('clubId', 'name username logoUrl') // Include club logo
-      .populate('sponsors', 'name username logoUrl') // Include sponsors
+      .populate('sponsors.sponsorId', 'name username logoUrl') // Include sponsors
       .lean()
       .exec();
 
@@ -274,7 +274,7 @@ export class EventsController {
       .findById(id)
       .populate('creator', 'username email profileImage')
       .populate('clubId', 'name username logoUrl') // Populate club info with logo if associated
-      .populate('sponsors', 'name username logoUrl') // Include sponsors
+      .populate('sponsors.sponsorId', 'name username logoUrl') // Include sponsors
       .lean()
       .exec();
 
@@ -636,8 +636,8 @@ export class EventsController {
     const updatedEvent = await this.eventModel
       .findByIdAndUpdate(id, updateEventDto, { new: true })
       .populate('creator', 'username email profileImage')
-        .populate('clubId', 'name username logoUrl') // Include club logo
-        .populate('sponsors.sponsorId', 'name username logoUrl') // Include sponsors
+      .populate('clubId', 'name username logoUrl') // Include club logo
+      .populate('sponsors.sponsorId', 'name username logoUrl') // Include sponsors
       .lean()
       .exec();
 

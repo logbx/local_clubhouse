@@ -1,0 +1,132 @@
+{
+  "expo": {
+    "name": "Local Clubhouse",
+    "slug": "local-clubhouse",
+    "scheme": "localclubhouse",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "sdkVersion": "53.0.0",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "ios": {
+      "bundleIdentifier": "com.localclubhouse.app",
+      "buildNumber": "1",
+      "supportsTablet": true,
+      "requireFullScreen": false,
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "CFBundleDisplayName": "Clubhouse",
+        "CFBundleName": "Local Clubhouse",
+        "NSCameraUsageDescription": "Local Clubhouse uses the camera to take profile photos, club logos, and event images.",
+        "NSPhotoLibraryUsageDescription": "Local Clubhouse accesses your photo library to select images for profiles, clubs, and events.",
+        "NSLocationWhenInUseUsageDescription": "Local Clubhouse uses your location to find local clubs and events near you.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Local Clubhouse uses your location to find local clubs and events near you.",
+        "NSMicrophoneUsageDescription": "Local Clubhouse may use the microphone for live tournament commentary and event discussions.",
+        "NSContactsUsageDescription": "Local Clubhouse may access your contacts to help you find friends in local clubs.",
+        "NSCalendarsUsageDescription": "Local Clubhouse can add club events and tournaments to your calendar.",
+        "NSRemindersUsageDescription": "Local Clubhouse can create reminders for upcoming club events and tournaments.",
+        "UIBackgroundModes": [
+          "background-fetch",
+          "remote-notification"
+        ]
+      },
+      "associatedDomains": [
+        "applinks:localclubhouse.app",
+        "applinks:www.localclubhouse.app"
+      ]
+    },
+    "android": {
+      "package": "com.localclubhouse.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a365d"
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "RECORD_AUDIO",
+        "READ_CONTACTS",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "WAKE_LOCK",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "localclubhouse.app"
+            },
+            {
+              "scheme": "https",
+              "host": "www.localclubhouse.app"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png",
+      "name": "Local Clubhouse",
+      "shortName": "Clubhouse",
+      "lang": "en",
+      "scope": "/",
+      "themeColor": "#1a365d",
+      "backgroundColor": "#ffffff",
+      "display": "standalone",
+      "orientation": "portrait",
+      "startUrl": "/",
+      "crossOriginEmbedderPolicy": false
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "tsconfigPaths": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "your-eas-project-id"
+      }
+    },
+    "owner": "your-expo-username",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/your-eas-project-id"
+    }
+  }
+}

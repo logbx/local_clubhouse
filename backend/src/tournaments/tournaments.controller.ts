@@ -87,7 +87,7 @@ export class TournamentsController {
           validationType: testDto.type
         },
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('🧪 Test validation failed:', error);
       return {
         success: false,
@@ -128,7 +128,7 @@ export class TournamentsController {
       const tournament = await this.tournamentsService.createTournament(createTournamentDto, req.user.sub);
       console.log('✅ Tournament created successfully:', { id: tournament.id, name: tournament.name });
       return { data: tournament };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Tournament creation failed in service:', error);
       throw error;
     }
@@ -166,7 +166,7 @@ export class TournamentsController {
           message: events.length > 0 ? 'Events found' : 'No events found for this user'
         }
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching available events:', error);
       throw new InternalServerErrorException('Failed to fetch available events');
     }
@@ -192,7 +192,7 @@ export class TournamentsController {
         searchingFor: '684b4297048914785f2ac51e',
         found: events.some(e => e._id.toString() === '684b4297048914785f2ac51e')
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching events for debug:', error);
       return {
         success: false,
@@ -219,7 +219,7 @@ export class TournamentsController {
           createdAt: tournament.createdAt
         }))
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         error: error.message
@@ -328,7 +328,7 @@ export class TournamentsController {
         message: 'Successfully registered for tournament',
         data: tournament,
       };
-    } catch (error) {
+    } catch (error: any) {
       throw error;
     }
   }
@@ -350,7 +350,7 @@ export class TournamentsController {
         message: 'Guest player added successfully',
         data: tournament,
       };
-    } catch (error) {
+    } catch (error: any) {
       throw error;
     }
   }
@@ -372,7 +372,7 @@ export class TournamentsController {
         message: 'Player removed successfully',
         data: tournament,
       };
-    } catch (error) {
+    } catch (error: any) {
       throw error;
     }
   }
@@ -388,7 +388,7 @@ export class TournamentsController {
       const result = await this.tournamentsService.startTournament(id, req.user.sub);
       console.log('✅ Tournament started successfully');
       return result;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error starting tournament:', error);
       throw error;
     }
@@ -448,7 +448,7 @@ export class TournamentsController {
         message: 'Match result confirmed successfully',
         data: tournament,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.log('💥 Error in confirmResult controller:', error);
       throw error;
     }
@@ -485,7 +485,9 @@ export class TournamentsController {
           tournamentId: overrideResultDto.tournamentId,
           matchId: overrideResultDto.matchId,
           hasWinnerId: 'winnerId' in overrideResultDto,
+          winnerId: overrideResultDto.winnerId,
           hasLoserId: 'loserId' in overrideResultDto,
+          loserId: overrideResultDto.loserId,
           result: overrideResultDto.result,
           status: overrideResultDto.status
         }
@@ -502,7 +504,7 @@ export class TournamentsController {
         message: 'Match result overridden successfully',
         data: tournament,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.log('💥 Error in overrideResult controller:', {
         error: error.message,
         stack: error.stack,
@@ -559,7 +561,7 @@ export class TournamentsController {
         message: 'Match result submitted successfully',
         data: tournament,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.log('💥 Error in submitResult controller:', {
         error: error.message,
         stack: error.stack,
@@ -607,7 +609,7 @@ export class TournamentsController {
         message: 'Match result disputed successfully',
         data: tournament,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.log('💥 Error in disputeResult controller:', error);
       throw error;
     }
@@ -630,7 +632,7 @@ export class TournamentsController {
         message: 'Match dispute resolved successfully',
         data: tournament,
       };
-    } catch (error) {
+    } catch (error: any) {
       throw error;
     }
   }
@@ -652,7 +654,7 @@ export class TournamentsController {
         message: 'Match forfeited successfully',
         data: tournament,
       };
-    } catch (error) {
+    } catch (error: any) {
       throw error;
     }
   }
@@ -672,7 +674,7 @@ export class TournamentsController {
         success: true,
         message: 'Tournament deleted successfully',
       };
-    } catch (error) {
+    } catch (error: any) {
       throw error;
     }
   }
@@ -693,7 +695,7 @@ export class TournamentsController {
         message: 'Registration opened successfully',
         data: tournament,
       };
-    } catch (error) {
+    } catch (error: any) {
       throw error;
     }
   }
@@ -714,7 +716,7 @@ export class TournamentsController {
         message: 'Registration closed successfully',
         data: tournament,
       };
-    } catch (error) {
+    } catch (error: any) {
       throw error;
     }
   }
@@ -737,7 +739,7 @@ export class TournamentsController {
         message: 'Tournament pairings repaired successfully',
         data: result
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error repairing tournament pairings:', error);
       return {
         success: false,
@@ -761,7 +763,7 @@ export class TournamentsController {
         message: 'Next round generated successfully',
         data: result
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error generating next round:', error);
       return {
         success: false,
@@ -784,7 +786,7 @@ export class TournamentsController {
         message: 'Swiss Round 2 fixed successfully',
         data: result
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error fixing Swiss Round 2:', error);
       return {
         success: false,
@@ -807,7 +809,7 @@ export class TournamentsController {
         message: 'Manual Swiss Round 2 created successfully',
         data: result
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error creating manual Swiss Round 2:', error);
       return {
         success: false,
@@ -830,7 +832,7 @@ export class TournamentsController {
         message: 'Manual Swiss Round 3 created successfully',
         data: result
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error creating manual Swiss Round 3:', error);
       return {
         success: false,
@@ -851,7 +853,7 @@ export class TournamentsController {
       const result = await this.tournamentsService.startNextRound(id, req.user.sub);
       console.log('✅ Next round started successfully');
       return result;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error starting next round:', error);
       throw error;
     }
@@ -870,7 +872,7 @@ export class TournamentsController {
         message: 'Tournament advancement repaired successfully',
         data: result
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error repairing tournament advancement:', error);
       return {
         success: false,
@@ -893,7 +895,7 @@ export class TournamentsController {
         message: 'Swiss tournament player inclusion repaired successfully',
         data: result
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error repairing Swiss tournament player inclusion:', error);
       return {
         success: false,
@@ -916,7 +918,7 @@ export class TournamentsController {
         message: `Repaired ${result.repairedCount} matches`,
         repairedCount: result.repairedCount 
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error repairing match data:', error);
       throw error;
     }
@@ -935,7 +937,7 @@ export class TournamentsController {
         message: 'Round completion check and advancement completed successfully',
         data: result
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error forcing round completion check:', error);
       return {
         success: false,
@@ -958,7 +960,7 @@ export class TournamentsController {
         message: 'Swiss tournament bye distribution fixed successfully',
         data: result
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error fixing bye distribution:', error);
       return {
         success: false,

@@ -73,7 +73,7 @@ export class EventMessagesController {
       });
       
       return transformedMessages;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching event messages:', error);
       throw new Error(`Failed to fetch messages: ${error.message}`);
     }
@@ -118,7 +118,7 @@ export class EventMessagesController {
       this.webSocketGateway.broadcastNewEventMessage(eventId, messageResponse, userId);
       
       return messageResponse;
-    } catch (error) {
+    } catch (error: any) {
       throw new Error('Failed to create message');
     }
   }
@@ -143,7 +143,7 @@ export class EventMessagesController {
       
       await this.eventMessageModel.findByIdAndDelete(messageId);
       return { message: 'Message deleted successfully' };
-    } catch (error) {
+    } catch (error: any) {
       throw new Error('Failed to delete message');
     }
   }

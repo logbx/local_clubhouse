@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { tournamentService, Tournament, TournamentMatch, TournamentType } from '../services/tournament.service';
 import { webSocketService } from '../services/websocket.service';
-import { TrophyIcon, UserPlusIcon, PlayIcon, TrashIcon, EyeIcon, CogIcon, FireIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { TrophyIcon, UserPlusIcon, PlayIcon, TrashIcon, EyeIcon, CogIcon, FireIcon, ExclamationTriangleIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 import TournamentSetup from '../components/TournamentSetup';
 import TournamentBracket from '../components/TournamentBracket';
 import SwissTournamentPairings from '../components/SwissTournamentPairings';
@@ -33,6 +33,7 @@ const TournamentManagePage: React.FC = () => {
   const [deleting, setDeleting] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<TournamentMatch | null>(null);
   const [showResultModal, setShowResultModal] = useState(false);
+  const [isBracketExpanded, setIsBracketExpanded] = useState(true);
 
   // If no tournamentId but eventId is provided, show creation interface
   const isCreating = !tournamentId && eventId;
@@ -82,11 +83,10 @@ const TournamentManagePage: React.FC = () => {
       console.log('🔔 Tournament Management WebSocket update received:', data);
       
       if (data.type === 'registration-opened' || data.type === 'registration-closed' || 
-          data.type === 'player-registered' || data.type === 'guest-player-added' ||
-          data.type === 'player-removed' || data.type === 'tournament-started' ||
-          data.type === 'match-result-submitted' || data.type === 'round-started' ||
-          data.type === 'tournament-completed') {
-        // Call loadTournament and handle any errors
+          data.type === 'player-registered' || data.type === 'player-removed' || 
+          data.type === 'tournament-started' || data.type === 'match-result-submitted' || 
+          data.type === 'round-started' || data.type === 'tournament-completed') {
+        // Call loadTournament for these events that need full refresh
         void loadTournament().catch(error => {
           console.error('Failed to refresh tournament:', error);
         });
@@ -99,6 +99,23 @@ const TournamentManagePage: React.FC = () => {
         if (data.type === 'tournament-completed' && data.message) {
           toast.success(`🏆 ${data.message}! The tournament has ended.`);
         }
+      } else if (data.type === 'guest-player-added' && data.player && tournament) {
+        // Handle guest player addition in background without full page refresh
+        console.log('👤 Guest player added via WebSocket:', data.player);
+        setTournament(prevTournament => {
+          if (!prevTournament) return prevTournament;
+          
+          // Check if player already exists to avoid duplicates
+          const playerExists = prevTournament.players.some(p => p.id === data.player.id);
+          if (playerExists) {
+            return prevTournament;
+          }
+          
+          return {
+            ...prevTournament,
+            players: [...prevTournament.players, data.player]
+          };
+        });
       }
     };
 
@@ -227,7 +244,15 @@ const TournamentManagePage: React.FC = () => {
     if (!tournament || !selectedMatch) return;
 
     try {
-      await tournamentService.submitMatchResult(tournament.id, selectedMatch.matchId, winnerId, loserId, isDraw, notes);
+      // Use tournament._id or tournament.id
+      const tournamentId = tournament._id || tournament.id;
+      if (!tournamentId) {
+        console.error('No tournament ID found:', tournament);
+        toast.error('Tournament ID not found');
+        return;
+      }
+      
+      await tournamentService.submitMatchResult(tournamentId, selectedMatch.matchId, winnerId, loserId, isDraw, notes);
       toast.success('Match result submitted successfully!');
       await loadTournament();
       setShowResultModal(false);
@@ -268,7 +293,15 @@ const TournamentManagePage: React.FC = () => {
         }
       }
 
-      await tournamentService.submitMatchResult(tournament.id, match.matchId, winnerId, loserId, isDraw);
+      // Use tournament._id or tournament.id
+      const tournamentId = tournament._id || tournament.id;
+      if (!tournamentId) {
+        console.error('No tournament ID found:', tournament);
+        toast.error('Tournament ID not found');
+        return;
+      }
+      
+      await tournamentService.submitMatchResult(tournamentId, match.matchId, winnerId, loserId, isDraw);
       toast.success(
         isOrganizer && match.status !== 'pending'
           ? 'Match result overridden successfully!'
@@ -565,51 +598,29 @@ const TournamentManagePage: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-8">
-                {/* Tournament Status Overview */}
-                <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6 relative z-1">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tournament Status</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                        {tournament.isFinished ? 'Completed' : 'In Progress'}
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">Status</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                        {tournament.players.length}
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">Total Players</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                        {tournament.rounds.reduce((total, round) => total + round.matches.length, 0)}
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">Total Matches</div>
-                    </div>
-                  </div>
-                </div>
 
-                {/* Quick Actions */}
-                <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6 relative z-1">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      onClick={() => navigate(`/tournament/${tournament?.type === TournamentType.SWISS ? 'swiss' : 'single-elimination'}/${tournamentId}/results`)}
-                      className="btn btn-primary"
-                    >
-                      <EyeIcon className="h-4 w-4 mr-2" />
-                      View Results Page
-                    </button>
-                    <button
-                      onClick={() => navigate(`/tournament/${tournament?.type === TournamentType.SWISS ? 'swiss' : 'single-elimination'}/${tournamentId}`)}
-                      className="btn btn-secondary"
-                    >
-                      <TrophyIcon className="h-4 w-4 mr-2" />
-                      Public Tournament View
-                    </button>
+                {/* Quick Actions - Hidden for Single Elimination Tournaments */}
+                {tournament?.type !== TournamentType.SINGLE_ELIMINATION && (
+                  <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6 relative z-1">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        onClick={() => navigate(`/tournament/${tournament?.type === TournamentType.SWISS ? 'swiss' : 'single-elimination'}/${tournamentId}/results`)}
+                        className="btn btn-primary"
+                      >
+                        <EyeIcon className="h-4 w-4 mr-2" />
+                        View Results Page
+                      </button>
+                      <button
+                        onClick={() => navigate(`/tournament/${tournament?.type === TournamentType.SWISS ? 'swiss' : 'single-elimination'}/${tournamentId}`)}
+                        className="btn btn-secondary"
+                      >
+                        <TrophyIcon className="h-4 w-4 mr-2" />
+                        Public Tournament View
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Tournament Display with Management Features */}
                 <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6 relative z-1">
@@ -682,12 +693,86 @@ const TournamentManagePage: React.FC = () => {
                       )}
                     </div>
                   ) : (
-                    /* Single Elimination Bracket */
-                    <TournamentBracket 
-                      tournament={tournament} 
-                      onTournamentUpdate={setTournament}
-                      isManageMode={true}
-                    />
+                    /* Single Elimination Tournament */
+                    <div className="space-y-6">
+                      {/* Current Round Section for Single Elimination */}
+                      {tournament.rounds && tournament.rounds.length > 0 && (
+                        <>
+                          {/* Find the current active round (first incomplete round) */}
+                          {(() => {
+                            const activeRound = tournament.rounds.find(r => !r.isComplete);
+                            if (!activeRound) {
+                              return null; // All rounds complete or no active round
+                            }
+                            
+                            return (
+                              <div>
+                                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6 mb-6">
+                                  <div className="flex items-center justify-between mb-4">
+                                    <h4 className="text-lg font-semibold text-blue-900 dark:text-blue-100">
+                                      Current Round: {(() => {
+                                        const totalRounds = tournament.rounds.length;
+                                        const roundsFromEnd = totalRounds - activeRound.roundNumber + 1;
+                                        
+                                        switch (roundsFromEnd) {
+                                          case 1: return 'Final';
+                                          case 2: return 'Semi-Final';
+                                          case 3: return 'Quarter-Final';
+                                          default: return `Round ${activeRound.roundNumber}`;
+                                        }
+                                      })()}
+                                    </h4>
+                                    <span className="text-sm text-blue-700 dark:text-blue-300">
+                                      {activeRound.matches.filter(m => m.status === 'completed').length} of {activeRound.matches.length} matches completed
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Use TournamentBracket component for proper match handling */}
+                                  <div className="current-round-bracket" style={{ marginTop: '1rem' }}>
+                                    <TournamentBracket 
+                                      tournament={{
+                                        ...tournament,
+                                        rounds: [activeRound] // Only show the active round
+                                      }} 
+                                      onTournamentUpdate={setTournament}
+                                      isManageMode={true}
+                                      hideRoundHeaders={true}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </>
+                      )}
+                      
+                      {/* Full Tournament Bracket - Expandable */}
+                      <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                        <button
+                          onClick={() => setIsBracketExpanded(!isBracketExpanded)}
+                          className="w-full px-6 py-4 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between"
+                        >
+                          <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            Tournament Bracket
+                          </h4>
+                          {isBracketExpanded ? (
+                            <ChevronUpIcon className="h-5 w-5 text-gray-500" />
+                          ) : (
+                            <ChevronDownIcon className="h-5 w-5 text-gray-500" />
+                          )}
+                        </button>
+                        
+                        {isBracketExpanded && (
+                          <div className="p-6 bg-white dark:bg-gray-900">
+                            <TournamentBracket 
+                              tournament={tournament} 
+                              onTournamentUpdate={setTournament}
+                              isManageMode={true}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -719,28 +804,48 @@ const TournamentManagePage: React.FC = () => {
           onSubmitResult={handleMatchResult}
           onConfirmResult={async () => {
             if (!tournament || !selectedMatch) return;
-            await tournamentService.confirmMatchResult(tournament.id, selectedMatch.matchId);
+            const tournamentId = tournament._id || tournament.id;
+            if (!tournamentId) {
+              toast.error('Tournament ID not found');
+              return;
+            }
+            await tournamentService.confirmMatchResult(tournamentId, selectedMatch.matchId);
             toast.success('Match result confirmed!');
             await loadTournament();
             setShowResultModal(false);
           }}
           onDisputeResult={async (reason) => {
             if (!tournament || !selectedMatch) return;
-            await tournamentService.disputeMatchResult(tournament.id, selectedMatch.matchId, reason);
+            const tournamentId = tournament._id || tournament.id;
+            if (!tournamentId) {
+              toast.error('Tournament ID not found');
+              return;
+            }
+            await tournamentService.disputeMatchResult(tournamentId, selectedMatch.matchId, reason);
             toast.success('Match result disputed');
             await loadTournament();
             setShowResultModal(false);
           }}
           onResolveDispute={async (winnerId, loserId, isDraw, notes) => {
             if (!tournament || !selectedMatch) return;
-            await tournamentService.resolveMatchDispute(tournament.id, selectedMatch.matchId, winnerId, loserId, isDraw, notes);
+            const tournamentId = tournament._id || tournament.id;
+            if (!tournamentId) {
+              toast.error('Tournament ID not found');
+              return;
+            }
+            await tournamentService.resolveMatchDispute(tournamentId, selectedMatch.matchId, winnerId, loserId, isDraw, notes);
             toast.success('Dispute resolved');
             await loadTournament();
             setShowResultModal(false);
           }}
           onForfeit={async (forfeitingPlayerId) => {
             if (!tournament || !selectedMatch) return;
-            await tournamentService.forfeitMatch(tournament.id, selectedMatch.matchId, forfeitingPlayerId);
+            const tournamentId = tournament._id || tournament.id;
+            if (!tournamentId) {
+              toast.error('Tournament ID not found');
+              return;
+            }
+            await tournamentService.forfeitMatch(tournamentId, selectedMatch.matchId, forfeitingPlayerId);
             toast.success('Match forfeited');
             await loadTournament();
             setShowResultModal(false);

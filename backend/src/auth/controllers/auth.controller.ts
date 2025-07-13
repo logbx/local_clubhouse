@@ -46,7 +46,7 @@ export class AuthController {
         message: 'Registration successful',
         ...result
       };
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof BadRequestException || error instanceof UnauthorizedException) {
         throw error;
       }
@@ -59,7 +59,7 @@ export class AuthController {
   async login(@Body(ValidationPipe) loginDto: LoginDto) {
     try {
       return await this.authService.login(loginDto.identifier, loginDto.password);
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
         throw error;
       }

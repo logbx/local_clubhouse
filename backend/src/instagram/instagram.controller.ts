@@ -27,7 +27,7 @@ export class InstagramController {
         url: postUrl,
         data: result
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         url: postUrl,
@@ -46,7 +46,7 @@ export class InstagramController {
         discoveredPosts: posts.length,
         posts
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         handle,
