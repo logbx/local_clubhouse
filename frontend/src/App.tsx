@@ -29,7 +29,6 @@ import MessagesPage from './pages/MessagesPage';
 import MessageThreadPage from './pages/MessageThreadPage';
 import TournamentPage from './pages/TournamentPage';
 import TournamentManagePage from './pages/TournamentManagePage';
-import SingleEliminationTournament from './pages/SingleEliminationTournament';
 import { MatchResultsPage } from './pages/MatchResultsPage';
 import ClubProfilePage from './pages/ClubProfilePage';
 import CreateClubPage from './pages/CreateClubPage';
@@ -42,11 +41,12 @@ import SponsorDashboard from './pages/SponsorDashboard';
 import SocialHub from './pages/SocialHub';
 import NotificationToast from './components/NotificationToast';
 import NotificationPopupManager from './components/NotificationPopupManager';
-import SwissTournament from './pages/SwissTournament';
 // import SwissTournamentAdmin from './pages/SwissTournamentAdmin';
 import SwissTournamentManagePage from './pages/SwissTournamentManagePage';
 import { SwissMatchResultsPage } from './pages/SwissMatchResultsPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import SingleEliminationTournamentPage from './pages/tournaments/SingleEliminationTournamentPage';
+import SwissTournamentPage from './pages/tournaments/SwissTournamentPage';
 
 // Redirect component for old URL patterns
 const TournamentRedirect: React.FC = () => {
@@ -125,8 +125,8 @@ const App: React.FC = () => {
             <Route path="/user/:userId" element={<PublicLayout><PublicProfilePage /></PublicLayout>} />
             <Route path="/event/:eventId" element={<PublicLayout><PublicEventPage /></PublicLayout>} />
             <Route path="/tournament/:tournamentId" element={<PublicLayout><TournamentPage /></PublicLayout>} />
-            <Route path="/tournament/single-elimination/:tournamentId" element={<PublicLayout><SingleEliminationTournament /></PublicLayout>} />
-            <Route path="/tournament/swiss/:tournamentId" element={<PublicLayout><SwissTournament /></PublicLayout>} />
+            <Route path="/tournament/single-elimination/:tournamentId" element={<PublicLayout><SingleEliminationTournamentPage /></PublicLayout>} />
+            <Route path="/tournament/swiss/:tournamentId" element={<PublicLayout><SwissTournamentPage /></PublicLayout>} />
             {/* Redirect routes for old URL patterns with underscores */}
             <Route path="/tournament/single_elimination/:tournamentId" element={<TournamentRedirect />} />
             <Route path="/clubs/:clubUsername" element={<PublicLayout><ClubProfilePage /></PublicLayout>} />
@@ -144,12 +144,12 @@ const App: React.FC = () => {
                 <Route path="/messages" element={<MessagesPage />} />
                 <Route path="/messages/:userId" element={<MessageThreadPage />} />
                 <Route path="/tournament/manage" element={<TournamentManagePage />} />
-                <Route path="/tournament/single-elimination" element={<SingleEliminationTournament />} />
-                <Route path="/tournament/single-elimination/:tournamentId" element={<SingleEliminationTournament />} />
+                <Route path="/tournament/single-elimination" element={<SingleEliminationTournamentPage />} />
+                <Route path="/tournament/single-elimination/:tournamentId" element={<SingleEliminationTournamentPage />} />
                 <Route path="/tournament/single-elimination/:tournamentId/manage" element={<TournamentManagePage />} />
                 <Route path="/tournament/single-elimination/:tournamentId/results" element={<MatchResultsPage />} />
-                <Route path="/tournament/swiss" element={<SwissTournament />} />
-                <Route path="/tournament/swiss/:tournamentId" element={<SwissTournament />} />
+                <Route path="/tournament/swiss" element={<SwissTournamentPage />} />
+                <Route path="/tournament/swiss/:tournamentId" element={<SwissTournamentPage />} />
                 <Route path="/tournament/swiss/:tournamentId/manage" element={<SwissTournamentManagePage />} />
                 <Route path="/tournament/swiss/:tournamentId/results" element={<SwissMatchResultsPage />} />
                 <Route path="/clubs" element={<ClubsExplorePage />} />

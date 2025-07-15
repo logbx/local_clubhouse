@@ -139,12 +139,9 @@ export const log = {
   showConfig: () => logger.showConfig()
 };
 
-// Tournament creation test utilities for development
-import { 
-  testTournamentCreationFlow, 
-  verifyTournamentCreationFlow, 
-  simulateCreateTournamentButtonClick 
-} from './testTournamentCreation';
+// Tournament creation test utilities for development  
+import { validateTournamentCreationFlow, simulateCompleteFlow } from './testTournamentFlow';
+import './debugTournament';
 
 // Add global functions for browser console control
 if (typeof window !== 'undefined') {
@@ -171,9 +168,8 @@ if (typeof window !== 'undefined') {
   logHelp()    - Show this help message
 
 🎯 Tournament Creation Testing:
-  testTournamentCreation()     - Test tournament creation API
-  verifyTournamentFlow()       - Show tournament creation flow steps
-  simulateCreateTournament()   - Simulate "Create Tournament" button click
+  validateTournamentCreationFlow() - Validate complete tournament creation flow
+  simulateCompleteFlow()       - Simulate complete flow from Dashboard to Form
 
 📂 Categories: ${Object.values(LogCategory).join(', ')}
 📊 Levels: ERROR, WARN, INFO, DEBUG
@@ -185,9 +181,8 @@ if (typeof window !== 'undefined') {
 
   // Expose test utilities in development
   if (import.meta.env.DEV) {
-    (window as any).testTournamentCreation = testTournamentCreationFlow;
-    (window as any).verifyTournamentFlow = verifyTournamentCreationFlow;
-    (window as any).simulateCreateTournament = simulateCreateTournamentButtonClick;
+    (window as any).validateTournamentCreationFlow = validateTournamentCreationFlow;
+    (window as any).simulateCompleteFlow = simulateCompleteFlow;
     
     console.log('%c🔧 Development Mode: Tournament testing utilities available!', 'color: #10b981; font-weight: bold;');
     console.log('%cType logHelp() for available commands', 'color: #6b7280;');
