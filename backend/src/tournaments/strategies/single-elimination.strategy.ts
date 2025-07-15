@@ -222,9 +222,14 @@ export class SingleEliminationStrategy extends TournamentStrategy {
 
       if (advancementResult.shouldAdvanceToNextRound) {
         console.log('✅ Advancing to next round');
+        // Return the updated round with new player assignments
         return {
           shouldAdvance: true,
-          nextRound: nextRound
+          nextRound: {
+            ...nextRound,
+            matches: advancementResult.nextRoundMatches || nextRound.matches,
+            byePlayers: advancementResult.byePlayers
+          }
         };
       }
     }
@@ -359,11 +364,28 @@ export class SingleEliminationStrategy extends TournamentStrategy {
       return { shouldAdvanceToNextRound: false };
     }
 
+    console.log('🔍 DEBUGGING: Completed round matches:', completedRound.matches.map(m => ({
+      matchId: m.matchId,
+      player1: { id: m.player1.id, name: m.player1.name },
+      player2: { id: m.player2.id, name: m.player2.name },
+      winnerId: m.winnerId,
+      loserId: m.loserId,
+      status: m.status
+    })));
+
     // Get winners from completed round
     const winners: ITournamentPlayer[] = completedRound.matches
       .map(match => {
         if (match.winnerId) {
-          return match.player1.id === match.winnerId ? match.player1 : match.player2;
+          const winner = match.player1.id === match.winnerId ? match.player1 : match.player2;
+          console.log('🔍 DEBUGGING: Match winner:', {
+            matchId: match.matchId,
+            winnerId: match.winnerId,
+            player1: { id: match.player1.id, name: match.player1.name },
+            player2: { id: match.player2.id, name: match.player2.name },
+            selectedWinner: { id: winner.id, name: winner.name }
+          });
+          return winner;
         }
         return null;
       })
@@ -375,12 +397,42 @@ export class SingleEliminationStrategy extends TournamentStrategy {
     // Combine winners and bye players
     const allAdvancingPlayers = [...winners, ...byePlayersFromCompletedRound];
 
+    // CRITICAL: Check for duplicate players
+    const playerIds = allAdvancingPlayers.map(p => p.id);
+    const uniquePlayerIds = [...new Set(playerIds)];
+    
+    if (playerIds.length !== uniquePlayerIds.length) {
+      console.error('🚨 CRITICAL ERROR: Duplicate players found advancing to next round!', {
+        allPlayerIds: playerIds,
+        duplicates: playerIds.filter((id, index) => playerIds.indexOf(id) !== index),
+        playersAdvancing: allAdvancingPlayers.map(p => ({ id: p.id, name: p.name }))
+      });
+      
+      // Remove duplicates, keeping the first occurrence
+      const uniquePlayers = allAdvancingPlayers.filter((player, index) => 
+        playerIds.indexOf(player.id) === index
+      );
+      console.log('🔧 Corrected advancing players:', uniquePlayers.map(p => ({ id: p.id, name: p.name })));
+      
+      // Use the deduplicated list
+      allAdvancingPlayers.length = 0;
+      allAdvancingPlayers.push(...uniquePlayers);
+    }
+
     const nextRoundNumber = completedRoundNumber + 1;
     const nextRound = tournament.rounds.find(r => r.roundNumber === nextRoundNumber);
     
     if (!nextRound) {
       return { shouldAdvanceToNextRound: false };
     }
+
+    console.log('🔄 Advancing players to next round:', {
+      completedRoundNumber,
+      nextRoundNumber,
+      winners: winners.map(w => w.name),
+      byes: byePlayersFromCompletedRound.map(b => b.name),
+      totalAdvancing: allAdvancingPlayers.length
+    });
 
     // Shuffle advancing players for randomized matchups
     const shuffledAdvancingPlayers = this.shufflePlayers(allAdvancingPlayers);
@@ -394,6 +446,7 @@ export class SingleEliminationStrategy extends TournamentStrategy {
       const byeIndex = Math.floor(Math.random() * shuffledAdvancingPlayers.length);
       byePlayer = shuffledAdvancingPlayers[byeIndex];
       playersForMatches = shuffledAdvancingPlayers.filter(player => player.id !== byePlayer!.id);
+      console.log('👋 Bye player selected for next round:', byePlayer.name);
     }
 
     // Create matches for paired players
@@ -401,19 +454,26 @@ export class SingleEliminationStrategy extends TournamentStrategy {
       const player1 = playersForMatches[i];
       const player2 = playersForMatches[i + 1];
       
-      nextRoundMatches.push({
-        matchId: uuidv4(),
-        player1,
-        player2,
-        resultReportedBy: [],
-        status: 'pending',
-      });
+      if (player1 && player2) {
+        const match = {
+          matchId: uuidv4(),
+          player1,
+          player2,
+          resultReportedBy: [],
+          status: 'pending' as const,
+        };
+        nextRoundMatches.push(match);
+        console.log('🥊 Created next round match:', `${player1.name} vs ${player2.name}`);
+      }
     }
 
-    // Update next round with actual players
-    nextRound.matches = nextRoundMatches;
-    nextRound.byePlayers = byePlayer ? [byePlayer] : undefined;
+    console.log('✅ Next round populated:', {
+      roundNumber: nextRoundNumber,
+      matches: nextRoundMatches.length,
+      byePlayer: byePlayer?.name
+    });
 
+    // Don't modify the tournament directly - return the data for the base service to handle
     return { 
       shouldAdvanceToNextRound: true, 
       nextRoundMatches,

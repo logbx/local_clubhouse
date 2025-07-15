@@ -984,4 +984,50 @@ export class TournamentsController {
       };
     }
   }
+
+  @Public()
+  @Post(':id/repair-single-elimination')
+  @HttpCode(HttpStatus.OK)
+  async repairSingleElimination(@Param('id') tournamentId: string) {
+    try {
+      console.log('🔧 Repairing Single Elimination tournament:', tournamentId);
+      const result = await this.tournamentsService.repairSingleEliminationTBD(tournamentId);
+      console.log('✅ Single Elimination tournament repaired successfully');
+      return {
+        success: true,
+        message: 'Single Elimination tournament repaired successfully',
+        data: result
+      };
+    } catch (error: any) {
+      console.error('❌ Error repairing Single Elimination tournament:', error);
+      return {
+        success: false,
+        message: 'Failed to repair Single Elimination tournament',
+        error: error.message
+      };
+    }
+  }
+
+  @Public()
+  @Post(':id/validate-data-integrity')
+  @HttpCode(HttpStatus.OK)
+  async validateDataIntegrity(@Param('id') tournamentId: string) {
+    try {
+      console.log('🔍 Validating tournament data integrity:', tournamentId);
+      const result = await this.tournamentsService.validateTournamentDataIntegrity(tournamentId);
+      console.log('✅ Data integrity validation completed');
+      return {
+        success: true,
+        message: 'Data integrity validation completed',
+        data: result
+      };
+    } catch (error: any) {
+      console.error('❌ Error validating data integrity:', error);
+      return {
+        success: false,
+        message: 'Failed to validate data integrity',
+        error: error.message
+      };
+    }
+  }
 } 

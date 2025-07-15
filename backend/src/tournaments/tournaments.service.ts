@@ -1754,6 +1754,160 @@ export class TournamentsService {
     }
   }
 
+  async validateTournamentDataIntegrity(tournamentId: string): Promise<{ isValid: boolean; issues: string[]; tournament: ITournament }> {
+    const tournament = await this.tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      throw new NotFoundException('Tournament not found');
+    }
+
+    const issues: string[] = [];
+    
+    console.log('🔍 Validating tournament data integrity for:', tournamentId);
+
+    // Check for duplicate player IDs in matches
+    for (const round of tournament.rounds) {
+      console.log(`🔍 Checking round ${round.roundNumber}:`);
+      
+      for (const match of round.matches) {
+        // Check if both players have the same ID
+        if (match.player1.id === match.player2.id) {
+          const issue = `Round ${round.roundNumber}: Match ${match.matchId} has duplicate player IDs: ${match.player1.id}`;
+          issues.push(issue);
+          console.error('🚨', issue);
+        }
+        
+        // Check if winner ID is valid
+        if (match.winnerId && match.winnerId !== match.player1.id && match.winnerId !== match.player2.id) {
+          const issue = `Round ${round.roundNumber}: Match ${match.matchId} has invalid winner ID: ${match.winnerId}`;
+          issues.push(issue);
+          console.error('🚨', issue);
+        }
+        
+        console.log(`  Match ${match.matchId}:`, {
+          player1: { id: match.player1.id, name: match.player1.name },
+          player2: { id: match.player2.id, name: match.player2.name },
+          winnerId: match.winnerId,
+          status: match.status
+        });
+      }
+    }
+
+    // Check for players appearing multiple times in the same round
+    for (const round of tournament.rounds) {
+      const playerIds = round.matches.flatMap(m => [m.player1.id, m.player2.id]);
+      const uniquePlayerIds = [...new Set(playerIds)];
+      
+      if (playerIds.length !== uniquePlayerIds.length) {
+        const duplicates = playerIds.filter((id, index) => playerIds.indexOf(id) !== index);
+        const issue = `Round ${round.roundNumber}: Duplicate players found: ${duplicates.join(', ')}`;
+        issues.push(issue);
+        console.error('🚨', issue);
+      }
+    }
+
+    return {
+      isValid: issues.length === 0,
+      issues,
+      tournament
+    };
+  }
+
+  async repairSingleEliminationTBD(tournamentId: string): Promise<ITournament> {
+    const tournament = await this.tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      throw new NotFoundException('Tournament not found');
+    }
+
+    if (tournament.type !== TournamentType.SINGLE_ELIMINATION) {
+      throw new BadRequestException('This repair is only for Single Elimination tournaments');
+    }
+
+    console.log('🔧 Repairing Single Elimination tournament with TBD players:', {
+      tournamentId,
+      currentRounds: tournament.rounds.length,
+      isStarted: tournament.isStarted,
+      isFinished: tournament.isFinished
+    });
+
+    // Get the strategy
+    const strategy = this.getStrategy(tournament.type);
+    
+    // Find rounds with TBD players that should have real players
+    for (let i = 0; i < tournament.rounds.length; i++) {
+      const round = tournament.rounds[i];
+      
+      // Skip if this is the first round or if round has no TBD players
+      if (round.roundNumber === 1) continue;
+      
+      const hasTBDPlayers = round.matches.some(match => 
+        match.player1.id === 'TBD' || match.player2.id === 'TBD'
+      );
+      
+      if (!hasTBDPlayers) continue;
+      
+      // Check if previous round is complete
+      const prevRoundNumber = round.roundNumber - 1;
+      const prevRound = tournament.rounds.find(r => r.roundNumber === prevRoundNumber);
+      
+      if (!prevRound) continue;
+      
+      // Mark previous round as complete if all matches are done
+      const finalStatuses = ['completed', 'forfeit'];
+      const allMatchesComplete = prevRound.matches.every(m => finalStatuses.includes(m.status));
+      
+      if (allMatchesComplete && !prevRound.isComplete) {
+        console.log(`🔧 Marking round ${prevRound.roundNumber} as complete`);
+        prevRound.isComplete = true;
+      }
+      
+      // If previous round is complete, populate this round
+      if (prevRound.isComplete) {
+        console.log(`🔄 Populating round ${round.roundNumber} with winners from round ${prevRound.roundNumber}`);
+        
+        // Use the strategy to check advancement
+        const advancementResult = strategy.checkAdvancement(tournament, prevRound.roundNumber);
+        
+        if (advancementResult.shouldAdvance && advancementResult.nextRound) {
+          console.log('✅ Updating round with real players');
+          
+          // Update the round with new match data
+          round.matches = advancementResult.nextRound.matches || round.matches;
+          round.byePlayers = advancementResult.nextRound.byePlayers;
+          
+          console.log(`✅ Round ${round.roundNumber} updated:`, {
+            matches: round.matches.map(m => `${m.player1.name} vs ${m.player2.name}`),
+            byePlayers: round.byePlayers?.map(p => p.name) || []
+          });
+        }
+      }
+    }
+    
+    // Check if tournament should be marked as complete
+    const lastRound = tournament.rounds[tournament.rounds.length - 1];
+    if (lastRound.isComplete) {
+      const finalMatch = lastRound.matches[0];
+      if (finalMatch && finalMatch.status === 'completed' && finalMatch.winnerId) {
+        tournament.isFinished = true;
+        tournament.winnerId = finalMatch.winnerId;
+        console.log('🏁 Tournament marked as complete with winner:', finalMatch.winnerId);
+      }
+    }
+    
+    // Save the repaired tournament
+    const savedTournament = await tournament.save();
+    
+    // Broadcast the repair
+    this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), {
+      type: 'tournament-repaired',
+      tournamentId: tournamentId,
+      rounds: savedTournament.rounds,
+      message: 'Single Elimination tournament TBD players repaired'
+    });
+    
+    console.log('✅ Single Elimination tournament repair completed');
+    return savedTournament;
+  }
+
   async fixSwissByeDistribution(tournamentId: string): Promise<ITournament> {
     const tournament = await this.tournamentModel.findById(tournamentId);
     if (!tournament) {
