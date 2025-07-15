@@ -27,6 +27,7 @@ const SwissTournament: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [newPlayerName, setNewPlayerName] = useState('');
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
 
   // Check if current user is the event creator
   const isEventCreator = user && eventCreatorId && user.id === eventCreatorId;
@@ -315,6 +316,7 @@ const SwissTournament: React.FC = () => {
       return;
     }
 
+    setIsRegistering(true);
     try {
       console.log('🔄 Calling registerForTournament API...');
       await tournamentService.registerForTournament(tournament.id || tournament._id);
@@ -330,6 +332,8 @@ const SwissTournament: React.FC = () => {
     } catch (err) {
       setError('Failed to register for tournament');
       console.error(err);
+    } finally {
+      setIsRegistering(false);
     }
   };
 
@@ -614,9 +618,21 @@ const SwissTournament: React.FC = () => {
                       setShowRegistrationModal(false);
                       handleRegisterForTournament();
                     }}
-                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    disabled={isRegistering}
+                    className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors ${
+                      isRegistering 
+                        ? 'bg-gray-400 cursor-not-allowed' 
+                        : 'bg-green-600 hover:bg-green-700'
+                    }`}
                   >
-                    Join Tournament
+                    {isRegistering ? (
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Registering...
+                      </div>
+                    ) : (
+                      'Join Tournament'
+                    )}
                   </button>
                 </div>
               </div>

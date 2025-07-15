@@ -156,7 +156,10 @@ export class TournamentService {
 
   async registerForTournament(tournamentId: string): Promise<Tournament> {
     try {
-      const response = await api.post(`/api/tournaments/${tournamentId}/register`);
+      // Use longer timeout for tournament registration due to potential delays
+      const response = await api.post(`/api/tournaments/${tournamentId}/register`, {}, {
+        timeout: 45000 // 45 seconds timeout
+      });
       return response.data.data;
     } catch (error) {
       console.error('Error registering for tournament:', error);
