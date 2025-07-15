@@ -106,12 +106,30 @@ export class BaseTournamentService {
    * Register a player for the tournament
    */
   async registerPlayer(tournamentId: string, userId: string, username: string): Promise<ITournament> {
+    console.log('🎯 registerPlayer called:', { tournamentId, userId, username });
+    
     const tournament = await this.tournamentModel.findById(tournamentId);
     if (!tournament) {
+      console.error('❌ Tournament not found:', tournamentId);
       throw new NotFoundException('Tournament not found');
     }
 
-    this.validatePlayerRegistration(tournament);
+    console.log('📋 Tournament found:', {
+      id: tournament._id,
+      name: tournament.name,
+      isStarted: tournament.isStarted,
+      registrationOpen: tournament.registrationOpen,
+      playerCount: tournament.players.length,
+      maxPlayers: tournament.maxPlayers
+    });
+
+    try {
+      this.validatePlayerRegistration(tournament);
+      console.log('✅ Registration validation passed');
+    } catch (error: any) {
+      console.error('❌ Registration validation failed:', error.message);
+      throw error;
+    }
 
     // Check if user is already registered
     const isAlreadyRegistered = tournament.players.some(player => 
@@ -119,13 +137,17 @@ export class BaseTournamentService {
     );
 
     if (isAlreadyRegistered) {
+      console.error('❌ User already registered:', { userId, tournamentId });
       throw new BadRequestException('User is already registered for this tournament');
     }
 
     const user = await this.userModel.findById(userId);
     if (!user) {
+      console.error('❌ User not found:', userId);
       throw new NotFoundException('User not found');
     }
+
+    console.log('👤 User found:', { id: user._id, username: user.username, fullName: user.fullName });
 
     const player: ITournamentPlayer = {
       id: userId,
@@ -497,17 +519,29 @@ export class BaseTournamentService {
    * Private helper methods
    */
   private validatePlayerRegistration(tournament: ITournament): void {
+    console.log('🔍 Validating player registration:', {
+      isStarted: tournament.isStarted,
+      registrationOpen: tournament.registrationOpen,
+      playerCount: tournament.players.length,
+      maxPlayers: tournament.maxPlayers
+    });
+
     if (tournament.isStarted) {
+      console.error('❌ Tournament already started');
       throw new BadRequestException('Cannot register for a tournament that has already started');
     }
 
     if (!tournament.registrationOpen) {
+      console.error('❌ Registration is closed');
       throw new BadRequestException('Registration is closed for this tournament');
     }
 
     if (tournament.players.length >= tournament.maxPlayers) {
+      console.error('❌ Tournament is full');
       throw new BadRequestException('Tournament is full');
     }
+
+    console.log('✅ All registration validations passed');
   }
 
   private determineTournamentType(options: TournamentCreationOptions): TournamentType {
