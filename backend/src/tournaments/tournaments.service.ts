@@ -1024,7 +1024,51 @@ export class TournamentsService {
     // Save the updated match result
     await tournament.save();
     
-    // Broadcast the update via WebSocket
+    // Now trigger automatic advancement check using the base service
+    // This bypasses the strategy validation since we already updated the match directly
+    console.log('🚀 Triggering automatic advancement check after override...');
+    try {
+      const updatedTournament = await this.baseTournamentService.repairTournamentAdvancement(tournament._id.toString());
+      console.log('✅ Advancement check completed:', {
+        newCurrentRound: updatedTournament.currentRound,
+        totalRounds: updatedTournament.rounds.length,
+        isFinished: updatedTournament.isFinished
+      });
+      
+      // Update our local tournament reference with the latest data
+      Object.assign(tournament, updatedTournament);
+      
+      // Check what changed to determine appropriate broadcast events
+      const lastRound = tournament.rounds[tournament.rounds.length - 1];
+      if (lastRound && lastRound.roundNumber > matchRound.roundNumber) {
+        // New round was created
+        const updateData = {
+          type: 'round-started',
+          tournamentId: tournament._id.toString(),
+          newRound: lastRound,
+          currentRound: tournament.currentRound,
+          message: 'Next round started automatically after override'
+        };
+        this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), updateData);
+        this.webSocketGateway.broadcastTournamentToParticipants(tournament._id.toString(), updateData);
+      }
+      
+      if (tournament.isFinished) {
+        const updateData = {
+          type: 'tournament-completed',
+          tournamentId: tournament._id.toString(),
+          winnerId: tournament.winnerId,
+          message: 'Tournament completed after override'
+        };
+        this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), updateData);
+        this.webSocketGateway.broadcastTournamentToParticipants(tournament._id.toString(), updateData);
+      }
+    } catch (advancementError) {
+      console.error('❌ Error during automatic advancement after override:', advancementError);
+      // Don't throw error, just log it so the override still succeeds
+    }
+    
+    // Broadcast the match result update
     this.webSocketGateway.broadcastTournamentToParticipants(tournament._id.toString(), {
       type: 'match-result-submitted',
       tournamentId: tournament._id.toString(),
