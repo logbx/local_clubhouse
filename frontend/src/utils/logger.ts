@@ -142,6 +142,7 @@ export const log = {
 // Tournament creation test utilities for development  
 import { validateTournamentCreationFlow, simulateCompleteFlow } from './testTournamentFlow';
 import './debugTournament';
+import './testEnvironments';
 
 // Add global functions for browser console control
 if (typeof window !== 'undefined') {
