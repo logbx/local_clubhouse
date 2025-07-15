@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { api } from '@/lib/api-client';
+import { apiClient as api } from '@/lib/api';
 import { storage } from '@/lib/storage';
 import { router } from 'expo-router';
 import { Platform } from 'react-native';

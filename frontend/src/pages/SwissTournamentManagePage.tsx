@@ -429,7 +429,19 @@ const SwissTournamentManagePage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-4 relative z-1">
+    <>
+      <style>
+        {`
+          .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+          }
+          .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+          }
+        `}
+      </style>
+      <div className="max-w-6xl mx-auto p-2 sm:p-4 relative z-1">
       <TournamentHeader
         tournament={tournament}
         tournamentId={tournamentId!}
@@ -438,15 +450,15 @@ const SwissTournamentManagePage: React.FC = () => {
         tournamentType="Swiss"
       />
 
-      {/* Navigation Tabs */}
-      <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 mb-8">
+      {/* Navigation Tabs - Mobile Optimized */}
+      <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 mb-4 sm:mb-8">
         <div className="border-b border-gray-200/50 dark:border-gray-700/50">
-          <nav className="-mb-px flex space-x-8 px-6">
+          <nav className="-mb-px flex px-2 sm:px-6 overflow-x-auto scrollbar-hide">
             {[
-              { id: 'setup', label: 'Setup', icon: CogIcon },
-              { id: 'players', label: 'Players', icon: UserPlusIcon },
-              { id: 'live', label: 'Live Management', icon: FireIcon },
-            ].map(({ id, label, icon: Icon }) => (
+              { id: 'setup', label: 'Setup', icon: CogIcon, shortLabel: 'Setup' },
+              { id: 'players', label: 'Players', icon: UserPlusIcon, shortLabel: 'Players' },
+              { id: 'live', label: 'Live Management', icon: FireIcon, shortLabel: 'Live' },
+            ].map(({ id, label, icon: Icon, shortLabel }) => (
               <button
                 key={id}
                 onClick={() => setActiveTab(id as any)}
@@ -454,10 +466,11 @@ const SwissTournamentManagePage: React.FC = () => {
                   activeTab === id
                     ? 'border-primary-500 text-primary-600 dark:text-primary-400'
                     : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center transition-colors`}
+                } min-w-0 flex-shrink-0 py-3 sm:py-4 px-2 sm:px-4 border-b-2 font-medium text-xs sm:text-sm flex items-center justify-center transition-colors`}
               >
-                <Icon className="h-4 w-4 mr-2" />
-                {label}
+                <Icon className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline ml-2">{label}</span>
+                <span className="sm:hidden ml-1 text-xs">{shortLabel}</span>
               </button>
             ))}
           </nav>
@@ -465,7 +478,7 @@ const SwissTournamentManagePage: React.FC = () => {
       </div>
 
       {/* Tab Content */}
-      <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200">
+      <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-3 sm:p-6 transition-colors duration-200">
         {activeTab === 'setup' && (
           <TournamentSetupTab
             tournament={tournament}
@@ -489,19 +502,19 @@ const SwissTournamentManagePage: React.FC = () => {
 
         {activeTab === 'live' && (
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Live Tournament Management</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4 sm:mb-6">Live Tournament Management</h2>
             
             {!tournament.isStarted ? (
-              <div className="text-center py-12">
-                <FireIcon className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Tournament Not Started</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              <div className="text-center py-8 sm:py-12">
+                <FireIcon className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-gray-400 dark:text-gray-500" />
+                <h3 className="mt-2 text-sm sm:text-base font-medium text-gray-900 dark:text-white">Tournament Not Started</h3>
+                <p className="mt-1 text-xs sm:text-sm text-gray-500 dark:text-gray-400 px-4">
                   Start the tournament to access live management features.
                 </p>
                 {canStartTournament && (
                   <button
                     onClick={handleStartTournament}
-                    className="mt-4 btn btn-success"
+                    className="mt-4 btn btn-success text-sm sm:text-base px-4 py-2 sm:px-6 sm:py-3"
                   >
                     <PlayIcon className="h-4 w-4 mr-2" />
                     Start Tournament
@@ -509,66 +522,66 @@ const SwissTournamentManagePage: React.FC = () => {
                 )}
               </div>
             ) : (
-              <div className="space-y-8">
+              <div className="space-y-4 sm:space-y-8">
                 {/* Tournament Status Overview */}
-                <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6">
+                <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-3 sm:p-6">
                   {tournament.isFinished ? (
                     // Completed Tournament Status
                     <div className="text-center py-4">
-                      <div className="flex items-center justify-center mb-4">
-                        <TrophyIcon className="h-16 w-16 text-yellow-500 mr-4" />
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-center mb-4 gap-3">
+                        <TrophyIcon className="h-12 w-12 sm:h-16 sm:w-16 text-yellow-500 mx-auto sm:mx-0 sm:mr-4" />
                         <div>
-                          <h3 className="text-3xl font-bold text-green-600 dark:text-green-400 mb-2">
+                          <h3 className="text-xl sm:text-3xl font-bold text-green-600 dark:text-green-400 mb-2">
                             🏁 TOURNAMENT COMPLETE
                           </h3>
-                          <p className="text-lg text-gray-600 dark:text-gray-400">
+                          <p className="text-sm sm:text-lg text-gray-600 dark:text-gray-400">
                             Finished • {tournament.players.length} Players • {tournament.rounds.reduce((total, round) => total + round.matches.length, 0)} Matches
                           </p>
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                        <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                          <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-6">
+                        <div className="text-center p-3 sm:p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                          <div className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-400">
                             {tournament.numRounds || 3} / {tournament.numRounds || 3}
                           </div>
-                          <div className="text-sm text-green-600 dark:text-green-400">Rounds Completed</div>
+                          <div className="text-xs sm:text-sm text-green-600 dark:text-green-400">Rounds Completed</div>
                         </div>
-                        <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                        <div className="text-center p-3 sm:p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                          <div className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">
                             {tournament.players.length}
                           </div>
-                          <div className="text-sm text-blue-600 dark:text-blue-400">Total Players</div>
+                          <div className="text-xs sm:text-sm text-blue-600 dark:text-blue-400">Total Players</div>
                         </div>
-                        <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                          <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                        <div className="text-center p-3 sm:p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                          <div className="text-xl sm:text-2xl font-bold text-purple-600 dark:text-purple-400">
                             {tournament.rounds.reduce((total, round) => total + round.matches.length, 0)}
                           </div>
-                          <div className="text-sm text-purple-600 dark:text-purple-400">Total Matches</div>
+                          <div className="text-xs sm:text-sm text-purple-600 dark:text-purple-400">Total Matches</div>
                         </div>
                       </div>
                     </div>
                   ) : (
                     // Active Tournament Status
                     <>
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tournament Status</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-3 sm:mb-4">Tournament Status</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                        <div className="text-center p-3 bg-white/50 dark:bg-gray-700/50 rounded-lg">
+                          <div className="text-lg sm:text-2xl font-bold text-green-600 dark:text-green-400">
                             Round {tournament.currentRound || 1} of {tournament.numRounds || 3}
                           </div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">Current Round</div>
+                          <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Current Round</div>
                         </div>
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                        <div className="text-center p-3 bg-white/50 dark:bg-gray-700/50 rounded-lg">
+                          <div className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400">
                             {tournament.players.length}
                           </div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">Total Players</div>
+                          <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Total Players</div>
                         </div>
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                        <div className="text-center p-3 bg-white/50 dark:bg-gray-700/50 rounded-lg">
+                          <div className="text-lg sm:text-2xl font-bold text-purple-600 dark:text-purple-400">
                             {tournament.rounds.reduce((total, round) => total + round.matches.length, 0)}
                           </div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">Total Matches</div>
+                          <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Total Matches</div>
                         </div>
                       </div>
                     </>
@@ -577,7 +590,7 @@ const SwissTournamentManagePage: React.FC = () => {
 
                 {/* Final Standings - Priority for Completed Tournaments */}
                 {tournament.isFinished ? (
-                  <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6">
+                  <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-3 sm:p-6">
                     <SwissTournamentStandings
                       players={tournament.players}
                       rounds={tournament.rounds}
@@ -587,17 +600,17 @@ const SwissTournamentManagePage: React.FC = () => {
                 ) : (
                   <>
                     {/* Current Round - Only for Active Tournaments */}
-                    <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6">
-                      <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Current Round</h3>
+                    <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-3 sm:p-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-3">
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Current Round</h3>
                         {tournament.rounds[(tournament.currentRound || 1) - 1] && !tournament.rounds[(tournament.currentRound || 1) - 1]?.isComplete && (
-                          <div className="flex items-center gap-4">
-                            <div className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                            <div className="text-xs sm:text-sm text-blue-600 dark:text-blue-400 font-medium">
                               ⚡ Next round starts automatically when all matches complete
                             </div>
                             <button
                               onClick={handleForceRoundCompletion}
-                              className="px-3 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700"
+                              className="px-3 py-2 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 self-start sm:self-auto"
                             >
                               Force Check Completion
                             </button>
@@ -618,7 +631,7 @@ const SwissTournamentManagePage: React.FC = () => {
                     </div>
 
                     {/* Current Standings - Only for Active Tournaments */}
-                    <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6">
+                    <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-3 sm:p-6">
                       <SwissTournamentStandings
                         players={tournament.players}
                         rounds={tournament.rounds}
@@ -630,35 +643,35 @@ const SwissTournamentManagePage: React.FC = () => {
 
                 {/* Round History - Bottom Section for Completed Tournaments */}
                 {tournament.isFinished && (
-                  <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6">
+                  <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-3 sm:p-6">
                     <details className="group">
                       <summary className="flex items-center justify-between cursor-pointer list-none">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-                          <FireIcon className="h-5 w-5 mr-2" />
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                          <FireIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                           📋 Round History
                         </h3>
                         <div className="text-sm text-gray-500 dark:text-gray-400 group-open:rotate-180 transition-transform">
                           ▼
                         </div>
                       </summary>
-                      <div className="mt-4 space-y-6">
+                      <div className="mt-4 space-y-4 sm:space-y-6">
                         {tournament.rounds.map((round, index) => (
-                          <div key={round.roundNumber} className="border-l-4 border-gray-300 dark:border-gray-600 pl-4">
-                            <h4 className="text-md font-medium text-gray-900 dark:text-white mb-3">
+                          <div key={round.roundNumber} className="border-l-4 border-gray-300 dark:border-gray-600 pl-3 sm:pl-4">
+                            <h4 className="text-sm sm:text-md font-medium text-gray-900 dark:text-white mb-2 sm:mb-3">
                               Round {round.roundNumber} {round.isComplete && '✅'}
                             </h4>
                             <div className="space-y-2">
                               {round.matches.map((match, matchIndex) => (
                                 <div 
                                   key={match.matchId} 
-                                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-sm"
+                                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-2 sm:p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-xs sm:text-sm gap-2 sm:gap-0"
                                 >
-                                  <div className="flex items-center space-x-3">
-                                    <span className="font-medium">{match.player1.name}</span>
+                                  <div className="flex items-center space-x-2 sm:space-x-3">
+                                    <span className="font-medium truncate">{match.player1.name}</span>
                                     <span className="text-gray-500">vs</span>
-                                    <span className="font-medium">{match.player2.name}</span>
+                                    <span className="font-medium truncate">{match.player2.name}</span>
                                   </div>
-                                  <div className="text-right">
+                                  <div className="text-left sm:text-right">
                                     {match.status === 'completed' ? (
                                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                                         {match.result === 'draw' ? 'Draw' : 
@@ -676,14 +689,14 @@ const SwissTournamentManagePage: React.FC = () => {
                               
                               {/* Show bye players for this round */}
                               {round.byePlayers && round.byePlayers.length > 0 && (
-                                <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-sm border border-blue-200 dark:border-blue-800">
-                                  <div className="flex items-center space-x-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-2 sm:p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-xs sm:text-sm border border-blue-200 dark:border-blue-800 gap-2 sm:gap-0">
+                                  <div className="flex items-center space-x-2 sm:space-x-3">
                                     <span className="font-medium text-blue-700 dark:text-blue-300">
                                       {round.byePlayers.map(player => player.name).join(', ')}
                                     </span>
                                     <span className="text-blue-600 dark:text-blue-400">had BYE</span>
                                   </div>
-                                  <div className="text-right">
+                                  <div className="text-left sm:text-right">
                                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
                                       +1 point
                                     </span>
@@ -711,7 +724,8 @@ const SwissTournamentManagePage: React.FC = () => {
         message={`Are you sure you want to delete "${tournament?.name}"? This action cannot be undone and will permanently remove all tournament data, including matches and results.`}
         isDeleting={deleting}
       />
-    </div>
+      </div>
+    </>
   );
 };
 

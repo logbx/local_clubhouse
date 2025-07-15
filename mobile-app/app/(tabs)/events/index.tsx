@@ -16,8 +16,8 @@ import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 
 import { useLocationContext } from '@/contexts/LocationContext';
-import { useAuth } from '@/contexts/AuthContext';
-import { api } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
+import { api } from '@/lib/api-client-mobile';
 import { LocationCoordinates } from '@/hooks/useLocation';
 
 interface Event {

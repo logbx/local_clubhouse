@@ -56,7 +56,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     # 2. Mobile Development
     echo -e "${GREEN}📱 Opening Mobile Development Environment...${NC}"
     sleep 1
-    open_terminal_tab "Mobile (Expo)" "npm run dev" "/Applications/Projects/saas-app-mobile"
+    open_terminal_tab "Mobile (Expo)" "npm run dev" "/Applications/Projects/saas-app/mobile-app"
     
     # 3. DevOps & Testing
     echo -e "${GREEN}🚀 Opening DevOps & Testing Environment...${NC}"
@@ -84,7 +84,7 @@ else
     echo "redis-server"
     echo ""
     echo -e "${GREEN}Mobile Development:${NC}"
-    echo "cd /Applications/Projects/saas-app-mobile && npm run dev"
+    echo "cd /Applications/Projects/saas-app/mobile-app && npm run dev"
     echo ""
     echo -e "${GREEN}DevOps & Testing:${NC}"
     echo "cd /Applications/Projects/saas-app-devops && npm run test:watch"

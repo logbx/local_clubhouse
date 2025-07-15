@@ -1,7 +1,7 @@
 import { View, Text, TextInput, TouchableOpacity, FlatList, RefreshControl, Platform, Alert } from 'react-native';
 import { Link, router } from 'expo-router';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api-client';
+import { api } from '@/lib/api-client-mobile';
 import { useState, useMemo, useCallback } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubCard } from '@/components/club/ClubCard';

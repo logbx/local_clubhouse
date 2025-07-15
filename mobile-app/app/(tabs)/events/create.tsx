@@ -18,9 +18,9 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { useLocationContext } from '@/contexts/LocationContext';
-import { api } from '@/lib/api';
+import { api } from '@/lib/api-client-mobile';
 import { LocationCoordinates } from '@/hooks/useLocation';
 import { locationService, PlaceResult } from '@/lib/services/location.service';
 
@@ -855,7 +855,7 @@ export default function CreateEventScreen() {
               })}
               secureTextEntry
             />
-          </div>
+          </View>
         </View>
       )}
     </ScrollView>

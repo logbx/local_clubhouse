@@ -94,17 +94,7 @@
     },
     "web": {
       "bundler": "metro",
-      "favicon": "./assets/favicon.png",
-      "name": "Local Clubhouse",
-      "shortName": "Clubhouse",
-      "lang": "en",
-      "scope": "/",
-      "themeColor": "#1a365d",
-      "backgroundColor": "#ffffff",
-      "display": "standalone",
-      "orientation": "portrait",
-      "startUrl": "/",
-      "crossOriginEmbedderPolicy": false
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router"
@@ -116,17 +106,11 @@
     "extra": {
       "router": {
         "origin": false
-      },
-      "eas": {
-        "projectId": "your-eas-project-id"
       }
     },
-    "owner": "your-expo-username",
     "runtimeVersion": {
       "policy": "sdkVersion"
     },
-    "updates": {
-      "url": "https://u.expo.dev/your-eas-project-id"
-    }
+    "owner": "loganliang"
   }
 }

@@ -273,7 +273,7 @@ export const components = {
     background: colors.surface.primary,
     borderColor: colors.border.primary,
     borderRadius: borderRadius.lg,
-    padding: spacing.4,
+    padding: spacing[4],
     shadow: shadows.base,
   },
 
@@ -282,13 +282,13 @@ export const components = {
       background: colors.primary[500],
       color: colors.text.inverse,
       borderRadius: borderRadius.md,
-      padding: { vertical: spacing.3, horizontal: spacing.4 },
+      padding: { vertical: spacing[3], horizontal: spacing[4] },
     },
     secondary: {
       background: colors.gray[100],
       color: colors.text.primary,
       borderRadius: borderRadius.md,
-      padding: { vertical: spacing.3, horizontal: spacing.4 },
+      padding: { vertical: spacing[3], horizontal: spacing[4] },
     },
     outline: {
       background: 'transparent',
@@ -296,7 +296,7 @@ export const components = {
       borderColor: colors.primary[500],
       borderWidth: 1,
       borderRadius: borderRadius.md,
-      padding: { vertical: spacing.3, horizontal: spacing.4 },
+      padding: { vertical: spacing[3], horizontal: spacing[4] },
     },
   },
 
@@ -304,7 +304,7 @@ export const components = {
     background: colors.surface.primary,
     borderColor: colors.border.primary,
     borderRadius: borderRadius.md,
-    padding: spacing.3,
+    padding: spacing[3],
     fontSize: typography.sizes.base,
     focusBorderColor: colors.border.focus,
   },
@@ -312,7 +312,7 @@ export const components = {
   clubCard: {
     background: colors.surface.primary,
     borderRadius: borderRadius.lg,
-    padding: spacing.4,
+    padding: spacing[4],
     shadow: shadows.base,
     imageHeight: 120,
     avatarSize: 48,
@@ -321,7 +321,7 @@ export const components = {
   eventCard: {
     background: colors.surface.primary,
     borderRadius: borderRadius.lg,
-    padding: spacing.4,
+    padding: spacing[4],
     shadow: shadows.sm,
     imageHeight: 160,
     statusColors: {

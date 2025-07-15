@@ -140,6 +140,20 @@ class WebSocketService {
     }
   }
 
+  // Join public events room for dashboard updates
+  joinPublicEvents() {
+    if (this.socket) {
+      this.socket.emit('join-public-events');
+    }
+  }
+
+  // Leave public events room
+  leavePublicEvents() {
+    if (this.socket) {
+      this.socket.emit('leave-public-events');
+    }
+  }
+
   // Join tournament room
   joinTournament(tournamentId: string) {
     if (this.socket) {
@@ -241,6 +255,34 @@ class WebSocketService {
     }
   }
 
+  // Listen for event creation
+  onEventCreated(callback: (event: any) => void) {
+    if (this.socket) {
+      this.socket.on('event-created', callback);
+    }
+  }
+
+  // Listen for event updates
+  onEventUpdated(callback: (event: any) => void) {
+    if (this.socket) {
+      this.socket.on('event-updated', callback);
+    }
+  }
+
+  // Listen for event deletion
+  onEventDeleted(callback: (data: { eventId: string }) => void) {
+    if (this.socket) {
+      this.socket.on('event-deleted', callback);
+    }
+  }
+
+  // Listen for RSVP updates
+  onEventRsvpUpdated(callback: (data: { eventId: string, rsvpData: any }) => void) {
+    if (this.socket) {
+      this.socket.on('event-rsvp-updated', callback);
+    }
+  }
+
   // Remove all listeners
   removeAllListeners() {
     if (this.socket) {
@@ -253,6 +295,16 @@ class WebSocketService {
     if (this.socket) {
       this.socket.off('tournament-update');
       this.socket.off('match-update');
+    }
+  }
+
+  // Remove event listeners
+  removeEventListeners() {
+    if (this.socket) {
+      this.socket.off('event-created');
+      this.socket.off('event-updated');
+      this.socket.off('event-deleted');
+      this.socket.off('event-rsvp-updated');
     }
   }
 

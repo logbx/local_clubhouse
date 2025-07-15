@@ -4,7 +4,15 @@ import { webSocketService } from '../services/websocket.service';
 import { useAuth } from '../context/AuthContext';
 
 const NotificationToast: React.FC = () => {
-  const { user } = useAuth();
+  let user;
+  try {
+    const authContext = useAuth();
+    user = authContext?.user;
+  } catch (error) {
+    // Handle case where component is used outside AuthProvider during hot reload
+    console.warn('NotificationToast: AuthContext not available, skipping notifications');
+    return null;
+  }
 
   useEffect(() => {
     if (!user) return;

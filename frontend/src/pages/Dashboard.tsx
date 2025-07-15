@@ -78,7 +78,7 @@ const Dashboard: React.FC = () => {
     queryFn: eventApi.getEvents,
   });
 
-  // WebSocket integration for real-time tournament updates
+  // WebSocket integration for real-time updates
   useEffect(() => {
     if (!events || events.length === 0) return;
 
@@ -87,6 +87,9 @@ const Dashboard: React.FC = () => {
     eventIds.forEach((eventId: string) => {
       webSocketService.joinEventChat(eventId);
     });
+
+    // Also join public events room for dashboard updates
+    webSocketService.joinPublicEvents();
 
     const handleTournamentUpdate = (data: any) => {
       console.log('🔔 Dashboard WebSocket tournament update received:', data);
@@ -164,17 +167,65 @@ const Dashboard: React.FC = () => {
       }
     };
 
-    // Subscribe to WebSocket tournament updates
+    const handleEventCreated = (newEvent: any) => {
+      console.log('🔔 Dashboard WebSocket event created:', newEvent);
+      
+      // Add new event to the list
+      queryClient.setQueryData<Event[]>(['events'], (oldEvents = []) => {
+        // Check if event already exists to avoid duplicates
+        const eventExists = oldEvents.some(event => event.id === newEvent.id);
+        if (!eventExists) {
+          return [...oldEvents, newEvent];
+        }
+        return oldEvents;
+      });
+      
+      // Refresh events from server to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+    };
+
+    const handleEventUpdated = (updatedEvent: any) => {
+      console.log('🔔 Dashboard WebSocket event updated:', updatedEvent);
+      
+      // Update event in the list
+      queryClient.setQueryData<Event[]>(['events'], (oldEvents = []) => {
+        return oldEvents.map(event => 
+          event.id === updatedEvent.id ? updatedEvent : event
+        );
+      });
+      
+      // Refresh events from server to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+    };
+
+    const handleEventDeleted = (data: { eventId: string }) => {
+      console.log('🔔 Dashboard WebSocket event deleted:', data);
+      
+      // Remove event from the list
+      queryClient.setQueryData<Event[]>(['events'], (oldEvents = []) => {
+        return oldEvents.filter(event => event.id !== data.eventId);
+      });
+      
+      // Refresh events from server to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+    };
+
+    // Subscribe to WebSocket updates
     webSocketService.onTournamentUpdate(handleTournamentUpdate);
+    webSocketService.onEventCreated(handleEventCreated);
+    webSocketService.onEventUpdated(handleEventUpdated);
+    webSocketService.onEventDeleted(handleEventDeleted);
 
     return () => {
       // Leave all event rooms and remove listeners
       eventIds.forEach((eventId: string) => {
         webSocketService.leaveEventChat(eventId);
       });
+      webSocketService.leavePublicEvents();
       webSocketService.removeTournamentListeners();
+      webSocketService.removeEventListeners();
     };
-  }, [events, eventTournaments]);
+  }, [events, eventTournaments, queryClient]);
 
   // Check if an event has a frontend tournament
   const hasFrontendTournament = (eventId: string) => {

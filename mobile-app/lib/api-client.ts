@@ -361,4 +361,4 @@ class APIClient {
   }
 }
 
-export const api = new ApiClient();
+export const api = new APIClient();

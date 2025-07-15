@@ -7,6 +7,7 @@ import { Event as EventModelSchema } from '../models/event.model';
 import { Club, ClubSchema } from '../clubs/schemas/club.schema';
 import { Sponsor, SponsorSchema } from '../sponsors/schemas/sponsor.schema';
 import { Tournament, TournamentSchema } from '../models/tournament.model';
+import { WebSocketModule } from '../websocket/websocket.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { Tournament, TournamentSchema } from '../models/tournament.model';
       { name: Sponsor.name, schema: SponsorSchema },
       { name: Tournament.name, schema: TournamentSchema },
     ]),
+    WebSocketModule,
   ],
   controllers: [EventsController],
   providers: [EventsService],

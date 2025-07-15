@@ -21,6 +21,7 @@ import { Public } from '../auth/decorators/public.decorator';
 import { Club, ClubDocument } from '../clubs/schemas/club.schema';
 import { Sponsor, SponsorDocument } from '../sponsors/schemas/sponsor.schema';
 import { Tournament, ITournament } from '../models/tournament.model';
+import { AppWebSocketGateway } from '../websocket/websocket.gateway';
 
 function transformId(obj: any): any {
   if (obj && obj._id) {
@@ -37,7 +38,8 @@ export class EventsController {
     @InjectModel('Event') private eventModel: Model<IEvent>,
     @InjectModel(Club.name) private clubModel: Model<ClubDocument>,
     @InjectModel(Sponsor.name) private sponsorModel: Model<SponsorDocument>,
-    @InjectModel(Tournament.name) private tournamentModel: Model<ITournament>
+    @InjectModel(Tournament.name) private tournamentModel: Model<ITournament>,
+    private webSocketGateway: AppWebSocketGateway
   ) {}
 
   @Get()
@@ -511,6 +513,9 @@ export class EventsController {
       transformed.clubId = transformed.clubId._id ? transformed.clubId._id.toString() : transformed.clubId.toString();
     }
 
+    // Emit WebSocket event for new event creation
+    this.webSocketGateway.broadcastEventCreated(transformed, userId);
+
     return { event: transformed };
   }
 
@@ -645,7 +650,20 @@ export class EventsController {
       throw new NotFoundException('Event not found');
     }
     
-    return { event: transformId(updatedEvent) };
+    const transformed = transformId(updatedEvent);
+    
+    // Add club information if present
+    if (transformed.clubId && typeof transformed.clubId === 'object' && transformed.clubId.username) {
+      transformed.clubUsername = transformed.clubId.username;
+      transformed.clubName = transformed.clubId.name;
+      transformed.clubLogoUrl = transformed.clubId.logoUrl;
+      transformed.clubId = transformed.clubId._id ? transformed.clubId._id.toString() : transformed.clubId.toString();
+    }
+
+    // Emit WebSocket event for event update
+    this.webSocketGateway.broadcastEventUpdated(transformed);
+    
+    return { event: transformed };
     } catch (error) {
       console.error('❌ Error updating event:', id, error);
       throw error;
@@ -699,6 +717,9 @@ export class EventsController {
       tournamentsDeleted: associatedTournaments.length
     });
     
+    // Emit WebSocket event for event deletion
+    this.webSocketGateway.broadcastEventDeleted(id, userId);
+    
     return { 
       event: transformId(deletedEvent),
       tournamentsDeleted: associatedTournaments.length
@@ -745,7 +766,17 @@ export class EventsController {
     }
 
     await event.save();
-    return { event: transformId(event.toObject()) };
+    
+    const transformed = transformId(event.toObject());
+    
+    // Emit WebSocket event for RSVP update
+    this.webSocketGateway.broadcastEventRsvpUpdated(id, {
+      userId,
+      isRsvped: !isRsvped,
+      totalRsvps: event.rsvps.length
+    }, userId);
+    
+    return { event: transformed };
   }
 
   @Post(':eventId/sponsors/:sponsorId/approve')

@@ -139,6 +139,13 @@ export const log = {
   showConfig: () => logger.showConfig()
 };
 
+// Tournament creation test utilities for development
+import { 
+  testTournamentCreationFlow, 
+  verifyTournamentCreationFlow, 
+  simulateCreateTournamentButtonClick 
+} from './testTournamentCreation';
+
 // Add global functions for browser console control
 if (typeof window !== 'undefined') {
   (window as any).logQuiet = () => {
@@ -163,6 +170,11 @@ if (typeof window !== 'undefined') {
   logConfig()  - Show current configuration
   logHelp()    - Show this help message
 
+🎯 Tournament Creation Testing:
+  testTournamentCreation()     - Test tournament creation API
+  verifyTournamentFlow()       - Show tournament creation flow steps
+  simulateCreateTournament()   - Simulate "Create Tournament" button click
+
 📂 Categories: ${Object.values(LogCategory).join(', ')}
 📊 Levels: ERROR, WARN, INFO, DEBUG
     `);
@@ -170,4 +182,14 @@ if (typeof window !== 'undefined') {
   
   // Show help on first load
   console.log('🚀 Type logHelp() in console for logging controls');
+
+  // Expose test utilities in development
+  if (import.meta.env.DEV) {
+    (window as any).testTournamentCreation = testTournamentCreationFlow;
+    (window as any).verifyTournamentFlow = verifyTournamentCreationFlow;
+    (window as any).simulateCreateTournament = simulateCreateTournamentButtonClick;
+    
+    console.log('%c🔧 Development Mode: Tournament testing utilities available!', 'color: #10b981; font-weight: bold;');
+    console.log('%cType logHelp() for available commands', 'color: #6b7280;');
+  }
 } 

@@ -127,6 +127,28 @@ export class AppWebSocketGateway implements OnGatewayInit, OnGatewayConnection, 
     }
   }
 
+  // Join global public events room for dashboard updates
+  @SubscribeMessage('join-public-events')
+  handleJoinPublicEvents(
+    @ConnectedSocket() client: AuthenticatedSocket
+  ) {
+    if (client.user) {
+      client.join('public-events');
+      this.logger.log(`User ${client.user.userId} joined public events room`);
+    }
+  }
+
+  // Leave global public events room
+  @SubscribeMessage('leave-public-events')
+  handleLeavePublicEvents(
+    @ConnectedSocket() client: AuthenticatedSocket
+  ) {
+    if (client.user) {
+      client.leave('public-events');
+      this.logger.log(`User ${client.user.userId} left public events room`);
+    }
+  }
+
   // Join a sub-group chat room
   @SubscribeMessage('join-subgroup-chat')
   handleJoinSubgroupChat(
@@ -276,5 +298,120 @@ export class AppWebSocketGateway implements OnGatewayInit, OnGatewayConnection, 
     } else {
       this.server.to(roomName).emit('match-update', matchUpdate);
     }
+  }
+
+  // Event broadcasting methods
+  broadcastEventCreated(event: any, excludeUserId?: string) {
+    // Only broadcast public events to the public events room
+    if (event.visibility === 'PUBLIC') {
+      const roomName = 'public-events';
+      if (excludeUserId) {
+        const room = this.server.sockets.adapter.rooms.get(roomName);
+        if (room) {
+          room.forEach((socketId) => {
+            const socket = this.server.sockets.sockets.get(socketId) as AuthenticatedSocket;
+            if (socket && socket.user?.userId !== excludeUserId) {
+              socket.emit('event-created', event);
+            }
+          });
+        }
+      } else {
+        this.server.to(roomName).emit('event-created', event);
+      }
+      this.logger.log(`Broadcast event created: ${event.title} to public events room`);
+    }
+  }
+
+  broadcastEventUpdated(event: any, excludeUserId?: string) {
+    // Broadcast to both public events room and event-specific room
+    if (event.visibility === 'PUBLIC') {
+      const publicRoomName = 'public-events';
+      if (excludeUserId) {
+        const room = this.server.sockets.adapter.rooms.get(publicRoomName);
+        if (room) {
+          room.forEach((socketId) => {
+            const socket = this.server.sockets.sockets.get(socketId) as AuthenticatedSocket;
+            if (socket && socket.user?.userId !== excludeUserId) {
+              socket.emit('event-updated', event);
+            }
+          });
+        }
+      } else {
+        this.server.to(publicRoomName).emit('event-updated', event);
+      }
+    }
+    
+    // Also broadcast to event-specific room
+    const eventRoomName = `event:${event.id}`;
+    if (excludeUserId) {
+      const room = this.server.sockets.adapter.rooms.get(eventRoomName);
+      if (room) {
+        room.forEach((socketId) => {
+          const socket = this.server.sockets.sockets.get(socketId) as AuthenticatedSocket;
+          if (socket && socket.user?.userId !== excludeUserId) {
+            socket.emit('event-updated', event);
+          }
+        });
+      }
+    } else {
+      this.server.to(eventRoomName).emit('event-updated', event);
+    }
+    this.logger.log(`Broadcast event updated: ${event.title}`);
+  }
+
+  broadcastEventDeleted(eventId: string, excludeUserId?: string) {
+    // Broadcast to both public events room and event-specific room
+    const publicRoomName = 'public-events';
+    const eventRoomName = `event:${eventId}`;
+    const payload = { eventId };
+    
+    if (excludeUserId) {
+      // Public events room
+      const publicRoom = this.server.sockets.adapter.rooms.get(publicRoomName);
+      if (publicRoom) {
+        publicRoom.forEach((socketId) => {
+          const socket = this.server.sockets.sockets.get(socketId) as AuthenticatedSocket;
+          if (socket && socket.user?.userId !== excludeUserId) {
+            socket.emit('event-deleted', payload);
+          }
+        });
+      }
+      
+      // Event-specific room
+      const eventRoom = this.server.sockets.adapter.rooms.get(eventRoomName);
+      if (eventRoom) {
+        eventRoom.forEach((socketId) => {
+          const socket = this.server.sockets.sockets.get(socketId) as AuthenticatedSocket;
+          if (socket && socket.user?.userId !== excludeUserId) {
+            socket.emit('event-deleted', payload);
+          }
+        });
+      }
+    } else {
+      this.server.to(publicRoomName).emit('event-deleted', payload);
+      this.server.to(eventRoomName).emit('event-deleted', payload);
+    }
+    this.logger.log(`Broadcast event deleted: ${eventId}`);
+  }
+
+  broadcastEventRsvpUpdated(eventId: string, rsvpData: any, excludeUserId?: string) {
+    // Broadcast to event-specific room
+    const eventRoomName = `event:${eventId}`;
+    const payload = { eventId, rsvpData };
+    
+    if (excludeUserId) {
+      const room = this.server.sockets.adapter.rooms.get(eventRoomName);
+      if (room) {
+        room.forEach((socketId) => {
+          const socket = this.server.sockets.sockets.get(socketId) as AuthenticatedSocket;
+          if (socket && socket.user?.userId !== excludeUserId) {
+            socket.emit('event-rsvp-updated', payload);
+          }
+        });
+      }
+    } else {
+      this.server.to(eventRoomName).emit('event-rsvp-updated', payload);
+    }
+    this.logger.log(`Broadcast RSVP updated for event: ${eventId}`);
   }
 } 

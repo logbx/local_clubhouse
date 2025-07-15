@@ -7,12 +7,10 @@
 ├── saas-app/           # Full-Stack Web Development (main branch)
 │   ├── frontend/       # React + Vite + TypeScript
 │   ├── backend/        # NestJS + MongoDB + Redis
+│   ├── mobile-app/     # React Native + Expo (within main repo)
 │   └── shared/         # Shared types and utilities
 │
-├── saas-app-mobile/    # Mobile Development (feature/mobile-development)
-│   ├── app/           # Expo Router screens
-│   ├── components/    # React Native components
-│   └── lib/           # Mobile-specific utilities
+├── saas-app-mobile/    # Mobile Development Worktree (for focused mobile work)
 │
 └── saas-app-devops/    # DevOps & Testing (feature/devops-testing)
     ├── .github/       # CI/CD workflows
@@ -69,8 +67,8 @@ redis-server
 ### 2. Mobile App Development
 
 ```bash
-# Navigate to mobile worktree
-cd /Applications/Projects/saas-app-mobile
+# Navigate to mobile app directory
+cd /Applications/Projects/saas-app/mobile-app
 
 # Ensure backend is running in main worktree first!
 
@@ -112,8 +110,7 @@ npm run test:e2e         # End-to-end tests
 cd /Applications/Projects/saas-app
 git pull origin main
 
-cd /Applications/Projects/saas-app-mobile
-git fetch origin main && git merge origin/main
+# Mobile app is within main worktree - no separate sync needed
 
 cd /Applications/Projects/saas-app-devops
 git fetch origin main && git merge origin/main
@@ -130,9 +127,10 @@ cd /Applications/Projects/saas-app
 git add . && git commit -m "feat: [description]"
 git push origin main
 
-cd /Applications/Projects/saas-app-mobile
-git add . && git commit -m "mobile: [description]"
-git push origin feature/mobile-development
+# Mobile changes are committed from the main worktree
+cd /Applications/Projects/saas-app
+git add mobile-app/ && git commit -m "mobile: [description]"
+git push origin main
 
 cd /Applications/Projects/saas-app-devops
 git add . && git commit -m "devops: [description]"
@@ -185,10 +183,10 @@ git worktree remove ../worktree-path
 ### Package Management
 
 ```bash
-# Install dependencies in all worktrees
+# Install dependencies in all components
 cd /Applications/Projects/saas-app/backend && npm install
 cd /Applications/Projects/saas-app/frontend && npm install
-cd /Applications/Projects/saas-app-mobile && npm install
+cd /Applications/Projects/saas-app/mobile-app && npm install
 ```
 
 ### Database Management
@@ -251,7 +249,7 @@ FLUSHALL                        # Clear cache (dev only!)
 
 2. **Start with tunnel** (if on different network):
    ```bash
-   cd /Applications/Projects/saas-app-mobile
+   cd /Applications/Projects/saas-app/mobile-app
    npm run dev:tunnel
    ```
 

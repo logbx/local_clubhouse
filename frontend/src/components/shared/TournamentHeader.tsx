@@ -1,5 +1,5 @@
 import React from 'react';
-import { CogIcon, EyeIcon, PlayIcon } from '@heroicons/react/24/outline';
+import { CogIcon, PlayIcon } from '@heroicons/react/24/outline';
 import { Tournament } from '../../services/tournament.service';
 
 interface TournamentHeaderProps {
@@ -17,6 +17,34 @@ export const TournamentHeader: React.FC<TournamentHeaderProps> = ({
   canStartTournament,
   tournamentType
 }) => {
+  // Determine tournament completion status
+  const determineTournamentCompletion = () => {
+    if (tournament.isFinished) {
+      return true;
+    }
+    
+    // For single elimination, check if final match is completed
+    if (tournamentType === 'Single Elimination') {
+      const finalRound = tournament.rounds?.find(round => 
+        round.roundName?.toLowerCase().includes('final') || 
+        round.roundNumber === tournament.rounds.length
+      );
+      
+      if (finalRound) {
+        const finalMatch = finalRound.matches?.find(match => 
+          match.status === 'completed' && match.winnerId
+        );
+        
+        if (finalMatch) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  };
+
+  const isTournamentCompleted = determineTournamentCompletion();
   return (
     <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200 mb-8 relative z-1">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -29,18 +57,10 @@ export const TournamentHeader: React.FC<TournamentHeaderProps> = ({
         </div>
         
         <div className="flex flex-wrap gap-3">
-          <button
-            onClick={() => window.location.href = `/tournament/${tournament.type.toLowerCase()}/${tournamentId}`}
-            className="btn btn-secondary"
-          >
-            <EyeIcon className="h-4 w-4 mr-2" />
-            Public View
-          </button>
-          
           {canStartTournament && onStartTournament && (
             <button
               onClick={onStartTournament}
-              className="btn btn-success"
+              className="btn btn-success rounded-full px-6 border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400"
             >
               <PlayIcon className="h-4 w-4 mr-2" />
               Start Tournament
@@ -61,13 +81,13 @@ export const TournamentHeader: React.FC<TournamentHeaderProps> = ({
         <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-4 relative z-1">
           <h3 className="font-semibold text-gray-700 dark:text-gray-300">Status</h3>
           <p className={`text-lg font-bold ${
-            tournament.isFinished 
+            isTournamentCompleted 
               ? 'text-gray-600 dark:text-gray-400' 
               : tournament.isStarted 
                 ? 'text-green-600 dark:text-green-400' 
                 : 'text-yellow-600 dark:text-yellow-400'
           }`}>
-            {tournament.isFinished ? 'Finished' : tournament.isStarted ? 'In Progress' : 'Setup'}
+            {isTournamentCompleted ? 'Finished' : tournament.isStarted ? 'In Progress' : 'Setup'}
           </p>
         </div>
         

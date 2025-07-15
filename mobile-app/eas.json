@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 5.9.0"
+    "version": ">= 5.9.0",
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -82,8 +83,5 @@
         "releaseStatus": "draft"
       }
     }
-  },
-  "updates": {
-    "url": "https://u.expo.dev/your-eas-project-id"
   }
 }

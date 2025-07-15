@@ -47,13 +47,21 @@ const TournamentManagePage: React.FC = () => {
       if (tournamentData) {
         setTournament(tournamentData);
         
-        // Auto-select appropriate tab based on tournament state
-        if (tournamentData.isStarted) {
-          setActiveTab('live');
-        } else if (tournamentData.players.length > 0) {
-          setActiveTab('players');
+        // Auto-select appropriate tab based on tournament state (only on initial load)
+        if (!tournament) {
+          // Only auto-switch tabs on initial load
+          if (tournamentData.isStarted) {
+            setActiveTab('live');
+          } else if (tournamentData.players.length > 0) {
+            setActiveTab('players');
+          } else {
+            setActiveTab('setup');
+          }
         } else {
-          setActiveTab('setup');
+          // On updates, only switch to live if tournament starts
+          if (tournamentData.isStarted && activeTab !== 'live') {
+            setActiveTab('live');
+          }
         }
       }
       return tournamentData;
@@ -507,8 +515,6 @@ const TournamentManagePage: React.FC = () => {
               tournament={tournament}
               onOpenRegistration={handleOpenRegistration}
               onCloseRegistration={handleCloseRegistration}
-              onDeleteTournament={() => setShowDeleteConfirm(true)}
-              deleting={deleting}
               tournamentType={tournament.type === TournamentType.SWISS ? "Swiss" : "Single Elimination"}
             />
             
@@ -518,6 +524,18 @@ const TournamentManagePage: React.FC = () => {
               <TournamentSetup 
                 tournament={tournament} 
               />
+            </div>
+
+            {/* Delete Tournament - Moved under Public View */}
+            <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="btn btn-danger"
+                disabled={deleting}
+              >
+                <TrashIcon className="h-4 w-4 mr-2" />
+                Delete Tournament
+              </button>
             </div>
           </div>
         )}
@@ -579,6 +597,96 @@ const TournamentManagePage: React.FC = () => {
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Live Tournament Management</h2>
             
+            {/* Tournament Winner/Leader Section */}
+            {(() => {
+              // Determine winner from completed matches if backend hasn't set winnerId
+              const determineWinner = () => {
+                if (tournament.winnerId) {
+                  return tournament.winnerId;
+                }
+                
+                // For single elimination, find the final match winner
+                const finalRound = tournament.rounds?.find(round => 
+                  round.roundName?.toLowerCase().includes('final') || 
+                  round.roundNumber === tournament.rounds.length
+                );
+                
+                if (finalRound) {
+                  const finalMatch = finalRound.matches?.find(match => 
+                    match.status === 'completed' && match.winnerId
+                  );
+                  
+                  if (finalMatch) {
+                    return finalMatch.winnerId;
+                  }
+                }
+                
+                return null;
+              };
+              
+              const determineTournamentCompletion = () => {
+                if (tournament.isFinished) {
+                  return true;
+                }
+                
+                // For single elimination, check if final match is completed
+                const finalRound = tournament.rounds?.find(round => 
+                  round.roundName?.toLowerCase().includes('final') || 
+                  round.roundNumber === tournament.rounds.length
+                );
+                
+                if (finalRound) {
+                  const finalMatch = finalRound.matches?.find(match => 
+                    match.status === 'completed' && match.winnerId
+                  );
+                  
+                  if (finalMatch) {
+                    return true;
+                  }
+                }
+                
+                return false;
+              };
+              
+              const currentWinnerId = determineWinner();
+              const isTournamentCompleted = determineTournamentCompletion();
+              
+              return currentWinnerId && (
+              <div className="mb-8">
+                <div className={`bg-gradient-to-r rounded-lg p-6 border ${
+                  isTournamentCompleted 
+                    ? 'from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border-yellow-200 dark:border-yellow-800' 
+                    : 'from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border-green-200 dark:border-green-800'
+                }`}>
+                  <div className="flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="text-4xl mb-3">
+                        {isTournamentCompleted ? '🏆' : '👑'}
+                      </div>
+                      <div className="text-2xl font-bold mb-2">
+                        <span className={isTournamentCompleted ? 'text-yellow-800 dark:text-yellow-200' : 'text-green-800 dark:text-green-200'}>
+                          {tournament.players.find(p => p.id === currentWinnerId)?.name || 'Champion'}
+                        </span>
+                      </div>
+                      <div className={`text-sm font-medium ${
+                        isTournamentCompleted 
+                          ? 'text-yellow-600 dark:text-yellow-400' 
+                          : 'text-green-600 dark:text-green-400'
+                      }`}>
+                        {isTournamentCompleted ? 'Tournament Champion' : 'Current Tournament Leader'}
+                      </div>
+                      {!isTournamentCompleted && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Tournament in progress
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              );
+            })()}
+            
             {!tournament.isStarted ? (
               <div className="text-center py-12">
                 <FireIcon className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
@@ -599,28 +707,52 @@ const TournamentManagePage: React.FC = () => {
             ) : (
               <div className="space-y-8">
 
-                {/* Quick Actions - Hidden for Single Elimination Tournaments */}
-                {tournament?.type !== TournamentType.SINGLE_ELIMINATION && (
-                  <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6 relative z-1">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
-                    <div className="flex flex-wrap gap-3">
-                      <button
-                        onClick={() => navigate(`/tournament/${tournament?.type === TournamentType.SWISS ? 'swiss' : 'single-elimination'}/${tournamentId}/results`)}
-                        className="btn btn-primary"
-                      >
-                        <EyeIcon className="h-4 w-4 mr-2" />
-                        View Results Page
-                      </button>
-                      <button
-                        onClick={() => navigate(`/tournament/${tournament?.type === TournamentType.SWISS ? 'swiss' : 'single-elimination'}/${tournamentId}`)}
-                        className="btn btn-secondary"
-                      >
-                        <TrophyIcon className="h-4 w-4 mr-2" />
-                        Public Tournament View
-                      </button>
+                {/* Quick Actions - Only show if tournament is not completed */}
+                {(() => {
+                  // Determine tournament completion status
+                  const determineTournamentCompletion = () => {
+                    if (tournament.isFinished) {
+                      return true;
+                    }
+                    
+                    // For single elimination, check if final match is completed
+                    if (tournament.type === TournamentType.SINGLE_ELIMINATION) {
+                      const finalRound = tournament.rounds?.find(round => 
+                        round.roundName?.toLowerCase().includes('final') || 
+                        round.roundNumber === tournament.rounds.length
+                      );
+                      
+                      if (finalRound) {
+                        const finalMatch = finalRound.matches?.find(match => 
+                          match.status === 'completed' && match.winnerId
+                        );
+                        
+                        if (finalMatch) {
+                          return true;
+                        }
+                      }
+                    }
+                    
+                    return false;
+                  };
+
+                  const isTournamentCompleted = determineTournamentCompletion();
+                  
+                  return !isTournamentCompleted && (
+                    <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6 relative z-1">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          onClick={() => navigate(`/tournament/${tournament?.type === TournamentType.SWISS ? 'swiss' : 'single-elimination'}/${tournamentId}/results`)}
+                          className="btn btn-primary"
+                        >
+                          <EyeIcon className="h-4 w-4 mr-2" />
+                          View Results Page
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Tournament Display with Management Features */}
                 <div className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-6 relative z-1">
@@ -695,56 +827,87 @@ const TournamentManagePage: React.FC = () => {
                   ) : (
                     /* Single Elimination Tournament */
                     <div className="space-y-6">
-                      {/* Current Round Section for Single Elimination */}
-                      {tournament.rounds && tournament.rounds.length > 0 && (
-                        <>
-                          {/* Find the current active round (first incomplete round) */}
-                          {(() => {
-                            const activeRound = tournament.rounds.find(r => !r.isComplete);
-                            if (!activeRound) {
-                              return null; // All rounds complete or no active round
-                            }
+                      {/* Current Round Section for Single Elimination - Hide if tournament is completed */}
+                      {(() => {
+                        // Check if tournament is completed
+                        const determineTournamentCompletion = () => {
+                          if (tournament.isFinished) {
+                            return true;
+                          }
+                          
+                          // For single elimination, check if final match is completed
+                          if (tournament.type === TournamentType.SINGLE_ELIMINATION) {
+                            const finalRound = tournament.rounds?.find(round => 
+                              round.roundName?.toLowerCase().includes('final') || 
+                              round.roundNumber === tournament.rounds.length
+                            );
                             
-                            return (
-                              <div>
-                                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6 mb-6">
-                                  <div className="flex items-center justify-between mb-4">
-                                    <h4 className="text-lg font-semibold text-blue-900 dark:text-blue-100">
-                                      Current Round: {(() => {
-                                        const totalRounds = tournament.rounds.length;
-                                        const roundsFromEnd = totalRounds - activeRound.roundNumber + 1;
-                                        
-                                        switch (roundsFromEnd) {
-                                          case 1: return 'Final';
-                                          case 2: return 'Semi-Final';
-                                          case 3: return 'Quarter-Final';
-                                          default: return `Round ${activeRound.roundNumber}`;
-                                        }
-                                      })()}
-                                    </h4>
-                                    <span className="text-sm text-blue-700 dark:text-blue-300">
-                                      {activeRound.matches.filter(m => m.status === 'completed').length} of {activeRound.matches.length} matches completed
-                                    </span>
-                                  </div>
-                                  
-                                  {/* Use TournamentBracket component for proper match handling */}
-                                  <div className="current-round-bracket" style={{ marginTop: '1rem' }}>
-                                    <TournamentBracket 
-                                      tournament={{
-                                        ...tournament,
-                                        rounds: [activeRound] // Only show the active round
-                                      }} 
-                                      onTournamentUpdate={setTournament}
-                                      isManageMode={true}
-                                      hideRoundHeaders={true}
-                                    />
+                            if (finalRound) {
+                              const finalMatch = finalRound.matches?.find(match => 
+                                match.status === 'completed' && match.winnerId
+                              );
+                              
+                              if (finalMatch) {
+                                return true;
+                              }
+                            }
+                          }
+                          
+                          return false;
+                        };
+
+                        const isTournamentCompleted = determineTournamentCompletion();
+                        
+                        return !isTournamentCompleted && tournament.rounds && tournament.rounds.length > 0 && (
+                          <>
+                            {/* Find the current active round (first incomplete round) */}
+                            {(() => {
+                              const activeRound = tournament.rounds.find(r => !r.isComplete);
+                              if (!activeRound) {
+                                return null; // All rounds complete or no active round
+                              }
+                              
+                              return (
+                                <div>
+                                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6 mb-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                      <h4 className="text-lg font-semibold text-blue-900 dark:text-blue-100">
+                                        Current Round: {(() => {
+                                          const totalRounds = tournament.rounds.length;
+                                          const roundsFromEnd = totalRounds - activeRound.roundNumber + 1;
+                                          
+                                          switch (roundsFromEnd) {
+                                            case 1: return 'Final';
+                                            case 2: return 'Semi-Final';
+                                            case 3: return 'Quarter-Final';
+                                            default: return `Round ${activeRound.roundNumber}`;
+                                          }
+                                        })()}
+                                      </h4>
+                                      <span className="text-sm text-blue-700 dark:text-blue-300">
+                                        {activeRound.matches.filter(m => m.status === 'completed').length} of {activeRound.matches.length} matches completed
+                                      </span>
+                                    </div>
+                                    
+                                    {/* Use TournamentBracket component for proper match handling */}
+                                    <div className="current-round-bracket" style={{ marginTop: '1rem' }}>
+                                      <TournamentBracket 
+                                        tournament={{
+                                          ...tournament,
+                                          rounds: [activeRound] // Only show the active round
+                                        }} 
+                                        onTournamentUpdate={setTournament}
+                                        isManageMode={true}
+                                        hideRoundHeaders={true}
+                                      />
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          })()}
-                        </>
-                      )}
+                              );
+                            })()}
+                          </>
+                        );
+                      })()}
                       
                       {/* Full Tournament Bracket - Expandable */}
                       <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
@@ -786,7 +949,7 @@ const TournamentManagePage: React.FC = () => {
         onClose={() => setShowDeleteConfirm(false)}
         onConfirm={handleDeleteTournament}
         title="Delete Tournament"
-        message={`Are you sure you want to delete "${tournament?.name}"? This action cannot be undone and will permanently remove all tournament data, including matches and results.`}
+        message="Permanently delete this tournament and all its data. This action cannot be undone."
         isDeleting={deleting}
       />
 

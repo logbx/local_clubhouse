@@ -16,9 +16,9 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { useLocationContext } from '@/contexts/LocationContext';
-import { api } from '@/lib/api';
+import { api } from '@/lib/api-client-mobile';
 import { LocationCoordinates } from '@/hooks/useLocation';
 
 interface EventDetails {

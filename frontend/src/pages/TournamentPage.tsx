@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { tournamentService, Tournament } from '../services/tournament.service';
+import { tournamentService, Tournament, TournamentType } from '../services/tournament.service';
 import { webSocketService } from '../services/websocket.service';
 import { TrophyIcon, UserPlusIcon, CalendarIcon, UserGroupIcon, PlayIcon } from '@heroicons/react/24/outline';
 import TournamentBracket from '../components/TournamentBracket';
+import SwissTournamentPairings from '../components/SwissTournamentPairings';
+import SwissTournamentStandings from '../components/SwissTournamentStandings';
 import { format } from 'date-fns';
 
 const TournamentPage: React.FC = () => {
@@ -132,7 +134,9 @@ const TournamentPage: React.FC = () => {
             <TrophyIcon className="h-8 w-8 text-yellow-500 mr-3" />
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{tournament.name}</h1>
-              <p className="text-gray-600 dark:text-gray-400">Single Elimination Tournament</p>
+              <p className="text-gray-600 dark:text-gray-400">
+                {tournament.type === TournamentType.SWISS ? 'Swiss Tournament' : 'Single Elimination Tournament'}
+              </p>
             </div>
           </div>
           
@@ -286,11 +290,49 @@ const TournamentPage: React.FC = () => {
         )}
       </div>
 
-      {/* Tournament Bracket */}
+      {/* Tournament Display */}
       {tournament.isStarted && (
         <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Tournament Bracket</h2>
-          <TournamentBracket tournament={tournament} />
+          {tournament.type === TournamentType.SWISS ? (
+            <div className="space-y-8">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Current Standings</h2>
+                <SwissTournamentStandings tournament={tournament} />
+              </div>
+              
+              {tournament.rounds && tournament.rounds.length > 0 && (
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
+                    Round {tournament.currentRound || tournament.rounds.length} Matches
+                  </h2>
+                  {(() => {
+                    const currentRoundNumber = tournament.currentRound || tournament.rounds.length;
+                    const currentRound = tournament.rounds.find(r => r.roundNumber === currentRoundNumber);
+                    
+                    if (!currentRound) {
+                      return <p className="text-gray-600 dark:text-gray-400">No matches found for current round.</p>;
+                    }
+                    
+                    return (
+                      <SwissTournamentPairings
+                        round={currentRound}
+                        currentRound={currentRoundNumber}
+                        totalRounds={tournament.numRounds || 3}
+                        onReportResult={() => {}} // Public view - no result reporting
+                        isOrganizer={false}
+                        allowDraws={true}
+                      />
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Tournament Bracket</h2>
+              <TournamentBracket tournament={tournament} />
+            </div>
+          )}
         </div>
       )}
     </div>

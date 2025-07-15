@@ -32,6 +32,7 @@ export const MatchResultModal: React.FC<MatchResultModalProps> = ({
   const [notes, setNotes] = useState('');
   const [disputeReason, setDisputeReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmActions, setShowConfirmActions] = useState(false);
 
   const handleSubmit = async () => {
     if (isSubmitting) return;
@@ -65,6 +66,68 @@ export const MatchResultModal: React.FC<MatchResultModalProps> = ({
     }
   };
 
+  const handleConfirm = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await onConfirmResult();
+      onClose();
+    } catch (error) {
+      console.error('Error confirming result:', error);
+      // Show error message to user
+      alert('Failed to confirm result. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDispute = async () => {
+    if (isSubmitting || !disputeReason.trim()) return;
+    setIsSubmitting(true);
+    try {
+      await onDisputeResult(disputeReason.trim());
+      onClose();
+    } catch (error) {
+      console.error('Error disputing result:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Determine what actions are available based on match status and user
+  // Check if current user submitted the result (more robust checking)
+  // Handle multiple ID formats that might be stored in resultReportedBy
+  const hasSubmittedResult = match.resultReportedBy && Array.isArray(match.resultReportedBy) 
+    ? match.resultReportedBy.some(reporterId => {
+        if (!currentUserId) return false;
+        // Direct match with currentUserId
+        if (reporterId === currentUserId) return true;
+        // Try both string formats in case of ObjectId vs string mismatch
+        if (reporterId === String(currentUserId)) return true;
+        if (String(reporterId) === currentUserId) return true;
+        return false;
+      }) 
+    : false;
+  
+  // Debug logging for ID matching issues
+  console.log('🔍 Match result modal debug:', {
+    matchId: match.matchId,
+    currentUserId,
+    player1Id: match.player1.id,
+    player1UserId: match.player1.userId,
+    player2Id: match.player2.id,
+    player2UserId: match.player2.userId,
+    resultReportedBy: match.resultReportedBy,
+    hasSubmittedResult,
+    matchStatus: match.status,
+    isCreator
+  });
+  
+  const canConfirmResult = match.status === 'submitted' && !hasSubmittedResult && !isCreator;
+  const canDisputeResult = match.status === 'submitted' && !hasSubmittedResult;
+  const canSubmitResult = match.status === 'pending' && 
+    (isCreator || match.player1.id === currentUserId || match.player2.id === currentUserId);
+
   if (!isOpen) return null;
 
   return (
@@ -72,69 +135,118 @@ export const MatchResultModal: React.FC<MatchResultModalProps> = ({
       <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
         <div className="mb-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-            Submit Match Result
+            {match.status === 'submitted' ? 'Match Result Submitted' : 'Submit Match Result'}
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             {match.player1.name} vs {match.player2.name}
           </p>
+          {match.status === 'submitted' && (
+            <div className="mt-2 p-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded">
+              <p className="text-sm text-orange-700 dark:text-orange-400">
+                Result has been submitted and is awaiting confirmation
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Select Result
-            </label>
-            <div className="space-y-2">
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="result"
-                  value="win"
-                  checked={selectedResult === 'win'}
-                  onChange={(e) => setSelectedResult(e.target.value as 'win' | 'loss' | 'draw')}
-                  className="mr-3"
-                />
-                <span>{isCreator ? `${match.player1.name} Won` : 'I Won'}</span>
-              </label>
-              {!isSingleElimination && (
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="result"
-                    value="draw"
-                    checked={selectedResult === 'draw'}
-                    onChange={(e) => setSelectedResult(e.target.value as 'win' | 'loss' | 'draw')}
-                    className="mr-3"
-                  />
-                  <span>Draw (0.5 points each)</span>
+          {/* Show result submission form if match is pending or user can submit */}
+          {canSubmitResult && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Select Result
                 </label>
-              )}
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="result"
-                  value="loss"
-                  checked={selectedResult === 'loss'}
-                  onChange={(e) => setSelectedResult(e.target.value as 'win' | 'loss' | 'draw')}
-                  className="mr-3"
-                />
-                <span>{isCreator ? `${match.player2.name} Won` : 'I Lost'}</span>
-              </label>
-            </div>
-          </div>
+                <div className="space-y-2">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="result"
+                      value="win"
+                      checked={selectedResult === 'win'}
+                      onChange={(e) => setSelectedResult(e.target.value as 'win' | 'loss' | 'draw')}
+                      className="mr-3"
+                    />
+                    <span>{isCreator ? `${match.player1.name} Won` : 'I Won'}</span>
+                  </label>
+                  {!isSingleElimination && (
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="result"
+                        value="draw"
+                        checked={selectedResult === 'draw'}
+                        onChange={(e) => setSelectedResult(e.target.value as 'win' | 'loss' | 'draw')}
+                        className="mr-3"
+                      />
+                      <span>Draw (0.5 points each)</span>
+                    </label>
+                  )}
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="result"
+                      value="loss"
+                      checked={selectedResult === 'loss'}
+                      onChange={(e) => setSelectedResult(e.target.value as 'win' | 'loss' | 'draw')}
+                      className="mr-3"
+                    />
+                    <span>{isCreator ? `${match.player2.name} Won` : 'I Lost'}</span>
+                  </label>
+                </div>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Notes (optional)
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-              rows={3}
-              placeholder="Add any notes about the match result..."
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Notes (optional)
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  rows={3}
+                  placeholder="Add any notes about the match result..."
+                />
+              </div>
+            </>
+          )}
+
+          {/* Show current result if submitted */}
+          {match.status === 'submitted' && match.winnerId && (
+            <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+                Submitted Result:
+              </h4>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Winner: {match.winnerId === match.player1.id ? match.player1.name : match.player2.name}
+              </p>
+            </div>
+          )}
+
+          {/* Show dispute form if needed */}
+          {canDisputeResult && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Dispute Reason
+              </label>
+              <textarea
+                value={disputeReason}
+                onChange={(e) => setDisputeReason(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                rows={3}
+                placeholder="Please explain why you dispute this result..."
+              />
+            </div>
+          )}
+
+          {/* Show message if user already submitted */}
+          {match.status === 'submitted' && hasSubmittedResult && (
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded">
+              <p className="text-sm text-blue-700 dark:text-blue-400">
+                You have already submitted the result for this match. Waiting for opponent confirmation.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="mt-6 flex justify-end space-x-3">
@@ -144,13 +256,39 @@ export const MatchResultModal: React.FC<MatchResultModalProps> = ({
           >
             Cancel
           </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            {isSubmitting ? 'Submitting...' : 'Submit Result'}
-          </button>
+          
+          {/* Submit result button */}
+          {canSubmitResult && (
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            >
+              {isSubmitting ? 'Submitting...' : 'Submit Result'}
+            </button>
+          )}
+          
+          {/* Confirm result button */}
+          {canConfirmResult && (
+            <button
+              onClick={handleConfirm}
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+            >
+              {isSubmitting ? 'Confirming...' : 'Confirm Result'}
+            </button>
+          )}
+          
+          {/* Dispute result button */}
+          {canDisputeResult && (
+            <button
+              onClick={handleDispute}
+              disabled={isSubmitting || !disputeReason.trim()}
+              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+            >
+              {isSubmitting ? 'Disputing...' : 'Dispute Result'}
+            </button>
+          )}
         </div>
       </div>
     </div>

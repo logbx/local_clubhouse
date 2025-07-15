@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Link } from 'expo-router';
+import { TestProviders } from '../components/TestProviders';
+import { NavigationExample } from '../components/NavigationExample';
 
 export default function HomePage() {
   return (
@@ -44,6 +46,16 @@ export default function HomePage() {
         <Pressable style={styles.button}>
           <Text style={styles.buttonText}>🎯 Start Exploring</Text>
         </Pressable>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>🧪 Provider Test</Text>
+          <TestProviders />
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>🧭 Navigation Test</Text>
+          <NavigationExample />
+        </View>
       </View>
     </ScrollView>
   );

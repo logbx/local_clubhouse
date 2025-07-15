@@ -882,11 +882,8 @@ export class TournamentsService {
     // Tournament organizer can always confirm any submitted result
     if (isOrganizer) {
       // No additional validation needed for organizer
-    } else if (hasGuestPlayer) {
-      // For guest matches, only organizer can confirm (handled above)
-      throw new ForbiddenException('Only the tournament organizer can confirm results for matches with guest players');
     } else {
-      // For regular matches, validate that the confirmer is a player in the match (not the one who submitted)
+      // For all matches (including guest matches), validate that the confirmer is a player in the match
       const isPlayer = match.player1.id === confirmerId || match.player2.id === confirmerId;
       
       if (!isPlayer) {

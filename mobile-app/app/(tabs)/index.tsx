@@ -3,7 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ClubCard } from '@/components/club/ClubCard';
 import { EventCard } from '@/components/event/EventCard';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api-client';
+import { api } from '@/lib/api-client-mobile';
 import { useState } from 'react';
 
 export default function HomeScreen() {

@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Outlet, useParams, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -46,6 +46,32 @@ import SwissTournament from './pages/SwissTournament';
 // import SwissTournamentAdmin from './pages/SwissTournamentAdmin';
 import SwissTournamentManagePage from './pages/SwissTournamentManagePage';
 import { SwissMatchResultsPage } from './pages/SwissMatchResultsPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+
+// Redirect component for old URL patterns
+const TournamentRedirect: React.FC = () => {
+  const { tournamentId } = useParams<{ tournamentId: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (tournamentId) {
+      // Redirect from underscore URLs to hyphen URLs
+      const pathname = location.pathname;
+      if (pathname.includes('single_elimination')) {
+        navigate(pathname.replace('single_elimination', 'single-elimination'), { replace: true });
+      } else if (pathname.includes('tournament/swiss')) {
+        // Handle swiss redirects if needed
+        navigate(pathname, { replace: true });
+      } else {
+        // Fallback to generic tournament page
+        navigate(`/tournament/${tournamentId}`, { replace: true });
+      }
+    }
+  }, [tournamentId, location.pathname, navigate]);
+
+  return <div>Redirecting...</div>;
+};
 
 // Create a client
 const queryClient = new QueryClient({
@@ -93,11 +119,16 @@ const App: React.FC = () => {
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/privacy" element={<PrivacyPolicyPage />} />
             
             {/* Public Profile and Event Routes with Layout */}
             <Route path="/user/:userId" element={<PublicLayout><PublicProfilePage /></PublicLayout>} />
             <Route path="/event/:eventId" element={<PublicLayout><PublicEventPage /></PublicLayout>} />
             <Route path="/tournament/:tournamentId" element={<PublicLayout><TournamentPage /></PublicLayout>} />
+            <Route path="/tournament/single-elimination/:tournamentId" element={<PublicLayout><SingleEliminationTournament /></PublicLayout>} />
+            <Route path="/tournament/swiss/:tournamentId" element={<PublicLayout><SwissTournament /></PublicLayout>} />
+            {/* Redirect routes for old URL patterns with underscores */}
+            <Route path="/tournament/single_elimination/:tournamentId" element={<TournamentRedirect />} />
             <Route path="/clubs/:clubUsername" element={<PublicLayout><ClubProfilePage /></PublicLayout>} />
             <Route path="/sponsors/:sponsorUsername" element={<PublicLayout><SponsorProfilePage /></PublicLayout>} />
 

@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import Navbar from './Navbar';
+import { Link } from 'react-router-dom';
 
 interface PublicLayoutProps {
   children: ReactNode;
@@ -19,9 +20,9 @@ export default function PublicLayout({ children }: PublicLayoutProps) {
               &copy; {new Date().getFullYear()} Local Clubhouse. All rights reserved.
             </div>
             <div className="flex space-x-6">
-              <a href="/privacy" className="text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">Privacy Policy</a>
-              <a href="/terms" className="text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">Terms of Service</a>
-              <a href="/contact" className="text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">Contact</a>
+              <Link to="/privacy" className="text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">Privacy Policy</Link>
+              <Link to="/terms" className="text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">Terms of Service</Link>
+              <Link to="/contact" className="text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">Contact</Link>
             </div>
           </div>
         </div>

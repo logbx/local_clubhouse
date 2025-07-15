@@ -42,6 +42,10 @@ export const MatchResultsPage: React.FC = () => {
         isCreator: tournamentData.organizerId === user?.id,
         rounds: tournamentData.rounds?.length || 0,
         totalMatches: tournamentData.rounds?.flatMap(r => r.matches).length || 0,
+        winnerId: tournamentData.winnerId,
+        isFinished: tournamentData.isFinished,
+        isStarted: tournamentData.isStarted,
+        players: tournamentData.players?.map(p => ({ id: p.id, name: p.name })) || []
       });
       
       setTournament(tournamentData);
@@ -107,21 +111,125 @@ export const MatchResultsPage: React.FC = () => {
 
   const allMatches = tournament.rounds?.flatMap(round => round.matches) || [];
   const userMatches = allMatches.filter(match => 
-    match.player1.id === user?.id || match.player2.id === user?.id
+    match.player1.id === user?.id || match.player2.id === user?.id ||
+    match.player1.userId === user?.id || match.player2.userId === user?.id
   );
+  
+  // Determine winner and completion status from completed matches
+  const determineWinner = () => {
+    if (tournament.winnerId) {
+      return tournament.winnerId;
+    }
+    
+    // For single elimination, find the final match winner
+    const finalRound = tournament.rounds?.find(round => 
+      round.roundName?.toLowerCase().includes('final') || 
+      round.roundNumber === tournament.rounds.length
+    );
+    
+    if (finalRound) {
+      const finalMatch = finalRound.matches?.find(match => 
+        match.status === 'completed' && match.winnerId
+      );
+      
+      if (finalMatch) {
+        console.log('🏆 Found winner from final match:', {
+          winnerId: finalMatch.winnerId,
+          winnerName: tournament.players?.find(p => p.id === finalMatch.winnerId)?.name
+        });
+        return finalMatch.winnerId;
+      }
+    }
+    
+    return null;
+  };
+  
+  const determineTournamentCompletion = () => {
+    if (tournament.isFinished) {
+      return true;
+    }
+    
+    // For single elimination, check if final match is completed
+    const finalRound = tournament.rounds?.find(round => 
+      round.roundName?.toLowerCase().includes('final') || 
+      round.roundNumber === tournament.rounds.length
+    );
+    
+    if (finalRound) {
+      const finalMatch = finalRound.matches?.find(match => 
+        match.status === 'completed' && match.winnerId
+      );
+      
+      if (finalMatch) {
+        console.log('🏁 Tournament detected as completed based on final match');
+        return true;
+      }
+    }
+    
+    return false;
+  };
+  
+  const currentWinnerId = determineWinner();
+  const isTournamentCompleted = determineTournamentCompletion();
   
   // Find current round - the round with pending or submitted matches
   const currentRound = tournament.rounds?.find(round => 
     round.matches.some(match => 
-      (match.player1.id === user?.id || match.player2.id === user?.id) && 
+      (match.player1.id === user?.id || match.player2.id === user?.id ||
+       match.player1.userId === user?.id || match.player2.userId === user?.id) && 
       (match.status === 'pending' || match.status === 'submitted')
     )
   );
   
-  const currentRoundMatches = currentRound ? currentRound.matches.filter(match => 
-    (match.player1.id === user?.id || match.player2.id === user?.id) && 
-    (match.status === 'pending' || match.status === 'submitted')
-  ) : [];
+  const currentRoundMatches = currentRound ? currentRound.matches.filter(match => {
+    // Check if user is in the match (check both id and userId fields)
+    const isUserInMatch = match.player1.id === user?.id || match.player2.id === user?.id ||
+                          match.player1.userId === user?.id || match.player2.userId === user?.id;
+    if (!isUserInMatch) return false;
+    
+    // For pending matches, always show
+    if (match.status === 'pending') return true;
+    
+    // For submitted matches, only show if user didn't submit the result
+    if (match.status === 'submitted') {
+      // Check if current user submitted the result (robust ID checking)
+      const hasSubmittedResult = match.resultReportedBy && Array.isArray(match.resultReportedBy)
+        ? match.resultReportedBy.some(reporterId => {
+            if (!user?.id) return false;
+            // Direct match with user.id
+            if (reporterId === user.id) return true;
+            // Try both string formats in case of ObjectId vs string mismatch
+            if (reporterId === String(user.id)) return true;
+            if (String(reporterId) === user.id) return true;
+            // Also check against user.userId if available (some systems use different ID fields)
+            if (user.userId && reporterId === user.userId) return true;
+            if (user.userId && reporterId === String(user.userId)) return true;
+            if (user.userId && String(reporterId) === user.userId) return true;
+            return false;
+          })
+        : false;
+      
+      // Debug logging
+      console.log('🔍 MatchResultsPage - Current round match debug:', {
+        matchId: match.matchId,
+        userId: user?.id,
+        userUserId: user?.userId,
+        player1Id: match.player1.id,
+        player1UserId: match.player1.userId,
+        player2Id: match.player2.id,
+        player2UserId: match.player2.userId,
+        resultReportedBy: match.resultReportedBy,
+        hasSubmittedResult,
+        matchStatus: match.status,
+        isUserInMatch
+      });
+      
+      // Only show if user hasn't submitted the result
+      return !hasSubmittedResult;
+    }
+    
+    return false;
+  }) : [];
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -141,18 +249,43 @@ export const MatchResultsPage: React.FC = () => {
         </div>
 
         {/* Tournament Winner */}
-        {tournament.isFinished && tournament.winnerId && (
+        {console.log('🏆 Winner section debug:', {
+          backendWinnerId: tournament.winnerId,
+          currentWinnerId: currentWinnerId,
+          backendIsFinished: tournament.isFinished,
+          detectedIsCompleted: isTournamentCompleted,
+          players: tournament.players?.map(p => ({ id: p.id, name: p.name })) || [],
+          winnerPlayer: tournament.players?.find(p => p.id === currentWinnerId)
+        })}
+        {currentWinnerId && (
           <div className="mb-8">
-            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+            <div className={`bg-gradient-to-r rounded-lg p-6 border ${
+              isTournamentCompleted 
+                ? 'from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border-yellow-200 dark:border-yellow-800' 
+                : 'from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border-green-200 dark:border-green-800'
+            }`}>
               <div className="flex items-center justify-center">
                 <div className="text-center">
-                  <div className="text-2xl mb-1">🏆</div>
-                  <div className="text-lg font-semibold text-yellow-800 dark:text-yellow-200">
-                    {tournament.players.find(p => p.id === tournament.winnerId)?.name || 'Champion'}
+                  <div className="text-4xl mb-3">
+                    {isTournamentCompleted ? '🏆' : '👑'}
                   </div>
-                  <div className="text-sm text-yellow-600 dark:text-yellow-400">
-                    Tournament Winner
+                  <div className="text-2xl font-bold mb-2">
+                    <span className={isTournamentCompleted ? 'text-yellow-800 dark:text-yellow-200' : 'text-green-800 dark:text-green-200'}>
+                      {tournament.players.find(p => p.id === currentWinnerId)?.name || 'Champion'}
+                    </span>
                   </div>
+                  <div className={`text-sm font-medium ${
+                    isTournamentCompleted 
+                      ? 'text-yellow-600 dark:text-yellow-400' 
+                      : 'text-green-600 dark:text-green-400'
+                  }`}>
+                    {isTournamentCompleted ? 'Tournament Champion' : 'Current Tournament Leader'}
+                  </div>
+                  {!isTournamentCompleted && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Tournament still in progress
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -168,7 +301,7 @@ export const MatchResultsPage: React.FC = () => {
                   Current Round
                 </h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {currentRound?.name || `Round ${currentRound?.round}`} - Matches requiring your input
+                  {currentRound?.roundName || `Round ${currentRound?.roundNumber}`} - Matches requiring your input
                 </p>
               </div>
               <div className="p-6">
@@ -250,10 +383,27 @@ export const MatchResultsPage: React.FC = () => {
           }}
           onConfirmResult={async () => {
             if (!tournament || !selectedMatch) return;
-            await tournamentService.confirmMatchResult(tournament.id, selectedMatch.matchId);
-            toast.success('Match result confirmed!');
-            loadTournament();
-            setShowResultModal(false);
+            try {
+              await tournamentService.confirmMatchResult(tournament.id, selectedMatch.matchId);
+              toast.success('Match result confirmed!');
+              loadTournament();
+              setShowResultModal(false);
+            } catch (error: any) {
+              console.error('Error confirming match result:', error);
+              if (error.response?.status === 400) {
+                const errorMessage = error.response?.data?.message || 'Failed to confirm result';
+                if (errorMessage.includes('already been completed') || 
+                    errorMessage.includes('Can only confirm submitted results')) {
+                  toast.error('This match has already been processed. Refreshing tournament data...');
+                  loadTournament(); // Force refresh
+                  setShowResultModal(false);
+                } else {
+                  toast.error(errorMessage);
+                }
+              } else {
+                toast.error('Failed to confirm result. Please try again.');
+              }
+            }
           }}
           onDisputeResult={async (reason) => {
             if (!tournament || !selectedMatch) return;

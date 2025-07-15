@@ -103,15 +103,17 @@ const MatchCard: React.FC<MatchCardProps> = ({
   
   // Check if current user submitted the result (more robust checking)
   // Handle multiple ID formats that might be stored in resultReportedBy
-  const hasSubmittedResult = match.resultReportedBy?.some(reporterId => {
-    if (!currentUserId) return false;
-    // Direct match
-    if (reporterId === currentUserId) return true;
-    // Try both string formats in case of ObjectId vs string mismatch
-    if (reporterId === String(currentUserId)) return true;
-    if (String(reporterId) === currentUserId) return true;
-    return false;
-  }) || false;
+  const hasSubmittedResult = match.resultReportedBy && Array.isArray(match.resultReportedBy)
+    ? match.resultReportedBy.some(reporterId => {
+        if (!currentUserId) return false;
+        // Direct match
+        if (reporterId === currentUserId) return true;
+        // Try both string formats in case of ObjectId vs string mismatch
+        if (reporterId === String(currentUserId)) return true;
+        if (String(reporterId) === currentUserId) return true;
+        return false;
+      })
+    : false;
   
   // Debug logging for ID matching issues
   if (match.status === 'submitted' && process.env.NODE_ENV === 'development') {
