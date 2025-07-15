@@ -312,23 +312,38 @@ export class TournamentsController {
   @Post(':id/register')
   @HttpCode(HttpStatus.OK)
   async registerPlayer(@Param('id') tournamentId: string, @Request() req: AuthenticatedRequest) {
+    console.log('🎯 Tournament registration endpoint hit:', { 
+      tournamentId, 
+      user: req.user,
+      headers: req.headers.authorization ? 'Bearer token present' : 'No auth header'
+    });
+    
     try {
       const userId = req.user.sub || req.user._id || req.user.id;
+      console.log('🔍 Extracted user ID:', { userId, userSub: req.user.sub, userFullData: req.user });
+      
       if (!userId) {
+        console.error('❌ No user ID found in request');
         throw new BadRequestException('User ID not found in request');
       }
+      
       const username = req.user.username || 'User';
+      console.log('🚀 Calling tournamentsService.registerPlayer:', { tournamentId, userId, username });
+      
       const tournament = await this.tournamentsService.registerPlayer(
         tournamentId, 
         userId, 
         username
       );
+      
+      console.log('✅ Registration successful');
       return {
         success: true,
         message: 'Successfully registered for tournament',
         data: tournament,
       };
     } catch (error: any) {
+      console.error('❌ Registration error in controller:', error.message);
       throw error;
     }
   }
