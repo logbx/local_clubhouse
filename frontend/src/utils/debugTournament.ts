@@ -6,7 +6,8 @@ export class TournamentDebugger {
   
   static async testBackendConnection(): Promise<{ success: boolean; message: string; status?: number }> {
     try {
-      const response = await fetch('http://localhost:3001/api/health/status');
+      const apiBaseUrl = import.meta.env.VITE_API_URL || 'https://localclubhouse.com';
+      const response = await fetch(`${apiBaseUrl}/api/health/status`);
       const data = await response.json();
       
       if (response.ok) {

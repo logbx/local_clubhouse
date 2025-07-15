@@ -16,11 +16,13 @@ export default function RegisterForm() {
   });
 
   const registerMutation = useMutation({
-    mutationFn: (data: FormData) =>
-      axios.post('http://localhost:3000/auth/register', {
+    mutationFn: (data: FormData) => {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://localclubhouse.com';
+      return axios.post(`${apiUrl}/auth/register`, {
         ...data,
         roles: [], // Send empty roles array since roles will be set in profile setup
-      }),
+      });
+    },
   });
 
   const handleSubmit = async (e: React.FormEvent) => {

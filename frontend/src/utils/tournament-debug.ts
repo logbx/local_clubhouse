@@ -31,7 +31,7 @@ export class TournamentDebugger {
     log.info(LogCategory.TOURNAMENT, '✅ Auth token found');
 
     // Step 2: Check API base URL
-    const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+    const apiBase = import.meta.env.VITE_API_URL || 'https://localclubhouse.com';
     log.info(LogCategory.TOURNAMENT, '🌐 API Configuration', { apiBase });
 
     // Step 3: Test network connectivity
@@ -70,7 +70,7 @@ export class TournamentDebugger {
    * Run basic connectivity tests
    */
   static async runConnectivityTests() {
-    const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+    const apiBase = import.meta.env.VITE_API_URL || 'https://localclubhouse.com';
     
     const tests = [
       { name: 'Health Check', url: `${apiBase}/api/health` },

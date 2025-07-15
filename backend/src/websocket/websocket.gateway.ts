@@ -23,7 +23,9 @@ interface AuthenticatedSocket extends Socket {
 
 @NestWebSocketGateway({
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: process.env.CLIENT_URL || 
+            process.env.CORS_ORIGIN ||
+            (process.env.NODE_ENV === 'production' ? 'https://localclubhouse.com' : 'http://localhost:5173'),
     methods: ['GET', 'POST'],
     credentials: true,
   },

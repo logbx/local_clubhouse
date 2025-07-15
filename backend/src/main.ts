@@ -13,8 +13,20 @@ async function bootstrap() {
   // Set global prefix for all routes
   app.setGlobalPrefix('api');
 
+  // Configure CORS with proper environment-based origins
+  const corsOrigin = configService.get('CORS_ORIGIN') || 
+                     configService.get('CLIENT_URL') || 
+                     (process.env.NODE_ENV === 'production' ? 'https://localclubhouse.com' : 'http://localhost:5173');
+  
+  console.log('🌐 CORS Configuration:', {
+    nodeEnv: process.env.NODE_ENV,
+    corsOrigin,
+    clientUrl: configService.get('CLIENT_URL'),
+    corsFromEnv: configService.get('CORS_ORIGIN')
+  });
+
   app.enableCors({
-    origin: configService.get('CORS_ORIGIN'),
+    origin: corsOrigin,
     credentials: true,
   });
 

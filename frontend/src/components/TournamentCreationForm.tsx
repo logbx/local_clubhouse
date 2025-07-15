@@ -31,8 +31,9 @@ const TournamentCreationForm: React.FC<TournamentCreationFormProps> = ({ eventId
           return;
         }
 
-        // Test backend connection with auth verification
-        const response = await fetch('http://localhost:3001/api/auth/verify', {
+        // Test backend connection with auth verification  
+        const apiBaseUrl = import.meta.env.VITE_API_URL || 'https://localclubhouse.com';
+        const response = await fetch(`${apiBaseUrl}/api/auth/verify`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -51,7 +52,7 @@ const TournamentCreationForm: React.FC<TournamentCreationFormProps> = ({ eventId
         }
       } catch (err) {
         setConnectionStatus('failed');
-        setError('Backend connection failed. Please ensure the backend server is running on localhost:3001');
+        setError('Backend connection failed. Please ensure the backend server is running.');
       }
     };
 
@@ -297,9 +298,9 @@ const TournamentCreationForm: React.FC<TournamentCreationFormProps> = ({ eventId
           <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
             <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Backend Connection Help</h3>
             <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-              <p>1. Ensure the backend server is running: <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">cd backend && npm run start:dev</code></p>
-              <p>2. Check if port 3001 is available</p>
-              <p>3. Verify the backend health at: <a href="http://localhost:3001/api/health/status" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">http://localhost:3001/api/health/status</a></p>
+              <p>1. Ensure the backend server is running</p>
+              <p>2. Check your internet connection</p>
+              <p>3. Verify the backend health at: <a href={`${import.meta.env.VITE_API_URL || 'https://localclubhouse.com'}/api/health/status`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">API Health Check</a></p>
             </div>
           </div>
         )}
