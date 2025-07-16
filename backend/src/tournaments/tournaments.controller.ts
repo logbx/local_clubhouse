@@ -1030,4 +1030,27 @@ export class TournamentsController {
       };
     }
   }
+
+  @Public()
+  @Post(':id/repair-single-elimination-tbd')
+  @HttpCode(HttpStatus.OK)
+  async repairSingleEliminationTBD(@Param('id') tournamentId: string) {
+    try {
+      console.log('🔧 Repairing Single Elimination TBD players for tournament:', tournamentId);
+      const result = await this.tournamentsService.repairSingleEliminationTBD(tournamentId);
+      console.log('✅ Single Elimination TBD repair completed successfully');
+      return {
+        success: true,
+        message: 'Single Elimination tournament TBD players repaired successfully',
+        data: result
+      };
+    } catch (error: any) {
+      console.error('❌ Error repairing Single Elimination TBD players:', error);
+      return {
+        success: false,
+        message: 'Failed to repair Single Elimination TBD players',
+        error: error.message
+      };
+    }
+  }
 } 
