@@ -5,6 +5,7 @@ import TournamentBracket from '../components/TournamentBracket';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-hot-toast';
 import { MatchResultModal } from '../components/MatchResultModal';
+import { webSocketService } from '../services/websocket.service';
 
 export const MatchResultsPage: React.FC = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
@@ -21,6 +22,70 @@ export const MatchResultsPage: React.FC = () => {
       loadTournament();
     }
   }, [tournamentId]);
+
+  // WebSocket handling for real-time updates
+  useEffect(() => {
+    if (!tournament?.eventId) return undefined;
+
+    console.log('🔌 Setting up WebSocket listeners for Results Page - Tournament:', tournamentId, 'Event:', tournament.eventId);
+    
+    // Join event chat to receive tournament updates
+    webSocketService.joinEventChat(tournament.eventId);
+
+    const handleTournamentUpdate = (data: any) => {
+      console.log('🔔 Results Page WebSocket update received:', {
+        type: data.type,
+        tournamentId: data.tournamentId,
+        ourTournamentId: tournamentId,
+        fullData: data
+      });
+      
+      // Check if this update is for our tournament
+      if (data.tournamentId && data.tournamentId !== tournamentId) {
+        console.log('🔕 Ignoring update for different tournament:', data.tournamentId);
+        return;
+      }
+      
+      // Handle tournament-related events that affect results
+      if (data.type === 'match-result-submitted' || 
+          data.type === 'round-started' || 
+          data.type === 'tournament-completed' ||
+          data.type === 'tournament-repaired') {
+        
+        // Show notification for match results
+        if (data.type === 'match-result-submitted' && data.result) {
+          const winnerName = tournament?.rounds
+            ?.flatMap(r => r.matches)
+            ?.find(m => m.matchId === data.matchId)
+            ?.player1.id === data.result.winnerId ? 
+              tournament?.rounds?.flatMap(r => r.matches)?.find(m => m.matchId === data.matchId)?.player1.name :
+              tournament?.rounds?.flatMap(r => r.matches)?.find(m => m.matchId === data.matchId)?.player2.name;
+          
+          toast.success(`🏆 Match result updated${winnerName ? ` - ${winnerName} won!` : ''}`);
+        }
+        
+        if (data.type === 'round-started') {
+          toast.success(`🚀 Next round has started!`);
+        }
+        
+        if (data.type === 'tournament-completed') {
+          toast.success(`🏆 Tournament completed!`);
+        }
+        
+        // Refresh tournament data
+        console.log('🔄 Refreshing tournament data due to:', data.type);
+        loadTournament();
+      }
+    };
+
+    // Set up tournament update listener
+    webSocketService.onTournamentUpdate(handleTournamentUpdate);
+
+    // Cleanup function
+    return () => {
+      webSocketService.removeTournamentListeners();
+    };
+  }, [tournament?.eventId, tournamentId]);
 
   const loadTournament = async () => {
     try {

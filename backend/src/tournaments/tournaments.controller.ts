@@ -315,7 +315,7 @@ export class TournamentsController {
     console.log('🎯 Tournament registration endpoint hit:', { 
       tournamentId, 
       user: req.user,
-      headers: req.headers.authorization ? 'Bearer token present' : 'No auth header'
+      hasAuth: !!req.user
     });
     
     try {

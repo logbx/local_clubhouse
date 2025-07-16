@@ -8,6 +8,8 @@ import TournamentControls from '../components/tournaments/shared/TournamentContr
 import TournamentSetup from '../components/TournamentSetup';
 import SEBracketView from '../components/tournaments/single-elimination/SEBracketView';
 import { log, LogCategory } from '../utils/logger';
+import { webSocketService } from '../services/websocket.service';
+import { toast } from 'react-hot-toast';
 
 const SingleEliminationTournament: React.FC = () => {
   const { tournamentId } = useParams();
@@ -101,6 +103,140 @@ const SingleEliminationTournament: React.FC = () => {
 
     loadTournament();
   }, [tournamentId, eventId, eventTitle, eventCreatorId, isEventCreator]);
+
+  // WebSocket handling for real-time updates
+  useEffect(() => {
+    if (!tournament?.eventId) return undefined;
+
+    console.log('🔌 Setting up WebSocket listeners for SET Tournament Page - Tournament:', tournamentId, 'Event:', tournament.eventId);
+    
+    // Join event chat to receive tournament updates
+    webSocketService.joinEventChat(tournament.eventId);
+
+    const handleTournamentUpdate = (data: any) => {
+      console.log('🔔 SET Tournament Page WebSocket update received:', {
+        type: data.type,
+        tournamentId: data.tournamentId,
+        ourTournamentId: tournamentId,
+        fullData: data
+      });
+      
+      // Check if this update is for our tournament
+      if (data.tournamentId && data.tournamentId !== tournamentId) {
+        console.log('🔕 Ignoring update for different tournament:', data.tournamentId);
+        return;
+      }
+      
+      // Handle all tournament-related events
+      if (data.type === 'player-registered' || 
+          data.type === 'player-removed' ||
+          data.type === 'match-result-submitted' || 
+          data.type === 'round-started' || 
+          data.type === 'tournament-completed' ||
+          data.type === 'tournament-started' ||
+          data.type === 'tournament-repaired') {
+        
+        // Show appropriate notifications
+        if (data.type === 'player-registered' && data.player) {
+          toast.success(`👤 ${data.player.name} joined the tournament!`);
+        }
+        
+        if (data.type === 'match-result-submitted' && data.result) {
+          toast.success(`🏆 Match result updated!`);
+        }
+        
+        if (data.type === 'round-started') {
+          toast.success(`🚀 Next round has started!`);
+        }
+        
+        if (data.type === 'tournament-completed') {
+          toast.success(`🏆 Tournament completed!`);
+        }
+        
+        if (data.type === 'tournament-started') {
+          toast.success(`🎯 Tournament has started!`);
+        }
+        
+        // Refresh tournament data by re-running the loadTournament effect
+        console.log('🔄 Triggering tournament reload due to:', data.type);
+        
+        // Re-trigger the loadTournament effect by updating a dependency
+        // We can do this by calling the loadTournament function directly
+        const loadTournament = async () => {
+          setLoading(true);
+          setError(null);
+          try {
+            let tournamentData;
+            
+            if (tournamentId) {
+              tournamentData = await tournamentService.getTournamentById(tournamentId);
+              if (!tournamentData) {
+                throw new Error('Tournament not found');
+              }
+            } else if (eventId) {
+              const tournaments = await tournamentService.getTournamentsByEvent(eventId);
+              tournamentData = tournaments?.[0];
+            }
+
+            if (tournamentData) {
+              const frontendTournament: Tournament = {
+                id: tournamentData._id || tournamentData.id,
+                name: tournamentData.name || eventTitle,
+                eventId: tournamentData.eventId || eventId,
+                createdBy: tournamentData.organizerId || eventCreatorId,
+                players: tournamentData.players?.map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  fullName: p.fullName,
+                  username: p.username,
+                  userId: p.userId,
+                  isGuest: p.isGuest,
+                  registeredAt: p.registeredAt
+                })) || [],
+                registeredUsers: tournamentData.players
+                  ?.filter(p => !p.isGuest && p.userId)
+                  .map(p => ({
+                    userId: p.userId!,
+                    username: p.name,
+                    registeredAt: new Date(tournamentData.createdAt).getTime()
+                  })) || [],
+                matches: tournamentData.matches || [],
+                rounds: tournamentData.rounds?.length || 0,
+                status: (() => {
+                  if (tournamentData.isStarted) return 'active';
+                  if (tournamentData.isFinished) return 'completed';
+                  if (tournamentData.registrationOpen === false) return 'registration_closed';
+                  return 'registration_open';
+                })(),
+                winner: tournamentData.winner || null,
+                createdAt: new Date(tournamentData.createdAt).getTime(),
+                maxPlayers: tournamentData.maxPlayers,
+                isStarted: tournamentData.isStarted,
+                isFinished: tournamentData.isFinished,
+                registrationOpen: tournamentData.registrationOpen,
+                type: TournamentType.SINGLE_ELIMINATION
+              };
+              setTournament(frontendTournament);
+            }
+          } catch (err: any) {
+            log.error(LogCategory.TOURNAMENT, 'Failed to reload tournament', err);
+          } finally {
+            setLoading(false);
+          }
+        };
+        
+        loadTournament();
+      }
+    };
+
+    // Set up tournament update listener
+    webSocketService.onTournamentUpdate(handleTournamentUpdate);
+
+    // Cleanup function
+    return () => {
+      webSocketService.removeTournamentListeners();
+    };
+  }, [tournament?.eventId, tournamentId, eventId, eventTitle, eventCreatorId]);
 
   const registerForTournament = async () => {
     if (!tournament || !user) return;
