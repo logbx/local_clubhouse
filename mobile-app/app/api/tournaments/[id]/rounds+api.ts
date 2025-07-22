@@ -179,12 +179,12 @@ function generateRoundRobinPairings(players: any[], round: number) {
 }
 
 // GET /api/tournaments/[id]/rounds - Get all rounds
-export async function GET(request: AuthRequest): Promise<ExpoResponse> {
+export async function GET(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     verifyToken(request, new ExpoResponse(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -196,7 +196,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         const tournamentId = pathParts[pathParts.length - 2];
 
         if (!tournamentId) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Tournament ID is required' },
             { status: 400 }
           ));
@@ -223,7 +223,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         // Get tournament info
         const tournament = await Tournament.findById(tournamentId).select('type status currentRound totalRounds');
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           rounds,
           tournament: {
             _id: tournament?._id,
@@ -236,17 +236,17 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
       } catch (error) {
         console.error('Get tournament rounds error:', error);
         if (error.message === 'Tournament not found') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Tournament not found' },
             { status: 404 }
           ));
         } else if (error.message === 'Insufficient permissions') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'You do not have permission to view rounds for this tournament' },
             { status: 403 }
           ));
         } else {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to fetch tournament rounds' },
             { status: 500 }
           ));
@@ -257,12 +257,12 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // POST /api/tournaments/[id]/rounds - Generate next round
-export async function POST(request: AuthRequest): Promise<ExpoResponse> {
+export async function POST(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     verifyToken(request, new ExpoResponse(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -274,7 +274,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
         const tournamentId = pathParts[pathParts.length - 2];
 
         if (!tournamentId) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Tournament ID is required' },
             { status: 400 }
           ));
@@ -295,7 +295,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 
         // Check tournament status
         if (tournament.status !== 'active') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Tournament must be active to generate rounds' },
             { status: 400 }
           ));
@@ -306,7 +306,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
         const nextRoundNumber = validatedData.roundNumber || tournament.currentRound + 1;
 
         if (nextRoundNumber > tournament.totalRounds) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'All rounds have been completed' },
             { status: 400 }
           ));
@@ -320,7 +320,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
         });
 
         if (existingRound) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Round already exists' },
             { status: 400 }
           ));
@@ -335,7 +335,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
           });
 
           if (!previousRound || previousRound.status !== 'completed') {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Previous round must be completed before generating next round' },
               { status: 400 }
             ));
@@ -350,7 +350,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
         }).populate('player', 'name avatar').lean();
 
         if (activePlayers.length < 2) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Need at least 2 active players to generate round' },
             { status: 400 }
           ));
@@ -375,7 +375,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
               pairings = generateRoundRobinPairings(activePlayers, nextRoundNumber);
               break;
             default:
-              resolve(ExpoResponse.json(
+              resolve(Response.json(
                 { error: 'Unsupported tournament type for auto-generation' },
                 { status: 400 }
               ));
@@ -446,14 +446,14 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
         // TODO: Send WebSocket notifications to all participants
         // TODO: Send push notifications for round start
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           round: round.toJSON(),
           message: `Round ${nextRoundNumber} generated successfully with ${matches.length} matches`,
         }));
       } catch (error) {
         if (error instanceof z.ZodError) {
-          resolve(ExpoResponse.json(
-            { error: 'Validation failed', details: error.errors },
+          resolve(Response.json(
+            { error: 'Validation failed', details: error.issues },
             { status: 400 }
           ));
           return;
@@ -461,17 +461,17 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 
         console.error('Generate tournament round error:', error);
         if (error.message === 'Tournament not found') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Tournament not found' },
             { status: 404 }
           ));
         } else if (error.message === 'Insufficient permissions') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'You do not have permission to generate rounds for this tournament' },
             { status: 403 }
           ));
         } else {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to generate tournament round' },
             { status: 500 }
           ));

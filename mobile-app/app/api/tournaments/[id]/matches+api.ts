@@ -156,12 +156,12 @@ async function checkRoundCompletion(tournamentId: string, roundId: string) {
 }
 
 // GET /api/tournaments/[id]/matches - Get tournament matches
-export async function GET(request: AuthRequest): Promise<ExpoResponse> {
+export async function GET(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     verifyToken(request, new ExpoResponse(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -177,7 +177,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         const isLive = url.searchParams.get('live');
 
         if (!tournamentId) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Tournament ID is required' },
             { status: 400 }
           ));
@@ -228,24 +228,24 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
           position: index + 1,
         }));
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           matches: matchesWithPositions,
           total: matches.length,
         }));
       } catch (error) {
         console.error('Get tournament matches error:', error);
         if (error.message === 'Tournament not found') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Tournament not found' },
             { status: 404 }
           ));
         } else if (error.message === 'Insufficient permissions') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'You do not have permission to view matches for this tournament' },
             { status: 403 }
           ));
         } else {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to fetch tournament matches' },
             { status: 500 }
           ));
@@ -256,12 +256,12 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // POST /api/tournaments/[id]/matches - Submit match result
-export async function POST(request: AuthRequest): Promise<ExpoResponse> {
+export async function POST(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     verifyToken(request, new ExpoResponse(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -273,7 +273,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
         const tournamentId = pathParts[pathParts.length - 2];
 
         if (!tournamentId) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Tournament ID is required' },
             { status: 400 }
           ));
@@ -299,7 +299,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
         }).populate(['player1', 'player2']);
 
         if (!match) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Match not found' },
             { status: 404 }
           ));
@@ -312,7 +312,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
         const canSubmit = ['organizer', 'club-admin'].includes(role) || isPlayer;
 
         if (!canSubmit) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'You can only submit results for your own matches' },
             { status: 403 }
           ));
@@ -321,7 +321,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 
         // Check match status
         if (match.status === 'completed') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Match result has already been submitted' },
             { status: 400 }
           ));
@@ -333,7 +333,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
         const isDraw = result.isDraw || false;
         
         if (!isDraw && !result.winner) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Winner must be specified for non-draw results' },
             { status: 400 }
           ));
@@ -341,7 +341,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
         }
 
         if (result.winner && ![match.player1?._id.toString(), match.player2?._id.toString()].includes(result.winner)) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Winner must be one of the match participants' },
             { status: 400 }
           ));
@@ -403,15 +403,15 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
         // TODO: Send WebSocket updates to connected clients
         // TODO: Send push notifications to participants
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           match: updatedMatch,
           roundCompleted,
           message: 'Match result submitted successfully',
         }));
       } catch (error) {
         if (error instanceof z.ZodError) {
-          resolve(ExpoResponse.json(
-            { error: 'Validation failed', details: error.errors },
+          resolve(Response.json(
+            { error: 'Validation failed', details: error.issues },
             { status: 400 }
           ));
           return;
@@ -419,17 +419,17 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 
         console.error('Submit match result error:', error);
         if (error.message === 'Tournament not found') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Tournament not found' },
             { status: 404 }
           ));
         } else if (error.message === 'Insufficient permissions') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'You do not have permission to submit results for this tournament' },
             { status: 403 }
           ));
         } else {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to submit match result' },
             { status: 500 }
           ));
@@ -440,12 +440,12 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // PUT /api/tournaments/[id]/matches - Update match details
-export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
+export async function PUT(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     verifyToken(request, new ExpoResponse(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -458,7 +458,7 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
         const matchId = url.searchParams.get('matchId');
 
         if (!tournamentId || !matchId) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Tournament ID and Match ID are required' },
             { status: 400 }
           ));
@@ -480,7 +480,7 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
         });
 
         if (!match) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Match not found' },
             { status: 404 }
           ));
@@ -489,7 +489,7 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
 
         // Prevent changes to completed matches (except status changes to cancelled)
         if (match.status === 'completed' && validatedData.status !== 'cancelled') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Cannot modify completed match details' },
             { status: 400 }
           ));
@@ -506,14 +506,14 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
         // TODO: Send WebSocket updates to connected clients
         // TODO: Send notifications if match time changed
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           match: updatedMatch,
           message: 'Match updated successfully',
         }));
       } catch (error) {
         if (error instanceof z.ZodError) {
-          resolve(ExpoResponse.json(
-            { error: 'Validation failed', details: error.errors },
+          resolve(Response.json(
+            { error: 'Validation failed', details: error.issues },
             { status: 400 }
           ));
           return;
@@ -521,17 +521,17 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
 
         console.error('Update match error:', error);
         if (error.message === 'Tournament not found') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Tournament not found' },
             { status: 404 }
           ));
         } else if (error.message === 'Insufficient permissions') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'You do not have permission to update matches in this tournament' },
             { status: 403 }
           ));
         } else {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to update match' },
             { status: 500 }
           ));

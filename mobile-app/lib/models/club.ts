@@ -1,152 +1,270 @@
-import mongoose, { Schema, Document } from 'mongoose';
-
-export interface IClub extends Document {
+// Club model for mobile app
+export interface Club {
+  _id: string;
+  id: string;
   name: string;
   username: string;
   description: string;
   category: string;
-  logoUrl?: string;
-  bannerUrl?: string;
-  isPrivate: boolean;
-  memberLimit?: number;
-  tags: string[];
-  location?: {
+  location: {
     city: string;
+    state: string;
     country: string;
-    coordinates?: [number, number];
+    coordinates?: {
+      latitude: number;
+      longitude: number;
+    };
   };
-  socialLinks: {
+  profilePicture?: string;
+  coverImage?: string;
+  createdBy: string;
+  admins: string[];
+  members: string[];
+  memberCount: number;
+  isPrivate: boolean;
+  rules?: string;
+  tags: string[];
+  socialLinks?: {
     website?: string;
-    twitter?: string;
-    discord?: string;
     instagram?: string;
+    twitter?: string;
+    facebook?: string;
   };
   settings: {
+    allowGuestEvents: boolean;
+    requireApprovalToJoin: boolean;
     allowMemberInvites: boolean;
-    requireApproval: boolean;
-    allowChat: boolean;
-    allowEvents: boolean;
+    maxMembers?: number;
   };
   stats: {
-    memberCount: number;
-    eventCount: number;
-    messageCount: number;
-    lastActivity: Date;
+    eventsHosted: number;
+    tournamentsHeld: number;
+    totalMembers: number;
+    activeMembers: number;
   };
-  owner: mongoose.Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+  isActive: boolean;
+  isVerified: boolean;
+  subscriptionPlan?: 'free' | 'premium' | 'enterprise';
+}
+
+export interface ClubMember {
+  _id: string;
+  id: string;
+  clubId: string;
+  userId: string;
+  username: string;
+  fullName: string;
+  profilePicture?: string;
+  role: 'owner' | 'admin' | 'moderator' | 'member';
+  joinedAt: Date;
+  lastActive: Date;
+  permissions: string[];
+  stats: {
+    eventsAttended: number;
+    tournamentsWon: number;
+    messagesPosted: number;
+  };
+  isActive: boolean;
+  isMuted: boolean;
+  mutedUntil?: Date;
+}
+
+export interface ClubProfile {
+  club: Club;
+  membershipStatus: 'member' | 'admin' | 'owner' | 'pending' | 'not_member';
+  permissions: string[];
+  recentEvents: Event[];
+  upcomingEvents: Event[];
+  recentActivity: Activity[];
+  canJoin: boolean;
+  canInvite: boolean;
+  canManage: boolean;
+}
+
+export interface Event {
+  _id: string;
+  id: string;
+  title: string;
+  description: string;
+  clubId: string;
+  createdBy: string;
+  startDate: Date;
+  endDate: Date;
+  location: {
+    venue: string;
+    address: string;
+    city: string;
+    state: string;
+    coordinates?: {
+      latitude: number;
+      longitude: number;
+    };
+  };
+  category: string;
+  maxAttendees?: number;
+  attendees: string[];
+  waitlist: string[];
+  isPrivate: boolean;
+  requiresApproval: boolean;
+  tags: string[];
+  images: string[];
+  status: 'draft' | 'published' | 'cancelled' | 'completed';
   createdAt: Date;
   updatedAt: Date;
 }
 
-const clubSchema = new Schema<IClub>({
-  name: {
-    type: String,
-    required: true,
-    trim: true,
-    minlength: 2,
-    maxlength: 100,
-  },
-  username: {
-    type: String,
-    required: true,
-    unique: true,
-    lowercase: true,
-    trim: true,
-    minlength: 3,
-    maxlength: 30,
-    match: [/^[a-z0-9_-]+$/, 'Username can only contain lowercase letters, numbers, hyphens, and underscores'],
-  },
-  description: {
-    type: String,
-    required: true,
-    maxlength: 2000,
-  },
-  category: {
-    type: String,
-    required: true,
-    enum: ['gaming', 'sports', 'technology', 'music', 'art', 'education', 'business', 'social', 'other'],
-  },
-  logoUrl: String,
-  bannerUrl: String,
-  isPrivate: {
-    type: Boolean,
-    default: false,
-  },
-  memberLimit: {
-    type: Number,
-    min: 1,
-    max: 10000,
-  },
-  tags: [{
-    type: String,
-    trim: true,
-    maxlength: 30,
-  }],
+export interface Activity {
+  id: string;
+  type: 'member_joined' | 'event_created' | 'tournament_completed' | 'announcement';
+  title: string;
+  description: string;
+  timestamp: Date;
+  userId?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface CreateClubRequest {
+  name: string;
+  username: string;
+  description: string;
+  category: string;
   location: {
-    city: String,
-    country: String,
-    coordinates: {
-      type: [Number],
-      index: '2dsphere',
-    },
+    city: string;
+    state: string;
+    country: string;
+  };
+  profilePicture?: string;
+  coverImage?: string;
+  isPrivate?: boolean;
+  rules?: string;
+  tags?: string[];
+  socialLinks?: {
+    website?: string;
+    instagram?: string;
+    twitter?: string;
+    facebook?: string;
+  };
+  settings?: {
+    allowGuestEvents?: boolean;
+    requireApprovalToJoin?: boolean;
+    allowMemberInvites?: boolean;
+    maxMembers?: number;
+  };
+}
+
+export interface UpdateClubRequest {
+  name?: string;
+  description?: string;
+  category?: string;
+  location?: {
+    city: string;
+    state: string;
+    country: string;
+  };
+  profilePicture?: string;
+  coverImage?: string;
+  isPrivate?: boolean;
+  rules?: string;
+  tags?: string[];
+  socialLinks?: {
+    website?: string;
+    instagram?: string;
+    twitter?: string;
+    facebook?: string;
+  };
+  settings?: {
+    allowGuestEvents?: boolean;
+    requireApprovalToJoin?: boolean;
+    allowMemberInvites?: boolean;
+    maxMembers?: number;
+  };
+}
+
+export interface JoinClubRequest {
+  clubId: string;
+  message?: string;
+}
+
+export interface InviteMemberRequest {
+  clubId: string;
+  userId: string;
+  role?: 'member' | 'moderator';
+  message?: string;
+}
+
+export interface UpdateMemberRequest {
+  memberId: string;
+  role?: 'member' | 'moderator' | 'admin';
+  permissions?: string[];
+}
+
+export interface ClubSearchFilters {
+  category?: string;
+  location?: {
+    city?: string;
+    state?: string;
+    country?: string;
+    radius?: number;
+  };
+  memberCount?: {
+    min?: number;
+    max?: number;
+  };
+  tags?: string[];
+  isPrivate?: boolean;
+  isVerified?: boolean;
+  sortBy?: 'name' | 'members' | 'activity' | 'created' | 'distance';
+  sortOrder?: 'asc' | 'desc';
+}
+
+// Type guards
+export const isClub = (obj: any): obj is Club => {
+  return obj && typeof obj._id === 'string' && typeof obj.name === 'string';
+};
+
+export const isClubMember = (obj: any): obj is ClubMember => {
+  return obj && typeof obj._id === 'string' && typeof obj.clubId === 'string';
+};
+
+// Default values
+export const createEmptyClub = (): Partial<Club> => ({
+  name: '',
+  username: '',
+  description: '',
+  category: '',
+  location: {
+    city: '',
+    state: '',
+    country: '',
   },
+  profilePicture: '',
+  coverImage: '',
+  admins: [],
+  members: [],
+  memberCount: 0,
+  isPrivate: false,
+  rules: '',
+  tags: [],
   socialLinks: {
-    website: String,
-    twitter: String,
-    discord: String,
-    instagram: String,
+    website: '',
+    instagram: '',
+    twitter: '',
+    facebook: '',
   },
   settings: {
-    allowMemberInvites: {
-      type: Boolean,
-      default: true,
-    },
-    requireApproval: {
-      type: Boolean,
-      default: false,
-    },
-    allowChat: {
-      type: Boolean,
-      default: true,
-    },
-    allowEvents: {
-      type: Boolean,
-      default: true,
-    },
+    allowGuestEvents: true,
+    requireApprovalToJoin: false,
+    allowMemberInvites: true,
   },
   stats: {
-    memberCount: {
-      type: Number,
-      default: 1,
-    },
-    eventCount: {
-      type: Number,
-      default: 0,
-    },
-    messageCount: {
-      type: Number,
-      default: 0,
-    },
-    lastActivity: {
-      type: Date,
-      default: Date.now,
-    },
+    eventsHosted: 0,
+    tournamentsHeld: 0,
+    totalMembers: 0,
+    activeMembers: 0,
   },
-  owner: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-  },
-}, {
-  timestamps: true,
+  isActive: true,
+  isVerified: false,
+  subscriptionPlan: 'free',
 });
-
-// Indexes
-clubSchema.index({ username: 1 });
-clubSchema.index({ category: 1 });
-clubSchema.index({ name: 'text', description: 'text', tags: 'text' });
-clubSchema.index({ 'stats.memberCount': -1 });
-clubSchema.index({ 'stats.lastActivity': -1 });
-clubSchema.index({ createdAt: -1 });
-
-export const Club = mongoose.models.Club || mongoose.model<IClub>('Club', clubSchema);

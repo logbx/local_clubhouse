@@ -1,7 +1,7 @@
 import { ExpoRequest, ExpoResponse } from 'expo-router/server';
 import { z } from 'zod';
 import { connectDB } from '@/lib/db';
-import { User } from '@/lib/models/user';
+import { User } from '@/lib/models/user.model';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 
@@ -9,7 +9,7 @@ const refreshSchema = z.object({
   refreshToken: z.string(),
 });
 
-export async function POST(request: ExpoRequest): Promise<ExpoResponse> {
+export async function POST(request: Request): Promise<Response> {
   try {
     // Try to get refresh token from body or cookie
     let refreshToken: string | undefined;
@@ -32,7 +32,7 @@ export async function POST(request: ExpoRequest): Promise<ExpoResponse> {
     }
 
     if (!refreshToken) {
-      return ExpoResponse.json(
+      return Response.json(
         { error: 'Refresh token required' },
         { status: 401 }
       );
@@ -47,14 +47,14 @@ export async function POST(request: ExpoRequest): Promise<ExpoResponse> {
         type: string;
       };
     } catch (error) {
-      return ExpoResponse.json(
+      return Response.json(
         { error: 'Invalid refresh token' },
         { status: 401 }
       );
     }
 
     if (decoded.type !== 'refresh') {
-      return ExpoResponse.json(
+      return Response.json(
         { error: 'Invalid token type' },
         { status: 401 }
       );
@@ -65,7 +65,7 @@ export async function POST(request: ExpoRequest): Promise<ExpoResponse> {
     // Find user and verify refresh token exists
     const user = await User.findById(decoded.sub).select('+refreshTokens');
     if (!user) {
-      return ExpoResponse.json(
+      return Response.json(
         { error: 'User not found' },
         { status: 401 }
       );
@@ -77,7 +77,7 @@ export async function POST(request: ExpoRequest): Promise<ExpoResponse> {
     );
 
     if (tokenIndex === -1) {
-      return ExpoResponse.json(
+      return Response.json(
         { error: 'Refresh token not found or revoked' },
         { status: 401 }
       );
@@ -128,7 +128,7 @@ export async function POST(request: ExpoRequest): Promise<ExpoResponse> {
 
     await user.save();
 
-    const response = ExpoResponse.json({
+    const response = Response.json({
       accessToken: newAccessToken,
       refreshToken: newRefreshToken,
       expiresIn: 900, // 15 minutes in seconds
@@ -145,20 +145,20 @@ export async function POST(request: ExpoRequest): Promise<ExpoResponse> {
     return response;
   } catch (error) {
     console.error('Token refresh error:', error);
-    return ExpoResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     );
   }
 }
 
-export async function DELETE(request: ExpoRequest): Promise<ExpoResponse> {
+export async function DELETE(request: Request): Promise<Response> {
   try {
     const body = await request.json();
     const { refreshToken } = body;
 
     if (!refreshToken) {
-      return ExpoResponse.json(
+      return Response.json(
         { error: 'Refresh token required' },
         { status: 400 }
       );
@@ -170,7 +170,7 @@ export async function DELETE(request: ExpoRequest): Promise<ExpoResponse> {
       decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!);
     } catch {
       // Token is invalid, but we still return success
-      return ExpoResponse.json({ message: 'Token revoked' });
+      return Response.json({ message: 'Token revoked' });
     }
 
     await connectDB();
@@ -182,7 +182,7 @@ export async function DELETE(request: ExpoRequest): Promise<ExpoResponse> {
       }
     });
 
-    const response = ExpoResponse.json({ message: 'Token revoked successfully' });
+    const response = Response.json({ message: 'Token revoked successfully' });
 
     // Clear cookie for web platform
     if (request.headers.get('user-agent')?.includes('Mozilla')) {
@@ -195,7 +195,7 @@ export async function DELETE(request: ExpoRequest): Promise<ExpoResponse> {
     return response;
   } catch (error) {
     console.error('Token revocation error:', error);
-    return ExpoResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     );

@@ -1,9 +1,9 @@
 import { ExpoRequest, ExpoResponse } from 'expo-router/server';
 import { z } from 'zod';
 import { connectDB } from '@/lib/db';
-import { Event } from '@/lib/models/event';
+import { Event as EventModel } from '@/lib/models/event';
 import { EventRSVP } from '@/lib/models/event-rsvp';
-import { User } from '@/lib/models/user';
+import { User } from '@/lib/models/user.model';
 import { AuthRequest, verifyToken } from '@/lib/middleware/auth';
 import { createRateLimiter } from '@/lib/middleware/rate-limit';
 
@@ -46,7 +46,7 @@ const checkInRateLimiter = createRateLimiter({
 });
 
 async function checkEventPermissions(eventId: string, userId: string) {
-  const event = await Event.findById(eventId);
+  const event = await (EventModel as any).findById(eventId);
   if (!event) {
     throw new Error('Event not found');
   }
@@ -115,12 +115,12 @@ function generateCSV(attendees: any[], eventTitle: string): string {
 }
 
 // GET /api/events/[id]/attendees - List event attendees
-export async function GET(request: AuthRequest): Promise<ExpoResponse> {
+export async function GET(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     verifyToken(request, new ExpoResponse(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -132,7 +132,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         const eventId = pathParts[pathParts.length - 2];
 
         if (!eventId) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Event ID is required' },
             { status: 400 }
           ));
@@ -223,7 +223,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
             }));
             return;
           } else if (query.export === 'json') {
-            resolve(ExpoResponse.json({
+            resolve(Response.json({
               event: {
                 _id: event._id,
                 title: event.title,
@@ -304,7 +304,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
           totalGuests: 0,
         };
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           attendees,
           pagination: {
             page,
@@ -326,8 +326,8 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         }));
       } catch (error) {
         if (error instanceof z.ZodError) {
-          resolve(ExpoResponse.json(
-            { error: 'Invalid query parameters', details: error.errors },
+          resolve(Response.json(
+            { error: 'Invalid query parameters', details: error.issues },
             { status: 400 }
           ));
           return;
@@ -335,17 +335,17 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
 
         console.error('Get attendees error:', error);
         if (error.message === 'Event not found') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Event not found' },
             { status: 404 }
           ));
         } else if (error.message === 'Insufficient permissions') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'You do not have permission to view attendees for this event' },
             { status: 403 }
           ));
         } else {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to fetch attendees' },
             { status: 500 }
           ));
@@ -356,13 +356,13 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // POST /api/events/[id]/attendees - Check-in attendee
-export async function POST(request: AuthRequest): Promise<ExpoResponse> {
+export async function POST(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     checkInRateLimiter(request, new ExpoResponse(), () => {
       verifyToken(request, new ExpoResponse(), async () => {
         try {
           if (!request.user) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Authentication required' },
               { status: 401 }
             ));
@@ -374,7 +374,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
           const eventId = pathParts[pathParts.length - 2];
 
           if (!eventId) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Event ID is required' },
               { status: 400 }
             ));
@@ -391,7 +391,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 
           // Check if check-in is enabled
           if (!event.settings.enableCheckIn) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Check-in is not enabled for this event' },
               { status: 400 }
             ));
@@ -406,7 +406,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
           }).populate('user', 'name email avatar');
 
           if (!attendee) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Attendee not found or not registered as going' },
               { status: 404 }
             ));
@@ -415,7 +415,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 
           // Verify QR code if provided
           if (validatedData.qrCode && attendee.qrCode !== validatedData.qrCode) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Invalid QR code' },
               { status: 400 }
             ));
@@ -424,7 +424,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 
           // Check if already checked in
           if (attendee.checkedIn) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { 
                 error: 'Attendee already checked in',
                 checkInTime: attendee.checkInTime,
@@ -448,11 +448,11 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
           await attendee.save();
 
           // Update event check-in count
-          await Event.findByIdAndUpdate(eventId, {
+          await (EventModel as any).findByIdAndUpdate(eventId, {
             $inc: { 'stats.checkInCount': 1 },
           });
 
-          resolve(ExpoResponse.json({
+          resolve(Response.json({
             message: 'Attendee checked in successfully',
             attendee: {
               _id: attendee._id,
@@ -464,8 +464,8 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
           }));
         } catch (error) {
           if (error instanceof z.ZodError) {
-            resolve(ExpoResponse.json(
-              { error: 'Validation failed', details: error.errors },
+            resolve(Response.json(
+              { error: 'Validation failed', details: error.issues },
               { status: 400 }
             ));
             return;
@@ -473,17 +473,17 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 
           console.error('Check-in error:', error);
           if (error.message === 'Event not found') {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Event not found' },
               { status: 404 }
             ));
           } else if (error.message === 'Insufficient permissions') {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'You do not have permission to check in attendees for this event' },
               { status: 403 }
             ));
           } else {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Failed to check in attendee' },
               { status: 500 }
             ));
@@ -495,13 +495,13 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // PUT /api/events/[id]/attendees - Bulk check-in
-export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
+export async function PUT(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     checkInRateLimiter(request, new ExpoResponse(), () => {
       verifyToken(request, new ExpoResponse(), async () => {
         try {
           if (!request.user) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Authentication required' },
               { status: 401 }
             ));
@@ -513,7 +513,7 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
           const eventId = pathParts[pathParts.length - 2];
 
           if (!eventId) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Event ID is required' },
               { status: 400 }
             ));
@@ -530,7 +530,7 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
 
           // Check if check-in is enabled
           if (!event.settings.enableCheckIn) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Check-in is not enabled for this event' },
               { status: 400 }
             ));
@@ -608,19 +608,19 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
 
           // Update event check-in count
           if (results.successful.length > 0) {
-            await Event.findByIdAndUpdate(eventId, {
+            await (EventModel as any).findByIdAndUpdate(eventId, {
               $inc: { 'stats.checkInCount': results.successful.length },
             });
           }
 
-          resolve(ExpoResponse.json({
+          resolve(Response.json({
             message: `Bulk check-in completed: ${results.successful.length} successful, ${results.failed.length} failed, ${results.alreadyCheckedIn.length} already checked in`,
             results,
           }));
         } catch (error) {
           if (error instanceof z.ZodError) {
-            resolve(ExpoResponse.json(
-              { error: 'Validation failed', details: error.errors },
+            resolve(Response.json(
+              { error: 'Validation failed', details: error.issues },
               { status: 400 }
             ));
             return;
@@ -628,17 +628,17 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
 
           console.error('Bulk check-in error:', error);
           if (error.message === 'Event not found') {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Event not found' },
               { status: 404 }
             ));
           } else if (error.message === 'Insufficient permissions') {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'You do not have permission to check in attendees for this event' },
               { status: 403 }
             ));
           } else {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Failed to perform bulk check-in' },
               { status: 500 }
             ));

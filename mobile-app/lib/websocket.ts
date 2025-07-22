@@ -45,7 +45,7 @@ class WebSocketService {
   private listeners: Map<string, Set<Function>> = new Map();
   private messageQueue: MessageQueue[] = [];
   private typingUsers: Map<string, TypingUser[]> = new Map();
-  private typingTimeout: Map<string, NodeJS.Timeout> = new Map();
+  private typingTimeout: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
 
@@ -141,6 +141,27 @@ class WebSocketService {
       this.emit('tournament_update', data);
     });
 
+    // Event-related events
+    this.socket.on('event_created', (data) => {
+      this.emit('event_created', data);
+    });
+
+    this.socket.on('event_updated', (data) => {
+      this.emit('event_updated', data);
+    });
+
+    this.socket.on('event_deleted', (data) => {
+      this.emit('event_deleted', data);
+    });
+
+    this.socket.on('event_rsvp_changed', (data) => {
+      this.emit('event_rsvp_changed', data);
+    });
+
+    this.socket.on('event_status_changed', (data) => {
+      this.emit('event_status_changed', data);
+    });
+
     // Message acknowledgment
     this.socket.on('message_ack', (data: { tempId: string; messageId: string }) => {
       this.removeFromQueue(data.tempId);
@@ -170,6 +191,23 @@ class WebSocketService {
 
   leaveClub(clubId: string) {
     this.socket?.emit('leave_club', clubId);
+  }
+
+  joinEvent(eventId: string) {
+    this.socket?.emit('join_event', eventId);
+  }
+
+  leaveEvent(eventId: string) {
+    this.socket?.emit('leave_event', eventId);
+  }
+
+  // Join events room for general event updates
+  joinEventsRoom() {
+    this.socket?.emit('join_events_room');
+  }
+
+  leaveEventsRoom() {
+    this.socket?.emit('leave_events_room');
   }
 
   // Message sending with offline support

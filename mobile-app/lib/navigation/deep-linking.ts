@@ -399,27 +399,30 @@ export function buildDeepLink(route: string, params: Record<string, any> = {}): 
 /**
  * Initialize deep linking functionality
  */
-export async function initializeDeepLinking() {
+export function initializeDeepLinking(): () => void {
   try {
-    // Get initial URL (if app was opened via deep link)
-    const initialUrl = await Linking.getInitialURL();
+    let subscription: any;
     
-    if (initialUrl) {
-      logger.info('App opened with deep link', { initialUrl });
-      
-      // Parse and handle the deep link
-      const { route, params } = parseDeepLink(initialUrl);
-      
-      // Navigate to the deep linked route
-      setTimeout(() => {
-        navigationService.navigate(route, params);
-      }, 100);
-    }
+    const handleInitialUrl = async () => {
+      try {
+        const initialUrl = await Linking.getInitialURL();
+        if (initialUrl) {
+          logger.info('App opened with deep link', { initialUrl });
+          const { route, params } = parseDeepLink(initialUrl);
+          setTimeout(() => {
+            navigationService.navigate(route, params);
+          }, 100);
+        }
+      } catch (error) {
+        logger.error('Error handling initial URL:', error);
+      }
+    };
+
+    // Initialize asynchronously but return cleanup function immediately
+    handleInitialUrl();
     
-    // Listen for deep link changes while app is running
-    const subscription = Linking.addEventListener('url', ({ url }) => {
+    subscription = Linking.addEventListener('url', ({ url }) => {
       logger.info('Deep link received', { url });
-      
       const { route, params } = parseDeepLink(url);
       navigationService.navigate(route, params);
     });
@@ -427,7 +430,9 @@ export async function initializeDeepLinking() {
     logger.info('Deep linking initialized');
     
     return () => {
-      subscription.remove();
+      if (subscription?.remove && typeof subscription.remove === 'function') {
+        subscription.remove();
+      }
     };
     
   } catch (error) {

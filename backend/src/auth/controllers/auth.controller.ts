@@ -198,4 +198,222 @@ export class AuthController {
       throw new BadRequestException('Error checking username availability');
     }
   }
+
+  @Post('firebase-login')
+  @HttpCode(HttpStatus.OK)
+  async firebaseLogin(@Body() firebaseAuthDto: {
+    idToken: string;
+    authUser: {
+      uid: string;
+      email: string | null;
+      phoneNumber: string | null;
+      displayName: string | null;
+      photoURL: string | null;
+      username?: string;
+      authMethod?: 'phone' | 'email';
+      emailVerified?: boolean;
+    };
+  }) {
+    try {
+      // For development, skip Firebase token verification
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Development mode: Processing Firebase auth request');
+        
+        // Check if user exists in MongoDB
+        let user = await this.authService.findUserByFirebaseUID(firebaseAuthDto.authUser.uid);
+        
+        if (!user) {
+          // Create new user if doesn't exist
+          user = await this.authService.createFirebaseUser({
+            firebaseUID: firebaseAuthDto.authUser.uid,
+            email: firebaseAuthDto.authUser.email,
+            fullName: firebaseAuthDto.authUser.displayName || 'User',
+            username: firebaseAuthDto.authUser.username,
+            phoneNumber: firebaseAuthDto.authUser.phoneNumber,
+            authMethod: firebaseAuthDto.authUser.authMethod || 'phone',
+            emailVerified: firebaseAuthDto.authUser.emailVerified || false,
+            roles: [UserRole.Member],
+            profileImage: firebaseAuthDto.authUser.photoURL,
+          });
+        }
+
+        // Generate JWT tokens for your system
+        const tokens = await this.authService.generateTokens(user);
+        
+        return {
+          user: {
+            id: user._id,
+            username: user.username,
+            fullName: user.fullName,
+            email: user.email,
+            phoneNumber: user.phoneNumber,
+            roles: user.roles,
+            profileImage: user.profileImage,
+            authMethod: user.authMethod,
+            profileCompleted: user.profileCompleted,
+          },
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        };
+      }
+      
+      // TODO: In production, implement proper Firebase token verification
+      throw new UnauthorizedException('Firebase authentication not fully implemented for production');
+    } catch (error: any) {
+      console.error('Firebase login error:', error);
+      if (error instanceof BadRequestException || error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new UnauthorizedException('Firebase authentication failed');
+    }
+  }
+
+  @Post('set-web-password')
+  @HttpCode(HttpStatus.OK)
+  async setWebPassword(@Body() body: {
+    email: string;
+    firebaseIdToken: string;
+    newPassword: string;
+  }) {
+    try {
+      if (!body.email || !body.firebaseIdToken || !body.newPassword) {
+        throw new BadRequestException('Email, Firebase token, and new password are required');
+      }
+      
+      if (body.newPassword.length < 8) {
+        throw new BadRequestException('Password must be at least 8 characters long');
+      }
+
+      // For development, skip Firebase token verification
+      if (process.env.NODE_ENV === 'development') {
+        const result = await this.authService.setWebPasswordForFirebaseUser(
+          body.email,
+          body.newPassword
+        );
+        
+        return {
+          message: 'Password set successfully. You can now login on web.',
+          user: {
+            id: result._id,
+            email: result.email,
+            username: result.username,
+            canLoginOnWeb: true
+          }
+        };
+      }
+      
+      // TODO: In production, verify Firebase token first
+      throw new BadRequestException('Feature not available in production yet');
+    } catch (error: any) {
+      if (error instanceof BadRequestException || error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to set web password');
+    }
+  }
+
+  @Post('check-user-type')
+  @HttpCode(HttpStatus.OK)
+  async checkUserType(@Body() body: { email: string }) {
+    try {
+      if (!body.email) {
+        throw new BadRequestException('Email is required');
+      }
+
+      const user = await this.authService.findUserByEmail(body.email);
+      
+      if (!user) {
+        return {
+          exists: false,
+          message: 'No account found with this email'
+        };
+      }
+
+      if (user.firebaseUID) {
+        return {
+          exists: true,
+          authMethod: user.authMethod, // 'phone', 'email', 'google', 'apple'
+          requiresConfirmation: true,
+          message: `This account uses ${user.authMethod} authentication. We'll send you a confirmation link.`,
+          phoneNumber: user.phoneNumber ? `****${user.phoneNumber.slice(-4)}` : null
+        };
+      }
+
+      return {
+        exists: true,
+        authMethod: 'password',
+        requiresConfirmation: false,
+        message: 'Please enter your password'
+      };
+    } catch (error: any) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Error checking user type');
+    }
+  }
+
+  @Post('send-web-login-confirmation')
+  @HttpCode(HttpStatus.OK)
+  async sendWebLoginConfirmation(@Body() body: { email: string }) {
+    try {
+      if (!body.email) {
+        throw new BadRequestException('Email is required');
+      }
+
+      const result = await this.authService.sendWebLoginConfirmation(body.email);
+      
+      return {
+        message: result.method === 'email' 
+          ? `Confirmation email sent to ${body.email}` 
+          : `Confirmation code sent to ${result.phoneNumber}`,
+        method: result.method,
+        expiresIn: '10 minutes'
+      };
+    } catch (error: any) {
+      if (error instanceof BadRequestException || error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to send confirmation');
+    }
+  }
+
+  @Post('confirm-web-login')
+  @HttpCode(HttpStatus.OK)
+  async confirmWebLogin(@Body() body: { 
+    email: string; 
+    confirmationCode: string;
+    rememberMe?: boolean;
+  }) {
+    try {
+      if (!body.email || !body.confirmationCode) {
+        throw new BadRequestException('Email and confirmation code are required');
+      }
+
+      const result = await this.authService.confirmWebLogin(
+        body.email, 
+        body.confirmationCode,
+        body.rememberMe
+      );
+      
+      return {
+        message: 'Login successful',
+        user: {
+          id: result.user._id,
+          username: result.user.username,
+          fullName: result.user.fullName,
+          email: result.user.email,
+          roles: result.user.roles,
+          profileCompleted: result.user.profileCompleted,
+        },
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      };
+    } catch (error: any) {
+      if (error instanceof BadRequestException || error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new UnauthorizedException('Web login confirmation failed');
+    }
+  }
 } 

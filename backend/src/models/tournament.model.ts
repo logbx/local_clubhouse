@@ -48,6 +48,7 @@ export interface ITournamentMatch {
 
 export interface ITournamentRound {
   roundNumber: number;
+  name?: string; // Round name (e.g., "Quarter-Final", "Semi-Final", "Final")
   matches: ITournamentMatch[];
   byePlayers?: ITournamentPlayer[]; // Optional bye players for display
   isComplete?: boolean; // Whether all matches in this round are completed
@@ -118,6 +119,7 @@ const TournamentMatchSchema = new Schema<ITournamentMatch>({
 
 const TournamentRoundSchema = new Schema<ITournamentRound>({
   roundNumber: { type: Number, required: true },
+  name: { type: String }, // Round name (e.g., "Quarter-Final", "Semi-Final", "Final")
   matches: [TournamentMatchSchema],
   byePlayers: [TournamentPlayerSchema], // Optional bye players for display
   isComplete: { type: Boolean, default: false }

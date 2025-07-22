@@ -195,6 +195,16 @@ export class TournamentService {
     }
   }
 
+  async unregisterPlayer(tournamentId: string): Promise<Tournament> {
+    try {
+      const response = await api.post(`/api/tournaments/${tournamentId}/unregister`);
+      return response.data.data;
+    } catch (error) {
+      console.error('Error unregistering from tournament:', error);
+      throw error;
+    }
+  }
+
   async startTournament(tournamentId: string): Promise<void> {
     await api.post(`/api/tournaments/${tournamentId}/start`);
   }

@@ -1,18 +1,21 @@
 import { ExpoRequest, ExpoResponse } from 'expo-router/server';
 import jwt from 'jsonwebtoken';
-import { User } from '@/lib/models/user';
+import { User } from '@/lib/models/user.model';
 import { connectDB } from '@/lib/db';
 
-export interface AuthRequest extends ExpoRequest {
+export interface AuthRequest extends Request {
   user?: {
     id: string;
     email: string;
   };
+  json(): Promise<any>;
+  formData(): Promise<FormData>;
+  url: string;
 }
 
 export async function verifyToken(
   request: AuthRequest,
-  response: ExpoResponse,
+  response: Response,
   next: () => void
 ) {
   try {
@@ -20,7 +23,7 @@ export async function verifyToken(
     const token = authHeader?.replace('Bearer ', '');
 
     if (!token) {
-      return ExpoResponse.json(
+      return Response.json(
         { error: 'No token provided' },
         { status: 401 }
       );
@@ -32,10 +35,10 @@ export async function verifyToken(
     };
 
     await connectDB();
-    const user = await User.findById(decoded.sub);
+    const user = await (User as any).findById(decoded.sub);
 
     if (!user) {
-      return ExpoResponse.json(
+      return Response.json(
         { error: 'User not found' },
         { status: 401 }
       );
@@ -49,7 +52,7 @@ export async function verifyToken(
     next();
   } catch (error) {
     if (error instanceof jwt.TokenExpiredError) {
-      return ExpoResponse.json(
+      return Response.json(
         { error: 'Token expired' },
         { status: 401 }
       );
@@ -64,7 +67,7 @@ export async function verifyToken(
 
 export function optionalAuth(
   request: AuthRequest,
-  response: ExpoResponse,
+  response: Response,
   next: () => void
 ) {
   const authHeader = request.headers.get('authorization');

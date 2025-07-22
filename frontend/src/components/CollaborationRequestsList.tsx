@@ -25,10 +25,10 @@ const CollaborationRequestsList: React.FC<CollaborationRequestsListProps> = ({
         return <ClockIcon className="h-5 w-5 text-yellow-500" />;
       case CollaborationStatus.APPROVED:
         return <CheckCircleIcon className="h-5 w-5 text-green-500" />;
-      case CollaborationStatus.DECLINED:
+      case CollaborationStatus.REJECTED:
         return <XCircleIcon className="h-5 w-5 text-red-500" />;
-      case CollaborationStatus.CANCELLED:
-        return <XCircleIcon className="h-5 w-5 text-gray-500" />;
+      case CollaborationStatus.COMPLETED:
+        return <CheckCircleIcon className="h-5 w-5 text-green-600" />;
       default:
         return <ClockIcon className="h-5 w-5 text-gray-500" />;
     }
@@ -40,10 +40,10 @@ const CollaborationRequestsList: React.FC<CollaborationRequestsListProps> = ({
         return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100';
       case CollaborationStatus.APPROVED:
         return 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100';
-      case CollaborationStatus.DECLINED:
+      case CollaborationStatus.REJECTED:
         return 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100';
-      case CollaborationStatus.CANCELLED:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100';
+      case CollaborationStatus.COMPLETED:
+        return 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100';
     }
@@ -53,7 +53,7 @@ const CollaborationRequestsList: React.FC<CollaborationRequestsListProps> = ({
     try {
       await sponsorApi.updateCollaborationRequest(requestId, { status });
       
-      const statusText = status === CollaborationStatus.APPROVED ? 'approved' : 'declined';
+      const statusText = status === CollaborationStatus.APPROVED ? 'approved' : 'rejected';
       toast.success(`Collaboration request ${statusText} successfully!`);
       
       onRequestUpdate();
@@ -152,16 +152,7 @@ const CollaborationRequestsList: React.FC<CollaborationRequestsListProps> = ({
                 </div>
               )}
 
-              {request.tierSelected && (
-                <div className="mb-4">
-                  <h6 className="font-medium text-gray-900 dark:text-white mb-2">
-                    Selected Tier:
-                  </h6>
-                  <p className="text-gray-700 dark:text-gray-300">
-                    {request.tierSelected.title}
-                  </p>
-                </div>
-              )}
+              {/* Tier selection not implemented yet */}
 
               <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
                 <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -177,10 +168,10 @@ const CollaborationRequestsList: React.FC<CollaborationRequestsListProps> = ({
                       Approve
                     </button>
                     <button
-                      onClick={() => handleStatusUpdate(request._id, CollaborationStatus.DECLINED)}
+                      onClick={() => handleStatusUpdate(request._id, CollaborationStatus.REJECTED)}
                       className="btn btn-secondary btn-sm"
                     >
-                      Decline
+                      Reject
                     </button>
                   </div>
                 )}

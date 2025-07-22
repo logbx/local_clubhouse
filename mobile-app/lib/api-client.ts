@@ -1,9 +1,9 @@
 import { Platform } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { db, dbUtils } from './db';
-import { offlineQueue, apiCache } from './db/schema';
-import { eq, and, lt, desc, asc } from 'drizzle-orm';
+// import { db, dbUtils } from './db';
+// import { offlineQueue, apiCache } from './db/schema';
+// import { eq, and, lt, desc, asc } from 'drizzle-orm'; // Temporarily disabled for compatibility
 import type { 
   RequestOptions, 
   QueuedRequest, 

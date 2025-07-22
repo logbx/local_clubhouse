@@ -10,6 +10,9 @@ interface StandardizedResultModalProps {
   onSubmit: (result: 'win' | 'loss' | 'draw', reason?: string) => void;
   allowDraws?: boolean;
   isSwissTournament?: boolean;
+  title?: string;
+  submitButtonText?: string;
+  initialResult?: 'win' | 'loss' | 'draw';
 }
 
 export const StandardizedResultModal: React.FC<StandardizedResultModalProps> = ({
@@ -18,7 +21,10 @@ export const StandardizedResultModal: React.FC<StandardizedResultModalProps> = (
   match,
   onSubmit,
   allowDraws = true,
-  isSwissTournament = false
+  isSwissTournament = false,
+  title = 'Set Match Result',
+  submitButtonText = 'Set Result',
+  initialResult
 }) => {
   const [selectedResult, setSelectedResult] = useState<'win' | 'loss' | 'draw'>('win');
   const [reason, setReason] = useState('');
@@ -55,12 +61,14 @@ export const StandardizedResultModal: React.FC<StandardizedResultModalProps> = (
 
   const { suggestion, message } = getSuggestedWinner();
 
-  // Set initial selection based on suggestion
+  // Set initial selection based on initialResult prop or suggestion
   useEffect(() => {
-    if (suggestion) {
+    if (initialResult) {
+      setSelectedResult(initialResult);
+    } else if (suggestion) {
       setSelectedResult(suggestion);
     }
-  }, [suggestion]);
+  }, [initialResult, suggestion]);
 
   const handleSubmit = async () => {
     if (isSubmitting) return;
@@ -103,7 +111,7 @@ export const StandardizedResultModal: React.FC<StandardizedResultModalProps> = (
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-lg font-semibold mb-6 text-gray-900 dark:text-white">
-          Set Match Result
+          {title}
         </h3>
 
         {/* Winner Selection */}
@@ -205,7 +213,7 @@ export const StandardizedResultModal: React.FC<StandardizedResultModalProps> = (
                 Setting...
               </span>
             ) : (
-              'Set Result'
+              submitButtonText
             )}
           </button>
         </div>

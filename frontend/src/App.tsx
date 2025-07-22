@@ -41,6 +41,7 @@ import SponsorDashboard from './pages/SponsorDashboard';
 import SocialHub from './pages/SocialHub';
 import NotificationToast from './components/NotificationToast';
 import NotificationPopupManager from './components/NotificationPopupManager';
+import Navbar from './components/Navbar';
 // import SwissTournamentAdmin from './pages/SwissTournamentAdmin';
 import SwissTournamentManagePage from './pages/SwissTournamentManagePage';
 import { SwissMatchResultsPage } from './pages/SwissMatchResultsPage';
@@ -125,11 +126,13 @@ const App: React.FC = () => {
             <Route path="/user/:userId" element={<PublicLayout><PublicProfilePage /></PublicLayout>} />
             <Route path="/event/:eventId" element={<PublicLayout><PublicEventPage /></PublicLayout>} />
             <Route path="/tournament/:tournamentId" element={<PublicLayout><TournamentPage /></PublicLayout>} />
+            <Route path="/tournament/single-elimination" element={<PublicLayout><SingleEliminationTournamentPage /></PublicLayout>} />
             <Route path="/tournament/single-elimination/:tournamentId" element={<PublicLayout><SingleEliminationTournamentPage /></PublicLayout>} />
+            <Route path="/tournament/swiss" element={<PublicLayout><SwissTournamentPage /></PublicLayout>} />
             <Route path="/tournament/swiss/:tournamentId" element={<PublicLayout><SwissTournamentPage /></PublicLayout>} />
             {/* Redirect routes for old URL patterns with underscores */}
             <Route path="/tournament/single_elimination/:tournamentId" element={<TournamentRedirect />} />
-            <Route path="/clubs/:clubUsername" element={<PublicLayout><ClubProfilePage /></PublicLayout>} />
+            <Route path="/clubs/:clubUsername" element={<><Navbar /><ClubProfilePage /></>} />
             <Route path="/sponsors/:sponsorUsername" element={<PublicLayout><SponsorProfilePage /></PublicLayout>} />
 
             {/* Protected Routes */}

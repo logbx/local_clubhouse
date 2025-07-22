@@ -174,6 +174,19 @@ const SEMatchCard: React.FC<SEMatchCardProps> = ({
     }
   };
 
+  const handleDisputeResult = async () => {
+    if (!onDisputeResult) return;
+    
+    try {
+      const reason = prompt('Please enter a reason for disputing this result:');
+      if (reason && reason.trim()) {
+        await onDisputeResult(match.matchId, reason.trim());
+      }
+    } catch (error) {
+      console.error('Failed to dispute result:', error);
+    }
+  };
+
   const canSubmitResult = () => {
     if (!currentUserId || match.status !== 'pending') return false;
     if (match.player1.id === 'TBD' || match.player2.id === 'TBD') return false;
@@ -264,6 +277,16 @@ const SEMatchCard: React.FC<SEMatchCardProps> = ({
         </div>
       </div>
 
+      {/* Submitted Status */}
+      {match.status === 'submitted' && (
+        <div className="mb-3 p-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded">
+          <div className="flex items-center text-orange-700 dark:text-orange-300">
+            <ClockIcon className="h-3 w-3 mr-1.5" />
+            <span className="text-xs font-medium">Result Submitted - Awaiting Confirmation</span>
+          </div>
+        </div>
+      )}
+
       {/* Actions */}
       {!isTBDMatch && (canSubmitResult() || canConfirmResult()) && (
         <div className="flex justify-center space-x-2">
@@ -277,12 +300,20 @@ const SEMatchCard: React.FC<SEMatchCardProps> = ({
           )}
           
           {canConfirmResult() && (
-            <button
-              onClick={handleConfirmResult}
-              className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
-            >
-              Confirm
-            </button>
+            <>
+              <button
+                onClick={handleConfirmResult}
+                className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 font-medium"
+              >
+                ✅ Accept
+              </button>
+              <button
+                onClick={handleDisputeResult}
+                className="px-3 py-1 bg-orange-600 text-white text-xs rounded hover:bg-orange-700 font-medium"
+              >
+                ⚠️ Contest
+              </button>
+            </>
           )}
         </div>
       )}

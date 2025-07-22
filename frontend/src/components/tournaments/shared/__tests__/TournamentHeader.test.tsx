@@ -7,9 +7,11 @@ const mockTournament: Tournament = {
   id: 'test-tournament-id',
   name: 'Test Tournament',
   type: TournamentType.SWISS,
+  eventId: 'test-event-id',
+  organizerId: 'test-organizer-id',
   players: [
-    { id: '1', name: 'Player 1', userId: 'user1' },
-    { id: '2', name: 'Player 2', userId: 'user2' }
+    { id: '1', name: 'Player 1', userId: 'user1', isGuest: false },
+    { id: '2', name: 'Player 2', userId: 'user2', isGuest: false }
   ],
   rounds: [],
   currentRound: 1,

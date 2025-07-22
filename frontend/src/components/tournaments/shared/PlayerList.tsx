@@ -99,7 +99,7 @@ const PlayerList: React.FC<PlayerListProps> = ({
                   index={index}
                   currentUserId={currentUserId}
                   isEventCreator={isEventCreator}
-                  canRemove={isEventCreator && tournament && !tournament.isStarted}
+                  canRemove={!!(isEventCreator && tournament && !tournament.isStarted)}
                   onRemove={() => handleRemovePlayer(player.id)}
                 />
               ))}
@@ -151,7 +151,7 @@ const PlayerList: React.FC<PlayerListProps> = ({
                   index={index}
                   currentUserId={currentUserId}
                   isEventCreator={isEventCreator}
-                  canRemove={isEventCreator && tournament && !tournament.isStarted}
+                  canRemove={!!(isEventCreator && tournament && !tournament.isStarted)}
                   onRemove={() => handleRemovePlayer(player.id)}
                   isGuest={true}
                 />
@@ -187,7 +187,7 @@ const PlayerItem: React.FC<PlayerItemProps> = ({
   onRemove,
   isGuest = false
 }) => {
-  const isCurrentUser = player.userId === currentUserId;
+  const isCurrentUser = player.id === currentUserId;
   
   return (
     <li className="flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">

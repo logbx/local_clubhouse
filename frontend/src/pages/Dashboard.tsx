@@ -112,10 +112,54 @@ const Dashboard: React.FC = () => {
       )) {
         console.log('🔄 Dashboard refreshing tournament data for event:', relevantEventId);
         
+        // For tournament-created events, show immediate feedback
+        if (data.type === 'tournament-created') {
+          console.log('🚀 Tournament created! Updating UI immediately...');
+          // Show immediate visual feedback to users
+          if (data.tournament) {
+            const toastMessage = `🎉 "${data.tournament.name}" tournament is now open for registration!`;
+            console.log('📢 Tournament announcement:', toastMessage);
+            
+            // Optimistic update: immediately add tournament to state
+            const optimisticTournament = {
+              id: data.tournament._id || data.tournament.id,
+              name: data.tournament.name,
+              type: data.tournament.type,
+              isStarted: data.tournament.isStarted,
+              isFinished: data.tournament.isFinished,
+              registrationOpen: data.tournament.registrationOpen,
+              players: data.tournament.players || [],
+              maxPlayers: data.tournament.maxPlayers,
+              organizerId: data.tournament.organizerId,
+              winnerId: data.tournament.winnerId,
+              createdAt: data.tournament.createdAt || new Date().toISOString()
+            };
+            
+            console.log('⚡ Optimistically updating tournament state:', optimisticTournament);
+            setEventTournaments(prev => ({
+              ...prev,
+              [relevantEventId]: [optimisticTournament]
+            }));
+          }
+        }
+        
         // Refresh tournament data for the specific event
         const refreshEventTournaments = async () => {
           try {
+            console.log('🔄 Refreshing tournament data for event:', relevantEventId);
             const tournaments = await tournamentService.getTournamentsByEvent(relevantEventId);
+            
+            console.log('📊 Dashboard tournament data refresh result:', {
+              eventId: relevantEventId,
+              tournamentsFound: tournaments.length,
+              tournaments: tournaments.map(t => ({
+                id: t.id,
+                name: t.name,
+                status: t.isFinished ? 'completed' : t.isStarted ? 'active' : 'registration_open',
+                playerCount: t.players.length
+              }))
+            });
+            
             setEventTournaments(prev => ({
               ...prev,
               [relevantEventId]: tournaments
@@ -147,6 +191,8 @@ const Dashboard: React.FC = () => {
                 registrationOpen: tournament.registrationOpen
               };
               allTournaments[relevantEventId] = frontendTournament;
+              
+              console.log('💾 Updated localStorage with tournament data:', frontendTournament);
             } else {
               delete allTournaments[relevantEventId];
             }
@@ -158,6 +204,32 @@ const Dashboard: React.FC = () => {
               updateType: data.type,
               tournamentsCount: tournaments.length
             });
+            
+            // Force UI update for tournament-created events
+            if (data.type === 'tournament-created') {
+              console.log('🔄 Forcing UI update for tournament creation...');
+              
+              // Immediate state update
+              setEventTournaments(prev => ({ ...prev }));
+              setFrontendTournaments(prev => ({ ...prev }));
+              
+              // Quick follow-up updates to ensure UI responsiveness
+              setTimeout(() => {
+                setEventTournaments(prev => ({ ...prev }));
+                setFrontendTournaments(prev => ({ ...prev }));
+              }, 50);
+              
+              setTimeout(() => {
+                setEventTournaments(prev => ({ ...prev }));
+                setFrontendTournaments(prev => ({ ...prev }));
+              }, 200);
+              
+              // Final update to ensure consistency
+              setTimeout(() => {
+                setEventTournaments(prev => ({ ...prev }));
+                setFrontendTournaments(prev => ({ ...prev }));
+              }, 1000);
+            }
           } catch (error) {
             console.error('❌ Error refreshing tournament data in dashboard:', error);
           }
@@ -290,39 +362,81 @@ const Dashboard: React.FC = () => {
     loadTournamentData();
   }, [events]);
 
-  // Auto-update past events
+  // Auto-update event status based on actual time
   useEffect(() => {
-    if (events) {
-      const now = new Date();
+    if (!events) return;
+
+    const now = new Date();
+    const eventsToUpdate: Array<{ event: Event; newStatus: EventStatus }> = [];
+
+    events.forEach((event: Event) => {
+      if (!event.startDate || !event.endDate) return;
+
+      const startDate = new Date(event.startDate);
+      const endDate = new Date(event.endDate);
       
-      const eventsToUpdate = events.filter((event: Event) => {
-        if (event.status === EventStatus.PAST) return false;
-        
-        // Use endDate for checking if event is past
-        if (!event.endDate) return false;
-        
-        const endDate = new Date(event.endDate);
-        const isPast = endDate < now;
-        
-        return isPast;
-      });
+      // Add 1 minute buffer after end time before marking as PAST
+      const endDateWithBuffer = new Date(endDate.getTime() + 60000); // +1 minute
       
-      if (eventsToUpdate.length > 0) {
-        log.info(LogCategory.EVENT, `Auto-updating ${eventsToUpdate.length} events to PAST status`);
-        
-        eventsToUpdate.forEach((event: Event) => {
-          eventApi.updateEvent(event.id, { status: EventStatus.PAST })
-            .then(() => {
-              log.debug(LogCategory.EVENT, `Updated event ${event.title} to PAST status`);
-              // Invalidate queries to refresh the data
-              queryClient.invalidateQueries({ queryKey: ['events'] });
-            })
-            .catch((error: any) => {
-              log.error(LogCategory.EVENT, `Failed to update event ${event.title} status to PAST`, error);
-            });
-        });
+      let newStatus: EventStatus | null = null;
+
+      // Determine correct status based on current time
+      if (now > endDateWithBuffer) {
+        // Event has ended (with buffer) - should be PAST
+        if (event.status !== EventStatus.PAST) {
+          newStatus = EventStatus.PAST;
+        }
+      } else {
+        // Event is upcoming or currently active - should be LIVE
+        // This includes events that haven't started yet (upcoming) and events that are currently happening
+        if (event.status !== EventStatus.LIVE) {
+          newStatus = EventStatus.LIVE;
+        }
       }
+
+      if (newStatus && newStatus !== event.status) {
+        eventsToUpdate.push({ event, newStatus });
+      }
+    });
+
+    if (eventsToUpdate.length > 0) {
+      log.info(LogCategory.EVENT, `Auto-updating ${eventsToUpdate.length} events based on time`, {
+        updates: eventsToUpdate.map(({ event, newStatus }) => ({
+          eventId: event.id,
+          title: event.title,
+          currentStatus: event.status,
+          newStatus,
+          startDate: event.startDate,
+          endDate: event.endDate
+        }))
+      });
+
+      // Update events one by one to avoid overwhelming the API
+      eventsToUpdate.forEach(({ event, newStatus }) => {
+        eventApi.updateEvent(event.id, { status: newStatus })
+          .then(() => {
+            log.debug(LogCategory.EVENT, `Updated event ${event.title} from ${event.status} to ${newStatus}`);
+            // Invalidate queries to refresh the data
+            queryClient.invalidateQueries({ queryKey: ['events'] });
+          })
+          .catch((error: any) => {
+            log.error(LogCategory.EVENT, `Failed to update event ${event.title} status from ${event.status} to ${newStatus}`, error);
+          });
+      });
     }
+  }, [events, queryClient]);
+
+  // Periodic check to update event status every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (events && events.length > 0) {
+        log.debug(LogCategory.EVENT, 'Periodic event status check triggered');
+        // Force re-evaluation of event statuses by updating state
+        queryClient.invalidateQueries({ queryKey: ['events'] });
+      }
+    }, 60000); // Check every minute
+
+    return () => clearInterval(interval);
   }, [events, queryClient]);
 
   const deleteMutation = useMutation({
@@ -414,6 +528,19 @@ const Dashboard: React.FC = () => {
     const isCreator = canEditEvent(event);
     const tournamentType = event.features?.includes(EventFeatures.SWISS_TOURNAMENT) ? 'swiss' : 'single-elimination';
     
+    // Debug logging for tournament button state (only in development and when tournament state changes)
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`🎯 Tournament button info for event ${event.id} (${event.title}):`, {
+        hasTournament: !!tournament,
+        tournamentId: tournament?.id,
+        tournamentStatus: tournament?.status,
+        isCreator,
+        tournamentType,
+        playersCount: tournament?.playerCount || 0,
+        buttonWillShow: !tournament ? (isCreator ? 'Create Tournament' : 'No Tournament') : `${tournament.status} button`
+      });
+    }
+    
     if (!tournament) {
       return isCreator 
         ? { text: 'Create Tournament', action: () => navigate(`/tournament/${tournamentType}?eventId=${event.id}&eventTitle=${encodeURIComponent(event.title)}&creatorId=${event.creator?.id || event.creatorId}&feature=${event.features?.includes(EventFeatures.SWISS_TOURNAMENT) ? EventFeatures.SWISS_TOURNAMENT : EventFeatures.SINGLE_ELIMINATION_TOURNAMENT}`), disabled: false }
@@ -435,7 +562,7 @@ const Dashboard: React.FC = () => {
         if (isCreator) {
           return { text: 'Manage Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/manage`), disabled: false };
         } else {
-          const isParticipant = user && tournament.players?.some((p: any) => p.userId === user.id);
+          const isParticipant = user && tournament.players?.some((p: any) => p.id === user.id);
           return isParticipant
             ? { text: 'Tournament Ready', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}`), disabled: false }
             : { text: 'Join Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}`), disabled: false };
@@ -445,7 +572,7 @@ const Dashboard: React.FC = () => {
         if (isCreator) {
           return { text: 'Start Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/manage`), disabled: false };
         } else {
-          const isParticipant = user && tournament.players?.some((p: any) => p.userId === user.id);
+          const isParticipant = user && tournament.players?.some((p: any) => p.id === user.id);
           return isParticipant
             ? { text: 'Tournament Ready', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}`), disabled: false }
             : { text: 'Registration Closed', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}`), disabled: false };
@@ -455,7 +582,7 @@ const Dashboard: React.FC = () => {
         if (isCreator) {
           return { text: 'Manage Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/manage`), disabled: false };
         } else {
-          const isParticipant = user && tournament.players?.some((p: any) => p.userId === user.id);
+          const isParticipant = user && tournament.players?.some((p: any) => p.id === user.id);
           return isParticipant
             ? { text: 'Tournament Live', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/results`), disabled: false }
             : { text: 'View Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/results`), disabled: false };
@@ -782,6 +909,7 @@ const Dashboard: React.FC = () => {
                           const frontendTournament = getFrontendTournament(event.id);
                           return (
                             <button
+                              key={`tournament-btn-${event.id}-${frontendTournament?.id}-${buttonInfo.text}`}
                               type="button"
                               className={`w-full px-4 py-2 font-medium rounded-md transition-all duration-200 flex items-center justify-center ${
                                 buttonInfo.disabled 

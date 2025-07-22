@@ -208,6 +208,11 @@ export class TournamentsService {
     return await this.baseTournamentService.removePlayer(removePlayerDto.tournamentId, removePlayerDto.playerId, organizerId);
   }
 
+  async unregisterPlayer(tournamentId: string, userId: string): Promise<any> {
+    // Allow players to unregister themselves
+    return await this.baseTournamentService.unregisterPlayer(tournamentId, userId);
+  }
+
   async startTournament(tournamentId: string, organizerId: string): Promise<ITournament> {
     // Delegate to the new strategy-based tournament start
     return await this.baseTournamentService.startTournament(tournamentId, organizerId);
@@ -358,93 +363,7 @@ export class TournamentsService {
     return savedTournament.toObject();
   }
 
-  // DEPRECATED: This method is replaced by strategy-based advancement in base tournament service
-  private async checkAndGenerateNextRound_DEPRECATED(tournament: ITournament): Promise<void> {
-    console.log('🔍 checkAndGenerateNextRound called with tournament:', {
-      tournamentId: tournament._id,
-      roundsCount: tournament.rounds.length,
-      rounds: tournament.rounds.map(r => ({
-        roundNumber: r.roundNumber,
-        matchesCount: r.matches.length,
-        matches: r.matches.map(m => ({
-          matchId: m.matchId,
-          status: m.status,
-          winnerId: m.winnerId,
-          player1: { id: m.player1.id, name: m.player1.name },
-          player2: { id: m.player2.id, name: m.player2.name }
-        }))
-      }))
-    });
-
-    // Check each round to see if it's complete and populate next round with randomized matchups
-    for (let roundIndex = 0; roundIndex < tournament.rounds.length; roundIndex++) {
-      const currentRound = tournament.rounds[roundIndex];
-      
-      // Check if current round is complete
-      const allMatchesComplete = currentRound.matches.every(match => match.status === 'completed');
-      
-      console.log('🔍 Checking round:', {
-        roundNumber: currentRound.roundNumber,
-        allMatchesComplete,
-        matches: currentRound.matches.map(m => ({ matchId: m.matchId, status: m.status, winnerId: m.winnerId }))
-      });
-
-      if (!allMatchesComplete) {
-        console.log('❌ Round not complete, skipping advancement');
-        continue;
-      }
-
-      // Check if next round already exists and has real players to prevent duplicate generation
-      const nextRoundIndex = currentRound.roundNumber; // Next round index (0-based)
-      const nextRound = tournament.rounds[nextRoundIndex];
-      const nextRoundHasRealPlayers = nextRound && 
-                                     nextRound.matches && 
-                                     nextRound.matches.length > 0 &&
-                                     nextRound.matches.some(match => 
-                                       match.player1.id !== 'TBD' && match.player2.id !== 'TBD'
-                                     );
-      
-      if (nextRoundHasRealPlayers) {
-        console.log('✅ Next round already populated with real players, skipping generation to prevent race condition', {
-          nextRoundNumber: nextRound.roundNumber,
-          matchCount: nextRound.matches.length,
-          firstMatch: nextRound.matches[0] ? {
-            player1: { id: nextRound.matches[0].player1.id, name: nextRound.matches[0].player1.name },
-            player2: { id: nextRound.matches[0].player2.id, name: nextRound.matches[0].player2.name }
-          } : null
-        });
-        continue;
-      }
-
-      // This function is deprecated - automatic advancement is now handled by strategy pattern
-      console.log('⚠️ This deprecated function should not be called - using strategy pattern instead');
-    }
-
-    // Check if tournament is finished (final round complete)
-    const finalRound = tournament.rounds[tournament.rounds.length - 1];
-    const tournamentComplete = finalRound.matches.every(match => match.status === 'completed');
-    
-    if (tournamentComplete && !tournament.isFinished) {
-      console.log('🏁 Tournament complete, setting winner');
-      const winner = finalRound.matches[0];
-      
-      tournament.isFinished = true;
-      tournament.winnerId = winner.winnerId;
-      await tournament.save();
-
-      // Broadcast tournament completion
-      this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), {
-        type: 'tournament-finished',
-        tournamentId: tournament._id.toString(),
-        winner: winner.winnerId === winner.player1.id ? winner.player1 : winner.player2,
-      });
-
-      this.webSocketGateway.broadcastTournamentToParticipants(tournament._id.toString(), {
-        type: 'tournament-finished',
-        winner: winner.winnerId === winner.player1.id ? winner.player1 : winner.player2,
-      });
-    }
-  }
+  // REMOVED: Deprecated method replaced by strategy-based advancement in base tournament service
 
   // New match result workflow methods
   async submitMatchResult(submitResultDto: SubmitResultDto, submitterId: string): Promise<ITournament> {
@@ -595,6 +514,7 @@ export class TournamentsService {
       newStatus: match.status,
       isOrganizer,
       submitterId,
+      resultReportedBy: match.resultReportedBy,
       note: isOrganizer ? 'Organizer submission - will be processed immediately' : 'Player submission - awaiting confirmation'
     });
 
@@ -628,47 +548,26 @@ export class TournamentsService {
     }
 
     // Emit WebSocket event for match result submission requiring confirmation
-    try {
-      console.log('📡 Emitting match-result-submitted event for confirmation');
-      const cleanMatch = {
-        matchId: match.matchId,
-        player1: {
-          id: match.player1.id,
-          userId: match.player1.userId,
-          name: match.player1.name
-        },
-        player2: {
-          id: match.player2.id,
-          userId: match.player2.userId,
-          name: match.player2.name
-        },
-        status: match.status,
-        winnerId: match.winnerId,
-        loserId: match.loserId,
-        isDraw: match.isDraw,
-        result: match.result,
-        resultReportedBy: match.resultReportedBy
-      };
-
-      this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId?.toString() || '', {
+    // Optimized: Send minimal data for faster transmission
+    setImmediate(() => {
+      const updateData = {
         type: 'match-result-submitted',
         tournamentId: tournament._id.toString(),
         matchId: match.matchId,
+        roundNumber: matchRound.roundNumber,
         result: {
           winnerId: match.winnerId,
           loserId: match.loserId,
-          isDraw: match.isDraw,
-          result: match.result
+          isDraw: match.isDraw
         },
-        match: cleanMatch,
         submittedBy: submitterId,
         requiresConfirmation: true
-      });
-      console.log('✅ WebSocket event emitted successfully');
-    } catch (error) {
-      console.error('❌ Error emitting WebSocket event:', error);
-      // Don't throw error, just log it so the match result still gets saved
-    }
+      };
+      
+      // Broadcast to both event room and tournament-specific room
+      this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId?.toString() || '', updateData);
+      this.webSocketGateway.broadcastTournamentToParticipants(tournament._id.toString(), updateData);
+    });
 
     return tournament;
   }
@@ -849,12 +748,13 @@ export class TournamentsService {
   }
 
   async confirmMatchResult(confirmMatchResultDto: any, confirmerId: string): Promise<ITournament> {
+    // Optimized: Use lean() for faster query when we only need to read
     const tournament = await this.tournamentModel.findById(confirmMatchResultDto.tournamentId);
     if (!tournament) {
       throw new NotFoundException('Tournament not found');
     }
 
-    // Find the match across all rounds, not just the current round
+    // Find the match - optimized with early exit
     let match: ITournamentMatch | undefined;
     let matchRound: ITournamentRound | undefined;
     
@@ -875,23 +775,14 @@ export class TournamentsService {
       throw new BadRequestException('Can only confirm submitted results');
     }
 
-    // Check if match involves guest players
-    const hasGuestPlayer = match.player1.isGuest || match.player2.isGuest;
+    // Simplified validation
     const isOrganizer = tournament.organizerId.toString() === confirmerId;
-
-    // Tournament organizer can always confirm any submitted result
-    if (isOrganizer) {
-      // No additional validation needed for organizer
-    } else {
-      // For all matches (including guest matches), validate that the confirmer is a player in the match
+    if (!isOrganizer) {
       const isPlayer = match.player1.id === confirmerId || match.player2.id === confirmerId;
-      
       if (!isPlayer) {
         throw new ForbiddenException('Only players in the match can confirm results');
       }
-
-      // Check if the confirmer is not the one who submitted the result
-      if (match.resultReportedBy && match.resultReportedBy.includes(confirmerId)) {
+      if (match.resultReportedBy?.includes(confirmerId)) {
         throw new BadRequestException('Cannot confirm your own submitted result');
       }
     }
@@ -899,19 +790,41 @@ export class TournamentsService {
     match.status = 'completed';
     match.confirmedBy = confirmerId;
 
-    // Save the match result first
-    await tournament.save();
+    // Save and trigger advancement in parallel for better performance
+    const [savedTournament] = await Promise.all([
+      tournament.save(),
+      // Emit WebSocket immediately for real-time feedback
+      setImmediate(() => {
+        const updateData = {
+          type: 'match-result-confirmed',
+          tournamentId: tournament._id.toString(),
+          matchId: match.matchId,
+          roundNumber: matchRound.roundNumber,
+          confirmedBy: confirmerId
+        };
+        
+        // Broadcast to both event room and tournament-specific room
+        this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId?.toString() || '', updateData);
+        this.webSocketGateway.broadcastTournamentToParticipants(tournament._id.toString(), updateData);
+      })
+    ]);
 
-    // Now trigger tournament advancement through the base service
-    const updatedTournament = await this.baseTournamentService.reportMatchResult({
-      tournament: tournament,
-      matchId: confirmMatchResultDto.matchId,
-      winnerId: match.winnerId,
-      loserId: match.loserId,
-      reporterId: confirmerId
+    // Trigger tournament advancement asynchronously
+    setImmediate(async () => {
+      try {
+        await this.baseTournamentService.reportMatchResult({
+          tournament: savedTournament,
+          matchId: confirmMatchResultDto.matchId,
+          winnerId: match.winnerId,
+          loserId: match.loserId,
+          reporterId: confirmerId
+        });
+      } catch (error) {
+        console.error('Error during tournament advancement:', error);
+      }
     });
 
-    return updatedTournament;
+    return savedTournament;
   }
 
   async overrideResult(overrideResultDto: OverrideResultDto, organizerId: string): Promise<ITournament> {

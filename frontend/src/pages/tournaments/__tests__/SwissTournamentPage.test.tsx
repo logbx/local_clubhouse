@@ -90,8 +90,14 @@ const mockTournament = {
 
 const mockAuthContextValue = {
   user: mockUser,
+  loading: false,
+  error: null,
   login: jest.fn(),
   logout: jest.fn(),
+  updateUser: jest.fn(),
+  refreshToken: jest.fn(),
+  setUser: jest.fn(),
+  clearError: jest.fn(),
   isLoading: false
 };
 
@@ -281,7 +287,7 @@ describe('SwissTournamentPage', () => {
     it('should show registration option for non-registered player', async () => {
       const unregisteredTournament = {
         ...mockTournament,
-        players: mockTournament.players.filter(p => p.userId !== 'user1'),
+        players: mockTournament.players.filter(p => p.id !== 'user1'),
         isStarted: false
       };
       (tournamentService.getTournament as jest.Mock).mockResolvedValue(unregisteredTournament);
@@ -299,7 +305,7 @@ describe('SwissTournamentPage', () => {
     it('should register player for tournament', async () => {
       const unregisteredTournament = {
         ...mockTournament,
-        players: mockTournament.players.filter(p => p.userId !== 'user1'),
+        players: mockTournament.players.filter(p => p.id !== 'user1'),
         isStarted: false
       };
       (tournamentService.getTournament as jest.Mock).mockResolvedValue(unregisteredTournament);

@@ -158,7 +158,7 @@ export default function CreateEventScreen() {
     enabled: !!user,
   });
 
-  const userClubs = clubsData?.data?.clubs || [];
+  const userClubs = (clubsData as any)?.data?.clubs || [];
 
   // Create event mutation
   const createEventMutation = useMutation({
@@ -190,7 +190,7 @@ export default function CreateEventScreen() {
       });
     },
     onSuccess: (response) => {
-      const eventId = response.data.event._id;
+      const eventId = (response as any).data.event._id;
       Alert.alert(
         'Success!',
         'Your event has been created successfully.',

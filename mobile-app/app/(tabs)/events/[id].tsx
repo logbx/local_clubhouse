@@ -10,6 +10,7 @@ import {
   Linking,
   Platform,
   Modal,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -157,9 +158,9 @@ export default function EventDetailsScreen() {
     enabled: !!id,
   });
 
-  const event = eventData?.data?.event as EventDetails;
-  const relatedEvents = eventData?.data?.relatedEvents || [];
-  const permissions = eventData?.data?.permissions;
+  const event = (eventData as any)?.data?.event as EventDetails;
+  const relatedEvents = (eventData as any)?.data?.relatedEvents || [];
+  const permissions = (eventData as any)?.data?.permissions;
 
   // RSVP Mutation
   const rsvpMutation = useMutation({

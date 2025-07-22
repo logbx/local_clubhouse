@@ -1,7 +1,7 @@
 import { ExpoRequest, ExpoResponse } from 'expo-router/server';
 import { z } from 'zod';
 import { connectDB } from '@/lib/db';
-import { Event } from '@/lib/models/event';
+import { Event as EventModel } from '@/lib/models/event';
 import { EventRSVP } from '@/lib/models/event-rsvp';
 import { AuthRequest, verifyToken } from '@/lib/middleware/auth';
 import { createRateLimiter } from '@/lib/middleware/rate-limit';
@@ -29,13 +29,13 @@ const rsvpRateLimiter = createRateLimiter({
 });
 
 // POST /api/events/[id]/rsvp - Toggle RSVP status
-export async function POST(request: AuthRequest): Promise<ExpoResponse> {
+export async function POST(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     rsvpRateLimiter(request, new ExpoResponse(), () => {
       verifyToken(request, new ExpoResponse(), async () => {
         try {
           if (!request.user) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Authentication required' },
               { status: 401 }
             ));
@@ -47,7 +47,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
           const eventId = pathParts[pathParts.length - 2];
 
           if (!eventId) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Event ID is required' },
               { status: 400 }
             ));
@@ -60,9 +60,9 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
           await connectDB();
 
           // Get event details
-          const event = await Event.findById(eventId);
+          const event = await (EventModel as any).findById(eventId);
           if (!event) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Event not found' },
               { status: 404 }
             ));
@@ -71,7 +71,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 
           // Check if event is in the future
           if (event.startDate <= new Date()) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Cannot RSVP to past events' },
               { status: 400 }
             ));
@@ -80,7 +80,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 
           // Check if event is cancelled
           if (event.status === 'cancelled') {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Cannot RSVP to cancelled events' },
               { status: 400 }
             ));
@@ -88,7 +88,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
           }
 
           // Find existing RSVP
-          let existingRSVP = await EventRSVP.findOne({
+          let existingRSVP = await (EventRSVP as any).findOne({
             event: eventId,
             user: request.user.id,
           });
@@ -99,7 +99,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
           if (existingRSVP) {
             if (validatedData.status === 'not_going') {
               // Remove RSVP
-              await EventRSVP.findByIdAndDelete(existingRSVP._id);
+              await (EventRSVP as any).findByIdAndDelete(existingRSVP._id);
               action = 'removed';
             } else {
               // Update existing RSVP
@@ -124,7 +124,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
             }
           } else {
             if (validatedData.status === 'not_going') {
-              resolve(ExpoResponse.json(
+              resolve(Response.json(
                 { message: 'No RSVP to remove' },
                 { status: 200 }
               ));
@@ -133,7 +133,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 
             // Check capacity for 'going' status
             if (validatedData.status === 'going' && event.capacity) {
-              const currentAttendees = await EventRSVP.countDocuments({
+              const currentAttendees = await (EventRSVP as any).countDocuments({
                 event: eventId,
                 status: 'going',
               });
@@ -143,7 +143,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
                 if (event.settings.allowWaitlist) {
                   newStatus = 'waitlist';
                 } else {
-                  resolve(ExpoResponse.json(
+                  resolve(Response.json(
                     { error: 'Event is at capacity and waitlist is not allowed' },
                     { status: 400 }
                   ));
@@ -179,7 +179,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
           }
 
           // Update event statistics
-          const attendeeCounts = await EventRSVP.aggregate([
+          const attendeeCounts = await (EventRSVP as any).aggregate([
             { $match: { event: eventId } },
             {
               $group: {
@@ -192,7 +192,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
           const goingCount = attendeeCounts.find(item => item._id === 'going')?.count || 0;
           const interestedCount = attendeeCounts.find(item => item._id === 'interested')?.count || 0;
 
-          await Event.findByIdAndUpdate(eventId, {
+          await (EventModel as any).findByIdAndUpdate(eventId, {
             'stats.attendeeCount': goingCount,
             'stats.interestedCount': interestedCount,
           });
@@ -215,18 +215,18 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
             responseData.rsvp = existingRSVP.toJSON();
           }
 
-          resolve(ExpoResponse.json(responseData));
+          resolve(Response.json(responseData));
         } catch (error) {
           if (error instanceof z.ZodError) {
-            resolve(ExpoResponse.json(
-              { error: 'Validation failed', details: error.errors },
+            resolve(Response.json(
+              { error: 'Validation failed', details: error.issues },
               { status: 400 }
             ));
             return;
           }
 
           console.error('RSVP error:', error);
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to update RSVP' },
             { status: 500 }
           ));
@@ -237,12 +237,12 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // GET /api/events/[id]/rsvp - Get user's RSVP status
-export async function GET(request: AuthRequest): Promise<ExpoResponse> {
+export async function GET(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     verifyToken(request, new ExpoResponse(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -254,7 +254,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         const eventId = pathParts[pathParts.length - 2];
 
         if (!eventId) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Event ID is required' },
             { status: 400 }
           ));
@@ -263,26 +263,26 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
 
         await connectDB();
 
-        const rsvp = await EventRSVP.findOne({
+        const rsvp = await (EventRSVP as any).findOne({
           event: eventId,
           user: request.user.id,
         }).populate('event', 'title startDate endDate capacity');
 
         if (!rsvp) {
-          resolve(ExpoResponse.json({
+          resolve(Response.json({
             hasRSVP: false,
             status: null,
           }));
           return;
         }
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           hasRSVP: true,
           rsvp: rsvp.toJSON(),
         }));
       } catch (error) {
         console.error('Get RSVP error:', error);
-        resolve(ExpoResponse.json(
+        resolve(Response.json(
           { error: 'Failed to fetch RSVP status' },
           { status: 500 }
         ));
@@ -292,12 +292,12 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // DELETE /api/events/[id]/rsvp - Remove RSVP
-export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
+export async function DELETE(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     verifyToken(request, new ExpoResponse(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -309,7 +309,7 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
         const eventId = pathParts[pathParts.length - 2];
 
         if (!eventId) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Event ID is required' },
             { status: 400 }
           ));
@@ -318,13 +318,13 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
 
         await connectDB();
 
-        const deletedRSVP = await EventRSVP.findOneAndDelete({
+        const deletedRSVP = await (EventRSVP as any).findOneAndDelete({
           event: eventId,
           user: request.user.id,
         });
 
         if (!deletedRSVP) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'No RSVP found to remove' },
             { status: 404 }
           ));
@@ -332,7 +332,7 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
         }
 
         // Update event statistics
-        const attendeeCounts = await EventRSVP.aggregate([
+        const attendeeCounts = await (EventRSVP as any).aggregate([
           { $match: { event: eventId } },
           {
             $group: {
@@ -345,14 +345,14 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
         const goingCount = attendeeCounts.find(item => item._id === 'going')?.count || 0;
         const interestedCount = attendeeCounts.find(item => item._id === 'interested')?.count || 0;
 
-        await Event.findByIdAndUpdate(eventId, {
+        await (EventModel as any).findByIdAndUpdate(eventId, {
           'stats.attendeeCount': goingCount,
           'stats.interestedCount': interestedCount,
         });
 
         // If someone was removed from going status, promote from waitlist
         if (deletedRSVP.status === 'going') {
-          const waitlistRSVP = await EventRSVP.findOne({
+          const waitlistRSVP = await (EventRSVP as any).findOne({
             event: eventId,
             status: 'waitlist',
           }).sort({ registeredAt: 1 });
@@ -365,7 +365,7 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
           }
         }
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           message: 'RSVP removed successfully',
           attendeeCounts: {
             going: goingCount,
@@ -375,7 +375,7 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
         }));
       } catch (error) {
         console.error('Delete RSVP error:', error);
-        resolve(ExpoResponse.json(
+        resolve(Response.json(
           { error: 'Failed to remove RSVP' },
           { status: 500 }
         ));

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { TournamentType } from '../../models/tournament.model';
 import { TournamentStrategy } from './tournament-strategy.interface';
-import { SingleEliminationStrategy } from './single-elimination.strategy';
+import { SingleEliminationFixedStrategy } from './single-elimination-fixed.strategy';
 import { SwissTournamentStrategy } from './swiss-tournament.strategy';
 
 @Injectable()
@@ -9,7 +9,7 @@ export class TournamentStrategyFactory {
   private strategies = new Map<TournamentType, TournamentStrategy>();
 
   constructor(
-    private readonly singleEliminationStrategy: SingleEliminationStrategy,
+    private readonly singleEliminationStrategy: SingleEliminationFixedStrategy,
     private readonly swissTournamentStrategy: SwissTournamentStrategy,
   ) {
     this.registerStrategies();

@@ -1,123 +1,211 @@
-import mongoose, { Schema, Document } from 'mongoose';
-import bcrypt from 'bcryptjs';
-
-export interface IUser extends Document {
-  name: string;
+// User model for mobile app
+export interface User {
+  _id: string;
+  id: string;
   email: string;
-  password: string;
-  avatar?: string;
+  username: string;
+  fullName: string;
   bio?: string;
-  emailVerified: boolean;
-  refreshTokens: Array<{
-    token: string;
-    createdAt: Date;
-    lastUsed: Date;
-    deviceInfo?: string;
-  }>;
-  preferences: {
-    notifications: boolean;
-    newsletter: boolean;
-    theme: 'light' | 'dark' | 'system';
+  profilePicture?: string;
+  location?: {
+    city: string;
+    state: string;
+    country: string;
   };
-  lastLoginAt?: Date;
+  preferences?: {
+    notifications: boolean;
+    darkMode: boolean;
+    language: string;
+  };
+  stats?: {
+    clubsJoined: number;
+    eventsAttended: number;
+    tournamentsWon: number;
+  };
   createdAt: Date;
   updatedAt: Date;
-  comparePassword(password: string): Promise<boolean>;
+  isActive: boolean;
+  isVerified: boolean;
+  lastLogin?: Date;
+  roles: string[];
+  friends: string[];
+  blockedUsers: string[];
 }
 
-const userSchema = new Schema<IUser>({
-  name: {
-    type: String,
-    required: true,
-    trim: true,
-    minlength: 2,
-    maxlength: 50,
-  },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    lowercase: true,
-    trim: true,
-    match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email'],
-  },
-  password: {
-    type: String,
-    required: true,
-    minlength: 6,
-    select: false,
-  },
-  avatar: {
-    type: String,
-    default: null,
-  },
-  bio: {
-    type: String,
-    maxlength: 500,
-  },
-  emailVerified: {
-    type: Boolean,
-    default: false,
-  },
-  refreshTokens: [{
-    token: {
-      type: String,
-      required: true,
-    },
-    createdAt: {
-      type: Date,
-      default: Date.now,
-    },
-    lastUsed: {
-      type: Date,
-      default: Date.now,
-    },
-    deviceInfo: String,
-  }],
+export interface UserProfile {
+  user: User;
+  isOwnProfile: boolean;
+  isFriend: boolean;
+  isBlocked: boolean;
+  mutualFriends: number;
+  recentActivity: Activity[];
+}
+
+export interface Activity {
+  id: string;
+  type: 'club_joined' | 'event_created' | 'tournament_won' | 'friend_added';
+  title: string;
+  description: string;
+  timestamp: Date;
+  metadata?: Record<string, any>;
+}
+
+export interface UserSettings {
+  notifications: {
+    push: boolean;
+    email: boolean;
+    sms: boolean;
+    clubUpdates: boolean;
+    eventReminders: boolean;
+    friendRequests: boolean;
+    tournamentResults: boolean;
+  };
+  privacy: {
+    profileVisibility: 'public' | 'friends' | 'private';
+    showLocation: boolean;
+    showStats: boolean;
+    allowMessagesFromStrangers: boolean;
+  };
   preferences: {
-    notifications: {
-      type: Boolean,
-      default: true,
-    },
-    newsletter: {
-      type: Boolean,
-      default: false,
-    },
-    theme: {
-      type: String,
-      enum: ['light', 'dark', 'system'],
-      default: 'system',
-    },
+    darkMode: boolean;
+    language: string;
+    timeZone: string;
+    dateFormat: string;
+    autoJoinTournaments: boolean;
+  };
+}
+
+export interface CreateUserRequest {
+  email: string;
+  username: string;
+  fullName: string;
+  password: string;
+  bio?: string;
+  location?: {
+    city: string;
+    state: string;
+    country: string;
+  };
+}
+
+export interface UpdateUserRequest {
+  fullName?: string;
+  bio?: string;
+  location?: {
+    city: string;
+    state: string;
+    country: string;
+  };
+  preferences?: Partial<UserSettings['preferences']>;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+  rememberMe?: boolean;
+}
+
+export interface RegisterRequest extends CreateUserRequest {
+  confirmPassword: string;
+  agreeToTerms: boolean;
+}
+
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  tokenType: 'Bearer';
+}
+
+export interface AuthResponse {
+  user: User;
+  tokens: AuthTokens;
+  isNewUser: boolean;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  password: string;
+  confirmPassword: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+export interface VerifyEmailRequest {
+  token: string;
+}
+
+export interface ResendVerificationRequest {
+  email: string;
+}
+
+// Type guards
+export const isUser = (obj: any): obj is User => {
+  return obj && typeof obj._id === 'string' && typeof obj.email === 'string';
+};
+
+export const isAuthResponse = (obj: any): obj is AuthResponse => {
+  return obj && isUser(obj.user) && obj.tokens && typeof obj.tokens.accessToken === 'string';
+};
+
+// Default values
+export const createEmptyUser = (): Partial<User> => ({
+  email: '',
+  username: '',
+  fullName: '',
+  bio: '',
+  profilePicture: '',
+  location: {
+    city: '',
+    state: '',
+    country: '',
   },
-  lastLoginAt: Date,
-}, {
-  timestamps: true,
+  preferences: {
+    notifications: true,
+    darkMode: false,
+    language: 'en',
+  },
+  stats: {
+    clubsJoined: 0,
+    eventsAttended: 0,
+    tournamentsWon: 0,
+  },
+  isActive: true,
+  isVerified: false,
+  roles: ['user'],
+  friends: [],
+  blockedUsers: [],
 });
 
-userSchema.index({ email: 1 });
-userSchema.index({ 'refreshTokens.token': 1 });
-
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
-  
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error: any) {
-    next(error);
-  }
+export const createDefaultSettings = (): UserSettings => ({
+  notifications: {
+    push: true,
+    email: true,
+    sms: false,
+    clubUpdates: true,
+    eventReminders: true,
+    friendRequests: true,
+    tournamentResults: true,
+  },
+  privacy: {
+    profileVisibility: 'public',
+    showLocation: true,
+    showStats: true,
+    allowMessagesFromStrangers: false,
+  },
+  preferences: {
+    darkMode: false,
+    language: 'en',
+    timeZone: 'UTC',
+    dateFormat: 'MM/DD/YYYY',
+    autoJoinTournaments: false,
+  },
 });
-
-userSchema.methods.comparePassword = async function(password: string): Promise<boolean> {
-  return bcrypt.compare(password, this.password);
-};
-
-userSchema.methods.toJSON = function() {
-  const obj = this.toObject();
-  delete obj.password;
-  delete obj.refreshTokens;
-  return obj;
-};
-
-export const User = mongoose.models.User || mongoose.model<IUser>('User', userSchema);

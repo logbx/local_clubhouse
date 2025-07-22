@@ -1,7 +1,7 @@
 import { ExpoRequest, ExpoResponse } from 'expo-router/server';
 import { connectDB } from '@/lib/db';
-import { Club } from '@/lib/models/club';
-import { ClubMember } from '@/lib/models/club-member';
+import { Club } from '@/lib/models/club.model';
+import { ClubMember } from '@/lib/models/club-member.model';
 import { AuthRequest, verifyToken } from '@/lib/middleware/auth';
 
 async function getClubByUsername(username: string) {
@@ -13,12 +13,12 @@ async function getClubByUsername(username: string) {
 }
 
 // POST /api/clubs/[username]/join - Join/leave club toggle
-export async function POST(request: AuthRequest): Promise<ExpoResponse> {
+export async function POST(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
-    verifyToken(request, new ExpoResponse(), async () => {
+    verifyToken(request, new Response(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -46,7 +46,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
           if (existingMembership.status === 'active') {
             // User is leaving the club
             if (existingMembership.role === 'owner') {
-              resolve(ExpoResponse.json(
+              resolve(Response.json(
                 { error: 'Club owner cannot leave the club' },
                 { status: 400 }
               ));
@@ -62,7 +62,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
             action = 'left';
             message = 'Join request cancelled';
           } else if (existingMembership.status === 'banned') {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'You are banned from this club' },
               { status: 403 }
             ));
@@ -79,7 +79,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
             });
 
             if (currentMemberCount >= club.memberLimit) {
-              resolve(ExpoResponse.json(
+              resolve(Response.json(
                 { error: 'Club has reached its member limit' },
                 { status: 400 }
               ));
@@ -133,7 +133,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
           // This would integrate with your notification system
         }
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           action,
           message,
           memberCount: activeMemberCount,
@@ -141,12 +141,12 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
       } catch (error) {
         console.error('Join/leave club error:', error);
         if (error.message === 'Club not found') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Club not found' },
             { status: 404 }
           ));
         } else {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to join/leave club' },
             { status: 500 }
           ));

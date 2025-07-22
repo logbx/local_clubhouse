@@ -7,11 +7,13 @@ const mockTournament: Tournament = {
   id: 'test-tournament-id',
   name: 'Test Tournament',
   type: TournamentType.SWISS,
+  eventId: 'test-event-id',
+  organizerId: 'test-organizer-id',
   players: [
-    { id: '1', name: 'Player 1', userId: 'user1' },
-    { id: '2', name: 'Player 2', userId: 'user2' },
-    { id: '3', name: 'Player 3', userId: 'user3' },
-    { id: '4', name: 'Player 4', userId: 'user4' }
+    { id: '1', name: 'Player 1', userId: 'user1', isGuest: false },
+    { id: '2', name: 'Player 2', userId: 'user2', isGuest: false },
+    { id: '3', name: 'Player 3', userId: 'user3', isGuest: false },
+    { id: '4', name: 'Player 4', userId: 'user4', isGuest: false }
   ],
   rounds: [],
   currentRound: 1,
@@ -72,8 +74,8 @@ describe('TournamentControls', () => {
       const tournamentWithFewPlayers = {
         ...mockTournament,
         players: [
-          { id: '1', name: 'Player 1', userId: 'user1' },
-          { id: '2', name: 'Player 2', userId: 'user2' }
+          { id: '1', name: 'Player 1', userId: 'user1', isGuest: false },
+          { id: '2', name: 'Player 2', userId: 'user2', isGuest: false }
         ]
       };
 
@@ -284,7 +286,7 @@ describe('TournamentControls', () => {
     it('should show loading skeleton when tournament is null', () => {
       render(
         <TournamentControls
-          tournament={null}
+          tournament={undefined}
           isEventCreator={true}
           isUserRegistered={false}
           canRegister={false}
@@ -301,7 +303,7 @@ describe('TournamentControls', () => {
       const seTournament = {
         ...mockTournament,
         type: TournamentType.SINGLE_ELIMINATION,
-        players: [{ id: '1', name: 'Player 1', userId: 'user1' }]
+        players: [{ id: '1', name: 'Player 1', userId: 'user1', isGuest: false }]
       };
 
       render(

@@ -87,20 +87,61 @@ const SwissTournamentManagePage: React.FC = () => {
           data.type === 'player-removed' || data.type === 'tournament-started' ||
           data.type === 'match-result-submitted' || data.type === 'round-started' ||
           data.type === 'tournament-completed') {
-        // Refresh tournament data when there are updates
-        const refreshTournament = async () => {
-          try {
-            if (tournamentId) {
-              console.log('🔄 WebSocket triggered tournament refresh');
-              const updatedTournament = await tournamentService.getTournament(tournamentId);
-              setTournament(updatedTournament);
-              console.log('✅ Tournament state refreshed from WebSocket update');
+        
+        // Handle immediate state updates for player events to prevent display lag
+        if (data.type === 'player-registered' && data.player) {
+          console.log('🚀 Player registered! Updating UI immediately...');
+          setTournament(prevTournament => {
+            if (!prevTournament) return null;
+            const playerExists = prevTournament.players.some(p => p.id === data.player.id);
+            if (playerExists) {
+              console.log('⚠️ Player already exists in current state, skipping duplicate registration:', data.player.name);
+              return prevTournament;
             }
-          } catch (error) {
-            console.error('❌ Error refreshing tournament data:', error);
-          }
-        };
-        refreshTournament();
+            return {
+              ...prevTournament,
+              players: [...prevTournament.players, data.player]
+            };
+          });
+        } else if (data.type === 'guest-player-added' && data.player) {
+          console.log('🚀 Guest player added! Updating UI immediately...');
+          setTournament(prevTournament => {
+            if (!prevTournament) return null;
+            const playerExists = prevTournament.players.some(p => p.id === data.player.id);
+            if (playerExists) {
+              console.log('⚠️ Guest player already exists in current state, skipping duplicate add:', data.player.name);
+              return prevTournament;
+            }
+            return {
+              ...prevTournament,
+              players: [...prevTournament.players, data.player]
+            };
+          });
+        } else if (data.type === 'player-removed' && data.playerId) {
+          console.log('🚀 Player removed! Updating UI immediately...');
+          setTournament(prevTournament => {
+            if (!prevTournament) return null;
+            return {
+              ...prevTournament,
+              players: prevTournament.players.filter(p => p.id !== data.playerId)
+            };
+          });
+        } else {
+          // For other events, refresh tournament data from backend
+          const refreshTournament = async () => {
+            try {
+              if (tournamentId) {
+                console.log('🔄 WebSocket triggered tournament refresh');
+                const updatedTournament = await tournamentService.getTournament(tournamentId);
+                setTournament(updatedTournament);
+                console.log('✅ Tournament state refreshed from WebSocket update');
+              }
+            } catch (error) {
+              console.error('❌ Error refreshing tournament data:', error);
+            }
+          };
+          refreshTournament();
+        }
         
         // Show notifications for automatic events
         if (data.type === 'round-started' && data.message) {
@@ -144,8 +185,10 @@ const SwissTournamentManagePage: React.FC = () => {
 
     setAddingGuest(true);
     try {
-      const updatedTournament = await tournamentService.addGuestPlayer(tournamentId, name.trim());
-      setTournament(updatedTournament);
+      // Only call the API - WebSocket will handle the state update
+      await tournamentService.addGuestPlayer(tournamentId, name.trim());
+      // Don't manually update tournament state here - let WebSocket handle it
+      // This prevents double updates and unnecessary re-renders
     } catch (err) {
       console.error('Failed to add guest player:', err);
       alert('Failed to add guest player. Please try again.');
@@ -158,8 +201,10 @@ const SwissTournamentManagePage: React.FC = () => {
     if (!tournamentId || tournament?.isStarted) return;
 
     try {
-      const updatedTournament = await tournamentService.removePlayer(tournamentId, playerId);
-      setTournament(updatedTournament);
+      // Only call the API - WebSocket will handle the state update
+      await tournamentService.removePlayer(tournamentId, playerId);
+      // Don't manually update tournament state here - let WebSocket handle it
+      // This prevents double updates and unnecessary re-renders
     } catch (err) {
       console.error('Failed to remove player:', err);
       alert('Failed to remove player. Please try again.');

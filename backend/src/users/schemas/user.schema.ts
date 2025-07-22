@@ -31,10 +31,23 @@ export class User {
   email: string;
 
   @Prop({
-    required: [true, 'Password is required'],
+    required: function() {
+      // Password only required for non-Firebase users
+      return !this.firebaseUID;
+    },
     minlength: [8, 'Password must be at least 8 characters long']
   })
-  password: string;
+  password?: string;
+
+  @Prop()
+  firebaseUID?: string;
+
+  @Prop({
+    type: String,
+    enum: ['email', 'phone', 'google', 'apple'],
+    default: 'email'
+  })
+  authMethod: string;
 
   @Prop({
     type: [String],
@@ -93,7 +106,7 @@ export const UserSchema = SchemaFactory.createForClass(User);
 
 // Hash password before saving
 UserSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
+  if (!this.isModified('password') || !this.password) return next();
   
   try {
     const salt = await bcryptjs.genSalt(10);
@@ -107,6 +120,9 @@ UserSchema.pre('save', async function(next) {
 // Add comparePassword method to the schema
 UserSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
   try {
+    if (!this.password) {
+      return false;
+    }
     return await bcryptjs.compare(candidatePassword, this.password);
   } catch (error) {
     throw error;

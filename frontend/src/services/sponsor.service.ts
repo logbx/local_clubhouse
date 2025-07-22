@@ -3,9 +3,6 @@ import {
   Sponsor, 
   CreateSponsorDto, 
   UpdateSponsorDto,
-  SponsorshipTier,
-  CreateSponsorshipTierDto,
-  UpdateSponsorshipTierDto,
   CollaborationRequest,
   CreateCollaborationRequestDto,
   UpdateCollaborationRequestDto,
@@ -16,9 +13,6 @@ import {
   TeamMember,
   SponsorSearchFilters,
   SponsorStats,
-  SponsorshipPreferences,
-  CreateSponsorshipPreferencesDto,
-  UpdateSponsorshipPreferencesDto,
   SponsorshipPackage,
   CreateSponsorshipPackageDto,
   UpdateSponsorshipPackageDto
@@ -92,21 +86,8 @@ export const sponsorApi = {
     return response.data;
   },
 
-  // Sponsorship Tier operations
-  createSponsorshipTier: async (username: string, tierData: CreateSponsorshipTierDto): Promise<SponsorshipTier> => {
-    const response = await api.post(`/api/sponsors/${username}/tiers`, tierData);
-    return response.data;
-  },
-
-  getSponsorshipTiers: async (username: string): Promise<SponsorshipTier[]> => {
-    const response = await api.get(`/api/sponsors/${username}/tiers`);
-    return response.data;
-  },
-
-  updateSponsorshipTier: async (tierId: string, tierData: UpdateSponsorshipTierDto): Promise<SponsorshipTier> => {
-    const response = await api.put(`/api/sponsors/tiers/${tierId}`, tierData);
-    return response.data;
-  },
+  // Sponsorship Tier operations - temporarily disabled
+  // TODO: Add sponsorship tier types and implement these functions
 
   deleteSponsorshipTier: async (tierId: string): Promise<void> => {
     await api.delete(`/api/sponsors/tiers/${tierId}`);
@@ -183,50 +164,8 @@ export const sponsorApi = {
   },
 
   // Sponsorship Preferences operations
-  createSponsorshipPreferences: async (username: string, preferencesData: CreateSponsorshipPreferencesDto): Promise<SponsorshipPreferences> => {
-    const response = await api.post(`/api/sponsors/${username}/preferences`, preferencesData);
-    return response.data;
-  },
-
-  getSponsorshipPreferences: async (username: string): Promise<SponsorshipPreferences | null> => {
-    try {
-      const response = await api.get(`/api/sponsors/${username}/preferences`);
-      return response.data;
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        return null;
-      }
-      throw error;
-    }
-  },
-
-  updateSponsorshipPreferences: async (username: string, preferencesData: UpdateSponsorshipPreferencesDto): Promise<SponsorshipPreferences> => {
-    const response = await api.put(`/api/sponsors/${username}/preferences`, preferencesData);
-    return response.data;
-  },
-
-  deleteSponsorshipPreferences: async (username: string): Promise<void> => {
-    await api.delete(`/api/sponsors/${username}/preferences`);
-  },
-
-  // Search sponsors by preferences
-  searchSponsorsByPreferences: async (
-    sponsorshipTypes?: string[],
-    collaborationPreference?: string,
-    location?: string,
-    limit?: number,
-    skip?: number
-  ): Promise<SponsorshipPreferences[]> => {
-    const params = new URLSearchParams();
-    if (sponsorshipTypes) params.append('sponsorshipTypes', sponsorshipTypes.join(','));
-    if (collaborationPreference) params.append('collaborationPreference', collaborationPreference);
-    if (location) params.append('location', location);
-    if (limit) params.append('limit', limit.toString());
-    if (skip) params.append('skip', skip.toString());
-    
-    const response = await api.get(`/api/sponsors/search/by-preferences?${params}`);
-    return response.data;
-  },
+  // Sponsorship Preferences operations - temporarily disabled
+  // TODO: Add sponsorship preferences types and implement these functions
 
   // Sponsorship Package methods
   createSponsorshipPackage: async (sponsorUsername: string, packageData: CreateSponsorshipPackageDto): Promise<SponsorshipPackage> => {

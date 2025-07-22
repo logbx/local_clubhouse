@@ -1,9 +1,10 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { apiClient as api } from '@/lib/api';
+import { api } from '@/lib/api-client-mobile';
 import { storage } from '@/lib/storage';
 import { router } from 'expo-router';
 import { Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
+import { firebaseAuthService, AuthUser } from '@/lib/auth/firebase-auth';
 
 interface User {
   id: string;
@@ -28,6 +29,11 @@ interface AuthContextType {
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
+  loginWithFirebase?: (idToken: string, authUser: AuthUser) => Promise<void>;
+  loginWithFirebaseEmail?: (email: string, password: string) => Promise<void>;
+  registerWithFirebaseEmail?: (name: string, email: string, password: string) => Promise<void>;
+  sendEmailVerification?: () => Promise<void>;
+  checkEmailVerified?: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -69,8 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (email: string, password: string, rememberMe: boolean = false) => {
-    const deviceInfo = await getDeviceInfo();
-    const response = await api.login(email, password, rememberMe, deviceInfo);
+    const response = await api.login({ email, password });
     const { user, accessToken, refreshToken } = response;
     
     // Store tokens based on platform
@@ -92,8 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     acceptTerms: boolean,
     newsletter: boolean = false
   ) => {
-    const deviceInfo = await getDeviceInfo();
-    const response = await api.register(name, email, password, acceptTerms, newsletter, deviceInfo);
+    const response = await api.register({ name, email, password, acceptTerms, newsletter });
     const { user, accessToken, refreshToken } = response;
     
     // Store tokens based on platform
@@ -108,10 +112,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      // Revoke refresh token on server
-      const refreshTokenValue = await storage.getRefreshToken();
-      if (refreshTokenValue) {
-        await api.revokeRefreshToken(refreshTokenValue);
+      // Attempt to logout from server
+      try {
+        await api.logout();
+      } catch (error) {
+        // Ignore logout errors
       }
     } catch (error) {
       console.error('Failed to revoke token:', error);
@@ -134,13 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     try {
       setIsRefreshing(true);
-      const refreshTokenValue = await storage.getRefreshToken();
-      
-      if (!refreshTokenValue) {
-        throw new Error('No refresh token');
-      }
-
-      const response = await api.refreshToken(refreshTokenValue);
+      const response = await api.refreshToken();
       const { accessToken, refreshToken: newRefreshToken } = response;
       
       await storage.setTokens(accessToken, newRefreshToken);
@@ -162,6 +161,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginWithFirebase = async (idToken: string, authUser: AuthUser) => {
+    try {
+      // Send Firebase ID token to your backend for verification
+      const response = await api.loginWithFirebase({ idToken, authUser });
+      const { user, accessToken, refreshToken } = response;
+      
+      // Store tokens
+      await storage.setTokens(accessToken, refreshToken);
+      setUser(user);
+    } catch (error) {
+      console.error('Firebase login failed:', error);
+      throw error;
+    }
+  };
+
+  const loginWithFirebaseEmail = async (email: string, password: string) => {
+    try {
+      const authUser = await firebaseAuthService.signInWithEmail(email, password);
+      const idToken = await firebaseAuthService.getIdToken();
+      
+      if (idToken) {
+        await loginWithFirebase(idToken, authUser);
+      } else {
+        throw new Error('Failed to get authentication token');
+      }
+    } catch (error) {
+      console.error('Firebase email login failed:', error);
+      throw error;
+    }
+  };
+
+  const registerWithFirebaseEmail = async (name: string, email: string, password: string) => {
+    try {
+      const authUser = await firebaseAuthService.registerWithEmail(email, password, name);
+      const idToken = await firebaseAuthService.getIdToken();
+      
+      if (idToken) {
+        await loginWithFirebase(idToken, authUser);
+      } else {
+        throw new Error('Failed to get authentication token');
+      }
+    } catch (error) {
+      console.error('Firebase email registration failed:', error);
+      throw error;
+    }
+  };
+
+  const sendEmailVerification = async () => {
+    try {
+      await firebaseAuthService.sendEmailVerification();
+    } catch (error) {
+      console.error('Failed to send email verification:', error);
+      throw error;
+    }
+  };
+
+  const checkEmailVerified = async () => {
+    try {
+      return await firebaseAuthService.checkEmailVerified();
+    } catch (error) {
+      console.error('Failed to check email verification:', error);
+      return false;
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -171,7 +235,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register, 
       logout, 
       refreshToken,
-      updateProfile
+      updateProfile,
+      loginWithFirebase,
+      loginWithFirebaseEmail,
+      registerWithFirebaseEmail,
+      sendEmailVerification,
+      checkEmailVerified
     }}>
       {children}
     </AuthContext.Provider>

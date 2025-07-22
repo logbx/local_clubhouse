@@ -374,7 +374,7 @@ export const SocialSidebar: React.FC<SocialSidebarProps> = ({
           updatedAt: matchingItem.updatedAt,
           unreadCount: matchingItem.unreadCount,
           clubUsername: 'clubUsername' in matchingItem ? matchingItem.clubUsername : undefined,
-          eventId: 'eventId' in matchingItem ? matchingItem.eventId : undefined,
+          eventId: 'eventId' in matchingItem ? matchingItem.eventId as string : undefined,
           eventStatus: 'eventStatus' in matchingItem ? matchingItem.eventStatus : undefined
         };
         

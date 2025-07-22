@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api } from '@/lib/api';
+import { api } from '@/lib/api-client-mobile';
 
 export interface NotificationData {
   type: 'event_reminder' | 'rsvp_confirmation' | 'event_update' | 'event_cancelled' | 'check_in' | 'waitlist_promoted';
@@ -125,15 +125,26 @@ export class NotificationService {
   async registerForPushNotifications(): Promise<string | null> {
     try {
       if (!Device.isDevice) {
+        console.warn('Push notifications require physical device');
         return null;
       }
 
       const hasPermissions = await this.requestPermissions();
       if (!hasPermissions) {
+        console.warn('Push notifications disabled: No permissions');
         return null;
       }
 
-      const token = (await Notifications.getExpoPushTokenAsync()).data;
+      // Check if projectId is configured
+      const projectId = process.env.EXPO_PUBLIC_PROJECT_ID;
+      if (!projectId) {
+        console.warn('Push notifications disabled: No projectId configured');
+        return null; // Graceful degradation
+      }
+
+      const token = (await Notifications.getExpoPushTokenAsync({
+        projectId: projectId,
+      })).data;
       this.pushToken = token;
 
       // Save token to storage
@@ -145,12 +156,22 @@ export class NotificationService {
           token,
           platform: Platform.OS,
         });
-      } catch (error) {
+      } catch (error: any) {
+        // Graceful degradation for missing backend endpoint
+        if (error?.status === 404) {
+          console.warn('Push token registration endpoint not implemented');
+          return token; // Still return token for local use
+        }
         console.error('Failed to register push token with server:', error);
       }
 
       return token;
-    } catch (error) {
+    } catch (error: any) {
+      // Graceful degradation for missing projectId
+      if (error?.message?.includes('projectId')) {
+        console.warn('Push notifications unavailable: No projectId configured');
+        return null; // Don't crash app
+      }
       console.error('Error getting push token:', error);
       return null;
     }
@@ -459,11 +480,22 @@ export class NotificationService {
     try {
       // Get unread notifications count from server
       const response = await api.get('/notifications/unread-count');
-      const count = response.data.count || 0;
+      const count = response?.data?.count || 0;
       
-      await Notifications.setBadgeCountAsync(count);
-    } catch (error) {
-      console.error('Error updating badge count:', error);
+      if (Notifications?.setBadgeCountAsync && typeof Notifications.setBadgeCountAsync === 'function') {
+        await Notifications.setBadgeCountAsync(count);
+      }
+    } catch (error: any) {
+      // Graceful degradation - don't spam console for missing endpoints
+      if (error?.status === 404) {
+        console.warn('Badge count endpoint not implemented - skipping badge updates');
+        return; // Silent failure for missing endpoint
+      }
+      
+      // Only log actual errors, not missing features
+      if (error?.status !== 404) {
+        console.error('Error updating badge count:', error);
+      }
     }
   }
 
@@ -471,8 +503,12 @@ export class NotificationService {
    * Clear all notifications
    */
   async clearAllNotifications(): Promise<void> {
-    await Notifications.dismissAllNotificationsAsync();
-    await Notifications.setBadgeCountAsync(0);
+    if (Notifications?.dismissAllNotificationsAsync) {
+      await Notifications.dismissAllNotificationsAsync();
+    }
+    if (Notifications?.setBadgeCountAsync) {
+      await Notifications.setBadgeCountAsync(0);
+    }
   }
 
   // Private helper methods

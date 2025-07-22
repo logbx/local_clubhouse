@@ -7,6 +7,8 @@ const mockTournament: Tournament = {
   id: 'test-tournament-id',
   name: 'Test Tournament',
   type: TournamentType.SWISS,
+  eventId: 'test-event-id',
+  organizerId: 'test-organizer-id',
   players: [
     { id: '1', name: 'John Doe', userId: 'user1', isGuest: false },
     { id: '2', name: 'Jane Smith', userId: 'user2', isGuest: false },

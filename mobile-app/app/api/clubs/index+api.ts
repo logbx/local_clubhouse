@@ -1,8 +1,8 @@
 import { ExpoRequest, ExpoResponse } from 'expo-router/server';
 import { z } from 'zod';
 import { connectDB } from '@/lib/db';
-import { Club } from '@/lib/models/club';
-import { ClubMember } from '@/lib/models/club-member';
+import { Club } from '@/lib/models/club.model';
+import { ClubMember } from '@/lib/models/club-member.model';
 import { AuthRequest, verifyToken, optionalAuth } from '@/lib/middleware/auth';
 import { createRateLimiter } from '@/lib/middleware/rate-limit';
 import { uploadImage } from '@/lib/upload';
@@ -45,9 +45,9 @@ const createClubLimiter = createRateLimiter({
 });
 
 // GET /api/clubs - List clubs with pagination and filters
-export async function GET(request: AuthRequest): Promise<ExpoResponse> {
+export async function GET(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
-    optionalAuth(request, new ExpoResponse(), async () => {
+    optionalAuth(request, new Response(), async () => {
       try {
         const url = new URL(request.url!);
         const query = clubListSchema.parse(Object.fromEntries(url.searchParams));
@@ -117,7 +117,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
           isMember: userClubs.has(club._id.toString()),
         }));
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           clubs: clubsWithMembership,
           pagination: {
             page,
@@ -130,15 +130,15 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         }));
       } catch (error) {
         if (error instanceof z.ZodError) {
-          resolve(ExpoResponse.json(
-            { error: 'Invalid query parameters', details: error.errors },
+          resolve(Response.json(
+            { error: 'Invalid query parameters', details: error.issues },
             { status: 400 }
           ));
           return;
         }
 
         console.error('Club list error:', error);
-        resolve(ExpoResponse.json(
+        resolve(Response.json(
           { error: 'Failed to fetch clubs' },
           { status: 500 }
         ));
@@ -148,13 +148,13 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // POST /api/clubs - Create new club
-export async function POST(request: AuthRequest): Promise<ExpoResponse> {
+export async function POST(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
-    createClubLimiter(request, new ExpoResponse(), () => {
-      verifyToken(request, new ExpoResponse(), async () => {
+    createClubLimiter(request, new Response(), () => {
+      verifyToken(request, new Response(), async () => {
         try {
           if (!request.user) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Authentication required' },
               { status: 401 }
             ));
@@ -203,7 +203,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
           // Check if username is already taken
           const existingClub = await Club.findOne({ username: validatedData.username });
           if (existingClub) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Username is already taken' },
               { status: 400 }
             ));
@@ -233,21 +233,21 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
           // Populate owner info
           await club.populate('owner', 'name avatar email');
 
-          resolve(ExpoResponse.json({
+          resolve(Response.json({
             club: club.toJSON(),
             message: 'Club created successfully',
           }));
         } catch (error) {
           if (error instanceof z.ZodError) {
-            resolve(ExpoResponse.json(
-              { error: 'Validation failed', details: error.errors },
+            resolve(Response.json(
+              { error: 'Validation failed', details: error.issues },
               { status: 400 }
             ));
             return;
           }
 
           console.error('Create club error:', error);
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to create club' },
             { status: 500 }
           ));

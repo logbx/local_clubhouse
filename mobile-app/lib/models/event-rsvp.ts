@@ -1,144 +1,80 @@
-import mongoose, { Schema, Document } from 'mongoose';
-
-export interface IEventRSVP extends Document {
-  event: mongoose.Types.ObjectId;
-  user: mongoose.Types.ObjectId;
-  status: 'going' | 'interested' | 'not_going' | 'waitlist';
-  response: {
-    willAttend: boolean;
-    guestCount: number;
-    dietaryRestrictions?: string;
-    accessibility?: string;
-    notes?: string;
+// Event RSVP model for mobile app
+export interface EventRSVP {
+  id: string;
+  user: {
+    id: string;
+    name: string;
+    avatar?: string;
   };
-  registeredAt: Date;
-  checkedIn: boolean;
-  checkInTime?: Date;
-  checkInLocation?: {
-    coordinates: [number, number];
-    accuracy: number;
+  event: {
+    id: string;
+    title: string;
   };
-  qrCode?: string;
-  notifications: {
-    rsvpConfirmation: boolean;
-    reminder24h: boolean;
-    reminder1h: boolean;
-    eventUpdates: boolean;
-    cancellation: boolean;
-  };
-  paymentStatus?: 'pending' | 'completed' | 'failed' | 'refunded';
-  paymentId?: string;
-  invitedBy?: mongoose.Types.ObjectId;
-  inviteCode?: string;
-  createdAt: Date;
-  updatedAt: Date;
+  status: 'going' | 'maybe' | 'not_going';
+  createdAt: string;
+  updatedAt: string;
 }
 
-const eventRSVPSchema = new Schema<IEventRSVP>({
-  event: {
-    type: Schema.Types.ObjectId,
-    ref: 'Event',
-    required: true,
-  },
-  user: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-  },
-  status: {
-    type: String,
-    enum: ['going', 'interested', 'not_going', 'waitlist'],
-    required: true,
-  },
-  response: {
-    willAttend: {
-      type: Boolean,
-      required: true,
-    },
-    guestCount: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 10,
-    },
-    dietaryRestrictions: String,
-    accessibility: String,
-    notes: {
-      type: String,
-      maxlength: 500,
-    },
-  },
-  registeredAt: {
-    type: Date,
-    default: Date.now,
-  },
-  checkedIn: {
-    type: Boolean,
-    default: false,
-  },
-  checkInTime: Date,
-  checkInLocation: {
-    coordinates: {
-      type: [Number],
-      validate: {
-        validator: function(coords: number[]) {
-          return coords.length === 2;
-        },
-        message: 'Coordinates must be [longitude, latitude]',
-      },
-    },
-    accuracy: Number,
-  },
-  qrCode: String,
-  notifications: {
-    rsvpConfirmation: {
-      type: Boolean,
-      default: true,
-    },
-    reminder24h: {
-      type: Boolean,
-      default: true,
-    },
-    reminder1h: {
-      type: Boolean,
-      default: true,
-    },
-    eventUpdates: {
-      type: Boolean,
-      default: true,
-    },
-    cancellation: {
-      type: Boolean,
-      default: true,
-    },
-  },
-  paymentStatus: {
-    type: String,
-    enum: ['pending', 'completed', 'failed', 'refunded'],
-  },
-  paymentId: String,
-  invitedBy: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-  },
-  inviteCode: String,
-}, {
-  timestamps: true,
+export interface EventAttendee {
+  id: string;
+  userId: string;
+  eventId: string;
+  status: 'going' | 'not_going' | 'interested' | 'waitlist';
+  registeredAt: Date;
+  checkedIn: boolean;
+  checkedInAt?: Date;
+  guestCount: number;
+  dietary?: string;
+  notes?: string;
+  reminderSent: boolean;
+  lastReminderSent?: Date;
+  user?: {
+    id: string;
+    name: string;
+    username: string;
+    avatar?: string;
+  };
+}
+
+export interface RSVPRequest {
+  eventId: string;
+  status: 'going' | 'not_going' | 'interested';
+  guestCount?: number;
+  dietary?: string;
+  notes?: string;
+}
+
+export interface CheckInRequest {
+  eventId: string;
+  userId: string;
+  actualGuestCount?: number;
+}
+
+export interface AttendeeFilters {
+  status?: 'going' | 'not_going' | 'interested' | 'waitlist';
+  checkedIn?: boolean;
+  searchTerm?: string;
+  sortBy?: 'name' | 'registeredAt' | 'checkedInAt';
+  sortOrder?: 'asc' | 'desc';
+}
+
+// Type guards
+export const isEventRSVP = (obj: any): obj is EventRSVP => {
+  return obj && typeof obj.id === 'string' && typeof obj.status === 'string';
+};
+
+export const isEventAttendee = (obj: any): obj is EventAttendee => {
+  return obj && typeof obj.id === 'string' && typeof obj.userId === 'string' && typeof obj.eventId === 'string';
+};
+
+// Default values
+export const createEmptyRSVP = (): Partial<EventRSVP> => ({
+  status: 'going',
 });
 
-// Compound indexes
-eventRSVPSchema.index({ event: 1, user: 1 }, { unique: true });
-eventRSVPSchema.index({ event: 1, status: 1 });
-eventRSVPSchema.index({ user: 1, status: 1, registeredAt: -1 });
-eventRSVPSchema.index({ event: 1, checkedIn: 1 });
-eventRSVPSchema.index({ qrCode: 1 }, { sparse: true });
-
-// Generate QR code for attendees
-eventRSVPSchema.pre('save', function(next) {
-  if (this.isNew && this.status === 'going') {
-    this.qrCode = `event:${this.event}:user:${this.user}:${Date.now()}`;
-  }
-  next();
+export const createEmptyAttendee = (): Partial<EventAttendee> => ({
+  status: 'going',
+  guestCount: 0,
+  checkedIn: false,
+  reminderSent: false,
 });
-
-export const EventRSVP = mongoose.models.EventRSVP || mongoose.model<IEventRSVP>('EventRSVP', eventRSVPSchema);

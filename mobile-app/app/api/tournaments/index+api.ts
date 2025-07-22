@@ -66,7 +66,7 @@ const createTournamentLimiter = createRateLimiter({
 });
 
 // GET /api/tournaments - List tournaments
-export async function GET(request: AuthRequest): Promise<ExpoResponse> {
+export async function GET(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     optionalAuth(request, new ExpoResponse(), async () => {
       try {
@@ -217,7 +217,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
           });
         }
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           tournaments,
           pagination: {
             page,
@@ -230,15 +230,15 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         }));
       } catch (error) {
         if (error instanceof z.ZodError) {
-          resolve(ExpoResponse.json(
-            { error: 'Invalid query parameters', details: error.errors },
+          resolve(Response.json(
+            { error: 'Invalid query parameters', details: error.issues },
             { status: 400 }
           ));
           return;
         }
 
         console.error('Get tournaments error:', error);
-        resolve(ExpoResponse.json(
+        resolve(Response.json(
           { error: 'Failed to fetch tournaments' },
           { status: 500 }
         ));
@@ -248,13 +248,13 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // POST /api/tournaments - Create tournament
-export async function POST(request: AuthRequest): Promise<ExpoResponse> {
+export async function POST(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     createTournamentLimiter(request, new ExpoResponse(), () => {
       verifyToken(request, new ExpoResponse(), async () => {
         try {
           if (!request.user) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Authentication required' },
               { status: 401 }
             ));
@@ -277,7 +277,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
             });
 
             if (!clubMembership) {
-              resolve(ExpoResponse.json(
+              resolve(Response.json(
                 { error: 'You must be a club admin to create tournaments for this club' },
                 { status: 403 }
               ));
@@ -287,7 +287,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 
           // Validate dates
           if (validatedData.registrationDeadline >= validatedData.startDate) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Registration deadline must be before tournament start date' },
               { status: 400 }
             ));
@@ -330,21 +330,21 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
             { path: 'club', select: 'name username logoUrl' },
           ]);
 
-          resolve(ExpoResponse.json({
+          resolve(Response.json({
             tournament: tournament.toJSON(),
             message: 'Tournament created successfully',
           }));
         } catch (error) {
           if (error instanceof z.ZodError) {
-            resolve(ExpoResponse.json(
-              { error: 'Validation failed', details: error.errors },
+            resolve(Response.json(
+              { error: 'Validation failed', details: error.issues },
               { status: 400 }
             ));
             return;
           }
 
           console.error('Create tournament error:', error);
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to create tournament' },
             { status: 500 }
           ));

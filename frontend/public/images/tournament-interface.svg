@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="800" height="600" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .text { font-family: system-ui, -apple-system, sans-serif; }
+    .dark-bg { fill: #1a1b1e; }
+    .card-bg { fill: #25262b; }
+    .text-primary { fill: #ffffff; }
+    .text-secondary { fill: #909296; }
+    .accent { fill: #339af0; }
+    .border { fill: none; stroke: #373A40; stroke-width: 1; }
+  </style>
+  
+  <!-- Main background -->
+  <rect width="100%" height="100%" class="dark-bg"/>
+  
+  <!-- Header -->
+  <g transform="translate(40, 40)">
+    <text class="text text-primary" font-size="24" font-weight="600">Swiss 13 Tournament</text>
+    <text x="0" y="30" class="text text-secondary" font-size="14">Swiss Tournament Management</text>
+  </g>
+
+  <!-- Stats Cards -->
+  <g transform="translate(40, 120)">
+    <!-- Players Card -->
+    <rect width="180" height="100" rx="8" class="card-bg border"/>
+    <text x="20" y="30" class="text text-secondary" font-size="14">Players</text>
+    <text x="20" y="60" class="text text-primary" font-size="24">8 / 8</text>
+
+    <!-- Status Card -->
+    <g transform="translate(200, 0)">
+      <rect width="180" height="100" rx="8" class="card-bg border"/>
+      <text x="20" y="30" class="text text-secondary" font-size="14">Status</text>
+      <text x="20" y="60" class="text text-primary" font-size="24">Finished</text>
+    </g>
+
+    <!-- Current Round Card -->
+    <g transform="translate(400, 0)">
+      <rect width="180" height="100" rx="8" class="card-bg border"/>
+      <text x="20" y="30" class="text text-secondary" font-size="14">Current Round</text>
+      <text x="20" y="60" class="text text-primary" font-size="24">3 / 3</text>
+    </g>
+  </g>
+
+  <!-- Tournament Complete Section -->
+  <g transform="translate(40, 260)">
+    <rect width="720" height="160" rx="8" class="card-bg border"/>
+    <g transform="translate(260, 40)">
+      <text class="text text-primary" font-size="24" font-weight="600">
+        <tspan x="0" y="0">🏆 TOURNAMENT COMPLETE</tspan>
+      </text>
+      <text x="0" y="40" class="text text-secondary" font-size="14">Finished • 8 Players • 12 Matches</text>
+    </g>
+  </g>
+</svg> 

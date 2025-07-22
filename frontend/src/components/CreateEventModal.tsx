@@ -182,7 +182,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
         ...initialFormData,
         clubId: clubId, // Set club context if provided
         clubUsername: clubUsername,
-        visibility: clubId ? EventVisibility.CLUB : EventVisibility.PUBLIC, // Default to CLUB if in club context
+        visibility: EventVisibility.PUBLIC, // Always default to PUBLIC
       });
       setImagePreview('');
       setShowPastDateWarning(false);

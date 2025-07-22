@@ -1,6 +1,25 @@
-import type { InferSelectModel, InferInsertModel } from 'drizzle-orm';
-import type * as schema from './schema';
+// import type { InferSelectModel, InferInsertModel } from 'drizzle-orm';
+// import type * as schema from './schema';
 
+// Database types temporarily disabled for Metro bundler compatibility
+// Basic type definitions for app functionality
+export type User = {
+  id: string;
+  email: string;
+  username: string;
+  fullName?: string;
+  profileImage?: string;
+  bio?: string;
+  location?: string;
+  website?: string;
+  verified: boolean;
+  isActive: boolean;
+  lastActiveAt?: number;
+  createdAt: number;
+  updatedAt: number;
+};
+
+/*
 // User types
 export type User = InferSelectModel<typeof schema.users>;
 export type NewUser = InferInsertModel<typeof schema.users>;
@@ -313,4 +332,4 @@ export interface Theme {
   spacing: Record<string, number>;
   borderRadius: Record<string, number>;
   typography: Record<string, any>;
-}
+}*/

@@ -59,7 +59,7 @@ export function debounce<T extends (...args: any[]) => any>(
   wait: number,
   immediate?: boolean
 ): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout | null = null;
+  let timeout: ReturnType<typeof setTimeout> | null = null;
 
   return function executedFunction(...args: Parameters<T>) {
     const later = () => {
@@ -304,21 +304,21 @@ export const listOptimizations = {
  * Memory management utilities
  */
 export class MemoryManager {
-  private static timers: Set<NodeJS.Timeout> = new Set();
-  private static intervals: Set<NodeJS.Timeout> = new Set();
+  private static timers: Set<ReturnType<typeof setTimeout>> = new Set();
+  private static intervals: Set<ReturnType<typeof setInterval>> = new Set();
   private static listeners: Set<() => void> = new Set();
 
   /**
    * Track a timer for cleanup
    */
-  static trackTimer(timer: NodeJS.Timeout): void {
+  static trackTimer(timer: ReturnType<typeof setTimeout>): void {
     this.timers.add(timer);
   }
 
   /**
    * Track an interval for cleanup
    */
-  static trackInterval(interval: NodeJS.Timeout): void {
+  static trackInterval(interval: ReturnType<typeof setInterval>): void {
     this.intervals.add(interval);
   }
 
@@ -345,7 +345,7 @@ export class MemoryManager {
   /**
    * Safe setTimeout with automatic tracking
    */
-  static setTimeout(callback: () => void, delay: number): NodeJS.Timeout {
+  static setTimeout(callback: () => void, delay: number): ReturnType<typeof setTimeout> {
     const timer = setTimeout(() => {
       this.timers.delete(timer);
       callback();
@@ -358,7 +358,7 @@ export class MemoryManager {
   /**
    * Safe setInterval with automatic tracking
    */
-  static setInterval(callback: () => void, delay: number): NodeJS.Timeout {
+  static setInterval(callback: () => void, delay: number): ReturnType<typeof setInterval> {
     const interval = setInterval(callback, delay);
     this.trackInterval(interval);
     return interval;

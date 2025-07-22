@@ -51,10 +51,10 @@ export default function LandingPage() {
           {/* First Feature */}
           <div className="flex flex-col md:flex-row items-center justify-between mb-16">
             <div className="md:w-[450px] md:pr-16">
-              <h3 className="text-4xl font-bold text-white mb-4">
+              <h3 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
                 Adaptive features
               </h3>
-              <p className="text-lg text-[#71717A]">
+              <p className="text-lg text-gray-600 dark:text-gray-400">
                 Tools created for your community—chess clubs, fitness, hobby groups, and more.
               </p>
             </div>
@@ -105,10 +105,10 @@ export default function LandingPage() {
               </div>
             </div>
             <div className="md:w-[450px] md:pl-16">
-              <h3 className="text-4xl font-bold text-white mb-4">
+              <h3 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
                 Connect locally
               </h3>
-              <p className="text-lg text-[#71717A]">
+              <p className="text-lg text-gray-600 dark:text-gray-400">
                 Find and join communities in your area. Connect with local businesses that want to work with you.
               </p>
             </div>
@@ -117,10 +117,10 @@ export default function LandingPage() {
           {/* Third Feature */}
           <div className="flex flex-col md:flex-row items-center justify-between mb-16">
             <div className="md:w-[450px] md:pr-16">
-              <h3 className="text-4xl font-bold text-white mb-4">
+              <h3 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
                 Scale your impact
               </h3>
-              <p className="text-lg text-[#71717A]">
+              <p className="text-lg text-gray-600 dark:text-gray-400">
                 Grow membership, boost engagement, and expand your reach with smart analytics and proven growth strategies.
               </p>
             </div>
@@ -177,42 +177,42 @@ export default function LandingPage() {
 
           {/* Your community, your way section */}
           <div className="text-center mt-32 mb-24">
-            <h2 className="text-5xl font-bold text-white mb-6">
+            <h2 className="text-5xl font-bold text-gray-900 dark:text-white mb-6">
               Your community, your way
             </h2>
-            <p className="text-xl text-[#71717A] max-w-2xl mx-auto mb-12">
+            <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto mb-12">
               Build, join, and grow unique local groups. Simple.
               <br />
               Adaptable. Inclusive.
             </p>
             <Link 
               to="/register" 
-              className="inline-block bg-black text-white text-lg px-8 py-4 rounded-full font-medium border border-white/10 hover:bg-white hover:text-black transition-colors"
+              className="inline-block bg-black dark:bg-white text-white dark:text-black text-lg px-8 py-4 rounded-full font-medium border border-gray-300 dark:border-white/10 hover:bg-gray-900 dark:hover:bg-gray-100 transition-colors"
             >
               Find your people
             </Link>
         </div>
       
       {/* Footer */}
-          <div className="border-t border-gray-800">
+          <div className="border-t border-gray-200 dark:border-gray-800">
             <div className="container mx-auto px-8 py-12">
               <div className="flex flex-col md:flex-row justify-between items-start">
                 {/* Logo and Company Name */}
                 <div className="flex items-center space-x-2 mb-8 md:mb-0">
                   <Logo size="sm" />
-                  <span className="text-lg text-white">Local Clubhouse LLC</span>
+                  <span className="text-lg text-gray-900 dark:text-white">Local Clubhouse LLC</span>
                 </div>
 
                 {/* Navigation Links */}
                 <div className="flex flex-col md:flex-row gap-12">
                   {/* Platform Column */}
             <div>
-                    <h3 className="text-white font-medium mb-4">Platform</h3>
+                    <h3 className="text-gray-900 dark:text-white font-medium mb-4">Platform</h3>
                     <div className="flex flex-col space-y-3">
-                      <Link to="/features" className="text-[#71717A] hover:text-white transition-colors">
+                      <Link to="/features" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                         Features
                       </Link>
-                      <Link to="/about" className="text-[#71717A] hover:text-white transition-colors">
+                      <Link to="/about" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                         About
                       </Link>
               </div>
@@ -220,12 +220,12 @@ export default function LandingPage() {
 
                   {/* Resources Column */}
             <div>
-                    <h3 className="text-white font-medium mb-4">Resources</h3>
+                    <h3 className="text-gray-900 dark:text-white font-medium mb-4">Resources</h3>
                     <div className="flex flex-col space-y-3">
-                      <Link to="/support" className="text-[#71717A] hover:text-white transition-colors">
+                      <Link to="/support" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                         Support
                       </Link>
-                      <Link to="/faq" className="text-[#71717A] hover:text-white transition-colors">
+                      <Link to="/faq" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                         FAQ
                       </Link>
                     </div>

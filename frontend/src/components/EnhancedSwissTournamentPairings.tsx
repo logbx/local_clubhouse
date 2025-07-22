@@ -81,8 +81,6 @@ const SwissMatchCard: React.FC<MatchCardProps> = ({
 
   // Check if current user is a player in this match
   const isPlayerInMatch = currentUserId && (
-    match.player1.userId === currentUserId || 
-    match.player2.userId === currentUserId ||
     match.player1.id === currentUserId || 
     match.player2.id === currentUserId
   );
@@ -94,14 +92,23 @@ const SwissMatchCard: React.FC<MatchCardProps> = ({
   // Check if current user submitted the result
   const hasSubmittedResult = match.resultReportedBy?.includes(currentUserId || '') || false;
   
+  // Additional check: if the match is submitted and we're a player in the match,
+  // we likely submitted it (fallback for race conditions)
+  const isLikelySubmitter = match.status === 'submitted' && 
+    isPlayerInMatch &&
+    !hasSubmittedResult && // Only if the primary check failed
+    !isOrganizer; // Organizers can submit on behalf of others
+
+  const actuallySubmittedResult = hasSubmittedResult || isLikelySubmitter;
+  
   // Allow both players in match AND organizers to confirm submitted results
   const canConfirm = match.status === 'submitted' && (
-    (isPlayerInMatch && !hasSubmittedResult) || 
+    (isPlayerInMatch && !actuallySubmittedResult) || 
     isOrganizer
   );
   
   // Show dispute button if user is in match, match is submitted, and user did NOT submit the result
-  const canDispute = match.status === 'submitted' && isPlayerInMatch && !hasSubmittedResult;
+  const canDispute = match.status === 'submitted' && isPlayerInMatch && !actuallySubmittedResult;
 
   // Show resolve button if user is organizer and match is disputed
   const canResolve = match.status === 'disputed' && isOrganizer;

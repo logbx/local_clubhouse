@@ -1,4 +1,4 @@
-import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Switch, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { Link, router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -6,31 +6,28 @@ import { z } from 'zod';
 import { useAuth } from '@/hooks/useAuth';
 import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(50),
   email: z.string().email('Invalid email address').toLowerCase(),
   password: z.string()
     .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Must contain uppercase letter')
-    .regex(/[a-z]/, 'Must contain lowercase letter')
-    .regex(/[0-9]/, 'Must contain number'),
+    .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'Must contain at least one number'),
   confirmPassword: z.string(),
-  acceptTerms: z.boolean().refine(val => val === true, {
-    message: 'You must accept the terms and conditions',
-  }),
-  newsletter: z.boolean(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
-  path: ['confirmPassword'],
+  path: ["confirmPassword"],
 });
 
 type RegisterForm = z.infer<typeof registerSchema>;
 
 export default function RegisterScreen() {
-  const { register } = useAuth();
+  const { registerWithFirebaseEmail } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
-  const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -38,7 +35,6 @@ export default function RegisterScreen() {
     control,
     handleSubmit,
     formState: { errors },
-    trigger,
     watch,
   } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
@@ -47,374 +43,292 @@ export default function RegisterScreen() {
       email: '',
       password: '',
       confirmPassword: '',
-      acceptTerms: false,
-      newsletter: false,
     },
   });
 
   const password = watch('password');
 
-  const validateAndNext = async () => {
-    let fieldsToValidate: (keyof RegisterForm)[] = [];
-    
-    if (currentStep === 1) {
-      fieldsToValidate = ['name', 'email'];
-    } else if (currentStep === 2) {
-      fieldsToValidate = ['password', 'confirmPassword'];
-    }
+  const getPasswordStrength = (password: string) => {
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[a-z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+    return score;
+  };
 
-    const isValid = await trigger(fieldsToValidate);
-    if (isValid) {
-      setCurrentStep(currentStep + 1);
-    }
+  const getPasswordStrengthColor = (score: number) => {
+    if (score <= 1) return 'bg-red-500';
+    if (score <= 2) return 'bg-orange-500';
+    if (score <= 3) return 'bg-yellow-500';
+    if (score <= 4) return 'bg-blue-500';
+    return 'bg-green-500';
+  };
+
+  const getPasswordStrengthText = (score: number) => {
+    if (score <= 1) return 'Weak';
+    if (score <= 2) return 'Fair';
+    if (score <= 3) return 'Good';
+    if (score <= 4) return 'Strong';
+    return 'Very Strong';
   };
 
   const onSubmit = async (data: RegisterForm) => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      await register(data.name, data.email, data.password, data.acceptTerms, data.newsletter);
-      router.replace('/(tabs)');
+      if (registerWithFirebaseEmail) {
+        await registerWithFirebaseEmail(data.name, data.email, data.password);
+      } else {
+        throw new Error('Firebase authentication not available');
+      }
+      
+      Alert.alert(
+        'Registration Successful',
+        'Your account has been created successfully!',
+        [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]
+      );
     } catch (error: any) {
       Alert.alert(
         'Registration Failed',
-        error.response?.data?.error || 'Please try again later.'
+        error.message || 'An error occurred during registration. Please try again.'
       );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getPasswordStrength = (pwd: string) => {
-    if (!pwd) return { strength: 0, text: '', color: '#d1d5db' };
-    
-    let strength = 0;
-    if (pwd.length >= 8) strength++;
-    if (/[A-Z]/.test(pwd)) strength++;
-    if (/[a-z]/.test(pwd)) strength++;
-    if (/[0-9]/.test(pwd)) strength++;
-    if (/[^A-Za-z0-9]/.test(pwd)) strength++;
-
-    const strengthLevels = [
-      { strength: 0, text: '', color: '#d1d5db' },
-      { strength: 1, text: 'Weak', color: '#ef4444' },
-      { strength: 2, text: 'Fair', color: '#f59e0b' },
-      { strength: 3, text: 'Good', color: '#eab308' },
-      { strength: 4, text: 'Strong', color: '#22c55e' },
-      { strength: 5, text: 'Very Strong', color: '#10b981' },
-    ];
-
-    return strengthLevels[strength];
-  };
+  const strengthScore = getPasswordStrength(password);
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 bg-gray-50 dark:bg-gray-900"
-    >
-      <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
-        keyboardShouldPersistTaps="handled"
+    <>
+      <StatusBar style="light" />
+      <LinearGradient
+        colors={['#0f172a', '#1e293b', '#334155']}
+        className="flex-1"
       >
-        <View className="flex-1 justify-center px-8 pt-safe-top pb-safe-bottom">
-          <View className="mb-8">
-            <Text className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-              Create Account
-            </Text>
-            <Text className="text-gray-600 dark:text-gray-400">
-              Sign up to get started
-            </Text>
-          </View>
-
-          {/* Progress Indicator */}
-          <View className="flex-row justify-center mb-6">
-            {[1, 2, 3].map((step) => (
-              <View key={step} className="flex-row items-center">
-                <View
-                  className={`w-8 h-8 rounded-full items-center justify-center ${
-                    step <= currentStep ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'
-                  }`}
-                >
-                  <Text className={`text-sm font-semibold ${
-                    step <= currentStep ? 'text-white' : 'text-gray-600 dark:text-gray-300'
-                  }`}>
-                    {step}
-                  </Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          className="flex-1"
+        >
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Navigation Header */}
+            <View className="pt-16 pb-6 px-6 flex-row items-center justify-between">
+              <View className="flex-row items-center">
+                <View className="w-8 h-8 bg-blue-600 rounded-lg items-center justify-center mr-3">
+                  <Ionicons name="people" size={20} color="white" />
                 </View>
-                {step < 3 && (
-                  <View
-                    className={`w-16 h-1 ${
-                      step < currentStep ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'
-                    }`}
-                  />
-                )}
+                <Text className="text-xl font-bold text-white">Local Clubhouse</Text>
               </View>
-            ))}
-          </View>
+              <TouchableOpacity>
+                <Text className="text-gray-300 text-sm">Already have an account?</Text>
+              </TouchableOpacity>
+            </View>
 
-          <View className="space-y-4">
-            {/* Step 1: Basic Info */}
-            {currentStep === 1 && (
-              <>
-                <View>
-                  <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Full Name
-                  </Text>
-                  <Controller
-                    control={control}
-                    name="name"
-                    render={({ field: { onChange, onBlur, value } }) => (
-                      <TextInput
-                        className="input"
-                        placeholder="Enter your name"
-                        onBlur={onBlur}
-                        onChangeText={onChange}
-                        value={value}
-                        autoCapitalize="words"
-                      />
+            {/* Welcome Section */}
+            <View className="px-6 py-8">
+              <Text className="text-3xl font-extrabold text-white mb-2">
+                Create your account
+              </Text>
+              <Text className="text-gray-300 text-base">
+                Or{' '}
+                <Link href="/login" className="font-medium text-blue-400">
+                  sign in to your existing account
+                </Link>
+              </Text>
+            </View>
+
+            {/* Form Container */}
+            <View className="flex-1 mx-6 mb-8">
+              <View className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20">
+                <View className="space-y-6">
+                  {/* Name Input */}
+                  <View>
+                    <Text className="text-sm font-medium text-gray-300 mb-2">
+                      Name
+                    </Text>
+                    <Controller
+                      control={control}
+                      name="name"
+                      render={({ field: { onChange, onBlur, value } }) => (
+                        <View className="relative">
+                          <TextInput
+                            className="w-full h-12 px-4 pr-12 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-blue-400 focus:bg-white/20"
+                            placeholder="Enter your name"
+                            onBlur={onBlur}
+                            onChangeText={onChange}
+                            value={value}
+                            autoCapitalize="words"
+                            autoComplete="name"
+                            placeholderTextColor="#9CA3AF"
+                          />
+                          <View className="absolute right-4 top-3">
+                            <Ionicons name="person-outline" size={20} color="#9CA3AF" />
+                          </View>
+                        </View>
+                      )}
+                    />
+                    {errors.name && (
+                      <Text className="text-red-400 text-sm mt-2">{errors.name.message}</Text>
                     )}
-                  />
-                  {errors.name && (
-                    <Text className="text-red-500 text-sm mt-1">{errors.name.message}</Text>
-                  )}
-                </View>
+                  </View>
 
-                <View>
-                  <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Email
-                  </Text>
-                  <Controller
-                    control={control}
-                    name="email"
-                    render={({ field: { onChange, onBlur, value } }) => (
-                      <TextInput
-                        className="input"
-                        placeholder="Enter your email"
-                        onBlur={onBlur}
-                        onChangeText={onChange}
-                        value={value}
-                        autoCapitalize="none"
-                        keyboardType="email-address"
-                      />
+                  {/* Email Input */}
+                  <View>
+                    <Text className="text-sm font-medium text-gray-300 mb-2">
+                      Email
+                    </Text>
+                    <Controller
+                      control={control}
+                      name="email"
+                      render={({ field: { onChange, onBlur, value } }) => (
+                        <View className="relative">
+                          <TextInput
+                            className="w-full h-12 px-4 pr-12 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-blue-400 focus:bg-white/20"
+                            placeholder="Enter your email"
+                            onBlur={onBlur}
+                            onChangeText={onChange}
+                            value={value}
+                            autoCapitalize="none"
+                            keyboardType="email-address"
+                            autoComplete="email"
+                            placeholderTextColor="#9CA3AF"
+                          />
+                          <View className="absolute right-4 top-3">
+                            <Ionicons name="mail-outline" size={20} color="#9CA3AF" />
+                          </View>
+                        </View>
+                      )}
+                    />
+                    {errors.email && (
+                      <Text className="text-red-400 text-sm mt-2">{errors.email.message}</Text>
                     )}
-                  />
-                  {errors.email && (
-                    <Text className="text-red-500 text-sm mt-1">{errors.email.message}</Text>
-                  )}
-                </View>
+                  </View>
 
-                <TouchableOpacity
-                  className="btn btn-primary"
-                  onPress={validateAndNext}
-                >
-                  <Text className="text-white font-semibold">Next</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            {/* Step 2: Password */}
-            {currentStep === 2 && (
-              <>
-                <View>
-                  <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Password
-                  </Text>
-                  <View className="relative">
+                  {/* Password Input */}
+                  <View>
+                    <Text className="text-sm font-medium text-gray-300 mb-2">
+                      Password
+                    </Text>
                     <Controller
                       control={control}
                       name="password"
                       render={({ field: { onChange, onBlur, value } }) => (
-                        <TextInput
-                          className="input pr-12"
-                          placeholder="Create a strong password"
-                          onBlur={onBlur}
-                          onChangeText={onChange}
-                          value={value}
-                          secureTextEntry={!showPassword}
-                        />
+                        <View className="relative">
+                          <TextInput
+                            className="w-full h-12 px-4 pr-12 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-blue-400 focus:bg-white/20"
+                            placeholder="Enter your password"
+                            onBlur={onBlur}
+                            onChangeText={onChange}
+                            value={value}
+                            secureTextEntry={!showPassword}
+                            autoComplete="new-password"
+                            placeholderTextColor="#9CA3AF"
+                          />
+                          <TouchableOpacity
+                            className="absolute right-4 top-3"
+                            onPress={() => setShowPassword(!showPassword)}
+                          >
+                            <Ionicons 
+                              name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                              size={20} 
+                              color="#9CA3AF" 
+                            />
+                          </TouchableOpacity>
+                        </View>
                       )}
                     />
-                    <TouchableOpacity
-                      className="absolute right-3 top-2.5"
-                      onPress={() => setShowPassword(!showPassword)}
-                    >
-                      <Ionicons
-                        name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                        size={20}
-                        color="#6b7280"
-                      />
-                    </TouchableOpacity>
+                    {errors.password && (
+                      <Text className="text-red-400 text-sm mt-2">{errors.password.message}</Text>
+                    )}
+                    
+                    {/* Password Strength Indicator */}
+                    {password && (
+                      <View className="mt-3">
+                        <View className="flex-row items-center justify-between mb-1">
+                          <Text className="text-xs text-gray-400">Password strength</Text>
+                          <Text className="text-xs text-gray-400">{getPasswordStrengthText(strengthScore)}</Text>
+                        </View>
+                        <View className="w-full bg-gray-700 rounded-full h-2">
+                          <View
+                            className={`h-2 rounded-full transition-all duration-300 ${getPasswordStrengthColor(strengthScore)}`}
+                            style={{ width: `${(strengthScore / 5) * 100}%` }}
+                          />
+                        </View>
+                      </View>
+                    )}
                   </View>
-                  {errors.password && (
-                    <Text className="text-red-500 text-sm mt-1">{errors.password.message}</Text>
-                  )}
-                  
-                  {/* Password Strength Indicator */}
-                  {password && (
-                    <View className="mt-2">
-                      <View className="flex-row items-center justify-between mb-1">
-                        <Text className="text-xs text-gray-600 dark:text-gray-400">
-                          Password strength:
-                        </Text>
-                        <Text 
-                          className="text-xs font-semibold"
-                          style={{ color: getPasswordStrength(password).color }}
-                        >
-                          {getPasswordStrength(password).text}
-                        </Text>
-                      </View>
-                      <View className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                        <View
-                          className="h-full transition-all"
-                          style={{
-                            width: `${(getPasswordStrength(password).strength / 5) * 100}%`,
-                            backgroundColor: getPasswordStrength(password).color,
-                          }}
-                        />
-                      </View>
-                    </View>
-                  )}
-                </View>
 
-                <View>
-                  <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Confirm Password
-                  </Text>
-                  <View className="relative">
+                  {/* Confirm Password Input */}
+                  <View>
+                    <Text className="text-sm font-medium text-gray-300 mb-2">
+                      Confirm Password
+                    </Text>
                     <Controller
                       control={control}
                       name="confirmPassword"
                       render={({ field: { onChange, onBlur, value } }) => (
-                        <TextInput
-                          className="input pr-12"
-                          placeholder="Confirm your password"
-                          onBlur={onBlur}
-                          onChangeText={onChange}
-                          value={value}
-                          secureTextEntry={!showConfirmPassword}
-                        />
+                        <View className="relative">
+                          <TextInput
+                            className="w-full h-12 px-4 pr-12 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-blue-400 focus:bg-white/20"
+                            placeholder="Confirm your password"
+                            onBlur={onBlur}
+                            onChangeText={onChange}
+                            value={value}
+                            secureTextEntry={!showConfirmPassword}
+                            autoComplete="new-password"
+                            placeholderTextColor="#9CA3AF"
+                          />
+                          <TouchableOpacity
+                            className="absolute right-4 top-3"
+                            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                          >
+                            <Ionicons 
+                              name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} 
+                              size={20} 
+                              color="#9CA3AF" 
+                            />
+                          </TouchableOpacity>
+                        </View>
                       )}
                     />
-                    <TouchableOpacity
-                      className="absolute right-3 top-2.5"
-                      onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                    >
-                      <Ionicons
-                        name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
-                        size={20}
-                        color="#6b7280"
-                      />
-                    </TouchableOpacity>
-                  </View>
-                  {errors.confirmPassword && (
-                    <Text className="text-red-500 text-sm mt-1">{errors.confirmPassword.message}</Text>
-                  )}
-                </View>
-
-                <View className="flex-row space-x-2">
-                  <TouchableOpacity
-                    className="btn btn-outline flex-1"
-                    onPress={() => setCurrentStep(1)}
-                  >
-                    <Text className="text-gray-700 dark:text-gray-300 font-semibold">Back</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    className="btn btn-primary flex-1"
-                    onPress={validateAndNext}
-                  >
-                    <Text className="text-white font-semibold">Next</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-
-            {/* Step 3: Terms & Submit */}
-            {currentStep === 3 && (
-              <>
-                <View className="space-y-4">
-                  <View className="flex-row items-start">
-                    <Controller
-                      control={control}
-                      name="acceptTerms"
-                      render={({ field: { onChange, value } }) => (
-                        <Switch
-                          value={value}
-                          onValueChange={onChange}
-                          trackColor={{ false: '#d1d5db', true: '#0ea5e9' }}
-                          thumbColor={value ? '#fff' : '#f4f4f5'}
-                          ios_backgroundColor="#d1d5db"
-                        />
-                      )}
-                    />
-                    <View className="flex-1 ml-3">
-                      <Text className="text-sm text-gray-700 dark:text-gray-300">
-                        I accept the{' '}
-                        <Text className="text-primary-600" onPress={() => Alert.alert('Terms', 'Terms and conditions content...')}>
-                          Terms and Conditions
-                        </Text>
-                        {' '}and{' '}
-                        <Text className="text-primary-600" onPress={() => Alert.alert('Privacy', 'Privacy policy content...')}>
-                          Privacy Policy
-                        </Text>
-                      </Text>
-                      {errors.acceptTerms && (
-                        <Text className="text-red-500 text-xs mt-1">{errors.acceptTerms.message}</Text>
-                      )}
-                    </View>
+                    {errors.confirmPassword && (
+                      <Text className="text-red-400 text-sm mt-2">{errors.confirmPassword.message}</Text>
+                    )}
                   </View>
 
-                  <View className="flex-row items-center">
-                    <Controller
-                      control={control}
-                      name="newsletter"
-                      render={({ field: { onChange, value } }) => (
-                        <Switch
-                          value={value}
-                          onValueChange={onChange}
-                          trackColor={{ false: '#d1d5db', true: '#0ea5e9' }}
-                          thumbColor={value ? '#fff' : '#f4f4f5'}
-                          ios_backgroundColor="#d1d5db"
-                        />
-                      )}
-                    />
-                    <Text className="text-sm text-gray-700 dark:text-gray-300 ml-3">
-                      Send me tips, updates and offers
-                    </Text>
-                  </View>
-                </View>
-
-                <View className="flex-row space-x-2">
+                  {/* Create Account Button */}
                   <TouchableOpacity
-                    className="btn btn-outline flex-1"
-                    onPress={() => setCurrentStep(2)}
-                  >
-                    <Text className="text-gray-700 dark:text-gray-300 font-semibold">Back</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    className={`btn btn-primary flex-1 ${isLoading ? 'opacity-50' : ''}`}
+                    className={`w-full h-12 rounded-lg flex-row items-center justify-center ${
+                      isLoading ? 'bg-blue-700' : 'bg-blue-600'
+                    }`}
                     onPress={handleSubmit(onSubmit)}
                     disabled={isLoading}
                   >
-                    <Text className="text-white font-semibold">
-                      {isLoading ? 'Creating...' : 'Create Account'}
+                    {isLoading ? (
+                      <View className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3" />
+                    ) : null}
+                    <Text className="text-white font-medium text-base">
+                      {isLoading ? 'Creating Account...' : 'Create Account'}
                     </Text>
                   </TouchableOpacity>
                 </View>
-              </>
-            )}
-
-            <View className="flex-row justify-center mt-4">
-              <Text className="text-gray-600 dark:text-gray-400">
-                Already have an account?{' '}
-              </Text>
-              <Link href="/login" asChild>
-                <TouchableOpacity>
-                  <Text className="text-primary-600 font-semibold">Sign In</Text>
-                </TouchableOpacity>
-              </Link>
+              </View>
             </View>
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+
+            {/* Footer */}
+            <View className="px-6 py-4">
+              <Text className="text-center text-gray-400 text-sm">
+                © 2025 Local Clubhouse. All rights reserved.
+              </Text>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </LinearGradient>
+    </>
   );
 }

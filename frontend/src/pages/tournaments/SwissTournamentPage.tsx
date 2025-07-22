@@ -32,7 +32,7 @@ const SwissTournamentPage: React.FC = () => {
 
   // User role checks
   const isEventCreator = user && eventCreatorId && user.id === eventCreatorId;
-  const isUserRegistered = tournament && user && tournament.players.some(p => p.userId === user.id);
+  const isUserRegistered = tournament && user && tournament.players.some(p => p.id === user.id);
   const canRegister = user && !isUserRegistered && !tournament?.isStarted && !tournament?.isFinished && tournament?.registrationOpen !== false;
 
   useEffect(() => {
@@ -175,7 +175,7 @@ const SwissTournamentPage: React.FC = () => {
     
     try {
       setActionLoading(true);
-      await tournamentService.removePlayer(tournament.id, user.id);
+      await tournamentService.unregisterPlayer(tournament.id);
       if (tournamentId) {
         await loadTournamentById(tournamentId);
       } else {

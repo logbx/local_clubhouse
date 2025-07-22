@@ -18,16 +18,49 @@ async function bootstrap() {
                      configService.get('CLIENT_URL') || 
                      (process.env.NODE_ENV === 'production' ? 'https://localclubhouse.com' : 'http://localhost:5173');
   
+  // In development, allow multiple origins including Expo
+  const allowedOrigins = process.env.NODE_ENV === 'development' 
+    ? [
+        corsOrigin,
+        'http://localhost:19006', // Expo web
+        'http://localhost:8081',   // Metro bundler
+        'http://10.0.2.2:3001',    // Android emulator
+        'http://localhost:3001',   // Direct API access
+        /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:\d+$/, // Local network IPs
+        /^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+$/, // Local network IPs
+      ]
+    : corsOrigin;
+  
   console.log('🌐 CORS Configuration:', {
     nodeEnv: process.env.NODE_ENV,
     corsOrigin,
+    allowedOrigins: process.env.NODE_ENV === 'development' ? 'Multiple origins allowed' : corsOrigin,
     clientUrl: configService.get('CLIENT_URL'),
     corsFromEnv: configService.get('CORS_ORIGIN')
   });
 
   app.enableCors({
-    origin: corsOrigin,
+    origin: (origin: string, callback: (error: Error | null, allow?: boolean) => void) => {
+      // Allow requests with no origin (like mobile apps)
+      if (!origin) return callback(null, true);
+      
+      if (process.env.NODE_ENV === 'development') {
+        // In development, check against allowed origins
+        const isAllowed = (allowedOrigins as any[]).some((allowed: any) => {
+          if (allowed instanceof RegExp) {
+            return allowed.test(origin);
+          }
+          return allowed === origin;
+        });
+        callback(null, isAllowed);
+      } else {
+        // In production, use strict origin checking
+        callback(null, origin === corsOrigin);
+      }
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cache-Control', 'Pragma', 'Expires'],
   });
 
   // Add cache control headers to prevent browser caching issues

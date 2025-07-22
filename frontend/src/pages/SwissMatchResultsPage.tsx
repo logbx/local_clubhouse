@@ -59,8 +59,8 @@ export const SwissMatchResultsPage: React.FC = () => {
             // Check if current user is the opponent who needs to confirm
             const currentMatch = update.match;
             if (currentMatch && user?.id) {
-              const isPlayer1 = currentMatch.player1?.userId === user.id || currentMatch.player1?.id === user.id;
-              const isPlayer2 = currentMatch.player2?.userId === user.id || currentMatch.player2?.id === user.id;
+              const isPlayer1 = currentMatch.player1?.id === user.id;
+              const isPlayer2 = currentMatch.player2?.id === user.id;
               const isInMatch = isPlayer1 || isPlayer2;
               
               // Check if current user didn't submit the result (i.e., they're the opponent)
@@ -123,9 +123,7 @@ export const SwissMatchResultsPage: React.FC = () => {
             player2: match.player2?.name,
             resultReportedBy: match.resultReportedBy,
             isUserInMatch: user?.id && (
-              match.player1?.userId === user.id || 
               match.player1?.id === user.id ||
-              match.player2?.userId === user.id || 
               match.player2?.id === user.id
             )
           })));

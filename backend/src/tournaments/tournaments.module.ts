@@ -8,7 +8,7 @@ import { User, UserSchema } from '../users/schemas/user.schema';
 import { WebSocketModule } from '../websocket/websocket.module';
 import { BaseTournamentService } from './services/base-tournament.service';
 import { TournamentStrategyFactory } from './strategies/tournament-strategy.factory';
-import { SingleEliminationStrategy } from './strategies/single-elimination.strategy';
+import { SingleEliminationFixedStrategy } from './strategies/single-elimination-fixed.strategy';
 import { SwissTournamentStrategy } from './strategies/swiss-tournament.strategy';
 
 @Module({
@@ -25,7 +25,7 @@ import { SwissTournamentStrategy } from './strategies/swiss-tournament.strategy'
     TournamentsService,
     BaseTournamentService,
     TournamentStrategyFactory,
-    SingleEliminationStrategy,
+    SingleEliminationFixedStrategy,
     SwissTournamentStrategy,
   ],
   exports: [TournamentsService, BaseTournamentService, TournamentStrategyFactory],

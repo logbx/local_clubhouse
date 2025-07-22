@@ -1,9 +1,9 @@
 import { ExpoRequest, ExpoResponse } from 'expo-router/server';
 import { z } from 'zod';
 import { connectDB } from '@/lib/db';
-import { Event } from '@/lib/models/event';
+import { Event as EventModel } from '@/lib/models/event';
 import { EventRSVP } from '@/lib/models/event-rsvp';
-import { ClubMember } from '@/lib/models/club-member';
+import { ClubMember } from '@/lib/models/club-member.model';
 import { AuthRequest, verifyToken, optionalAuth } from '@/lib/middleware/auth';
 import { uploadImage } from '@/lib/upload';
 
@@ -124,12 +124,12 @@ async function getEventById(eventId: string, userId?: string) {
     }
   );
 
-  const events = await Event.aggregate(pipeline);
+  const events = await (EventModel as any).aggregate(pipeline);
   return events[0] || null;
 }
 
 async function checkEventPermissions(eventId: string, userId: string, requiredPermissions: string[] = ['organizer']) {
-  const event = await Event.findById(eventId);
+  const event = await (EventModel as any).findById(eventId);
   if (!event) {
     throw new Error('Event not found');
   }
@@ -162,7 +162,7 @@ async function checkEventPermissions(eventId: string, userId: string, requiredPe
 }
 
 // GET /api/events/[id] - Get event details
-export async function GET(request: AuthRequest): Promise<ExpoResponse> {
+export async function GET(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     optionalAuth(request, new ExpoResponse(), async () => {
       try {
@@ -170,7 +170,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         const eventId = url.pathname.split('/').pop();
 
         if (!eventId) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Event ID is required' },
             { status: 400 }
           ));
@@ -182,7 +182,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         const event = await getEventById(eventId, request.user?.id);
 
         if (!event) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Event not found' },
             { status: 404 }
           ));
@@ -192,7 +192,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         // Check visibility permissions
         if (event.visibility === 'private') {
           if (!request.user) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'This event is private' },
               { status: 403 }
             ));
@@ -205,7 +205,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
                            event.userRSVP;
 
           if (!hasAccess) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'You do not have access to this private event' },
               { status: 403 }
             ));
@@ -214,7 +214,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         }
 
         // Get related events (same organizer or club, upcoming)
-        const relatedEvents = await Event.find({
+        const relatedEvents = await (EventModel as any).find({
           _id: { $ne: eventId },
           $or: [
             { organizer: event.organizer._id },
@@ -230,7 +230,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
           .lean();
 
         // Increment view count
-        await Event.findByIdAndUpdate(eventId, {
+        await (EventModel as any).findByIdAndUpdate(eventId, {
           $inc: { 'stats.viewCount': 1 },
         });
 
@@ -264,7 +264,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
           }
         }
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           event: {
             ...event,
             attendeeCounts: {
@@ -283,7 +283,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         }));
       } catch (error) {
         console.error('Get event error:', error);
-        resolve(ExpoResponse.json(
+        resolve(Response.json(
           { error: 'Failed to fetch event' },
           { status: 500 }
         ));
@@ -293,12 +293,12 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // PUT /api/events/[id] - Update event
-export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
+export async function PUT(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     verifyToken(request, new ExpoResponse(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -309,7 +309,7 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
         const eventId = url.pathname.split('/').pop();
 
         if (!eventId) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Event ID is required' },
             { status: 400 }
           ));
@@ -359,7 +359,7 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
         const validatedData = updateEventSchema.parse(updateData);
 
         // Update event
-        const updatedEvent = await Event.findByIdAndUpdate(
+        const updatedEvent = await (EventModel as any).findByIdAndUpdate(
           eventId,
           { ...validatedData, updatedAt: new Date() },
           { new: true, runValidators: true }
@@ -370,7 +370,7 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
         ]);
 
         if (!updatedEvent) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Event not found' },
             { status: 404 }
           ));
@@ -379,14 +379,14 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
 
         // TODO: Send notifications to attendees about event updates
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           event: updatedEvent.toJSON(),
           message: 'Event updated successfully',
         }));
       } catch (error) {
         if (error instanceof z.ZodError) {
-          resolve(ExpoResponse.json(
-            { error: 'Validation failed', details: error.errors },
+          resolve(Response.json(
+            { error: 'Validation failed', details: error.issues },
             { status: 400 }
           ));
           return;
@@ -394,17 +394,17 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
 
         console.error('Update event error:', error);
         if (error.message === 'Event not found') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Event not found' },
             { status: 404 }
           ));
         } else if (error.message === 'Insufficient permissions') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'You do not have permission to edit this event' },
             { status: 403 }
           ));
         } else {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to update event' },
             { status: 500 }
           ));
@@ -415,12 +415,12 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // DELETE /api/events/[id] - Cancel/Delete event
-export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
+export async function DELETE(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     verifyToken(request, new ExpoResponse(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -431,7 +431,7 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
         const eventId = url.pathname.split('/').pop();
 
         if (!eventId) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Event ID is required' },
             { status: 400 }
           ));
@@ -449,16 +449,16 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
         if (permanent) {
           // Permanent deletion - remove event and all related data
           await Promise.all([
-            Event.findByIdAndDelete(eventId),
+            (EventModel as any).findByIdAndDelete(eventId),
             EventRSVP.deleteMany({ event: eventId }),
           ]);
 
-          resolve(ExpoResponse.json({
+          resolve(Response.json({
             message: 'Event deleted permanently',
           }));
         } else {
           // Soft delete - mark as cancelled
-          const updatedEvent = await Event.findByIdAndUpdate(
+          const updatedEvent = await (EventModel as any).findByIdAndUpdate(
             eventId,
             {
               status: 'cancelled',
@@ -470,7 +470,7 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
 
           // TODO: Send cancellation notifications to all attendees
 
-          resolve(ExpoResponse.json({
+          resolve(Response.json({
             event: updatedEvent,
             message: 'Event cancelled successfully',
           }));
@@ -478,17 +478,17 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
       } catch (error) {
         console.error('Delete event error:', error);
         if (error.message === 'Event not found') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Event not found' },
             { status: 404 }
           ));
         } else if (error.message === 'Insufficient permissions') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Only the event organizer can delete this event' },
             { status: 403 }
           ));
         } else {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to delete event' },
             { status: 500 }
           ));

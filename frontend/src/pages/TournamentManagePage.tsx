@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { tournamentService, Tournament, TournamentMatch, TournamentType } from '../services/tournament.service';
 import { webSocketService } from '../services/websocket.service';
-import { TrophyIcon, UserPlusIcon, PlayIcon, TrashIcon, EyeIcon, CogIcon, FireIcon, ExclamationTriangleIcon, ChevronDownIcon, ChevronUpIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { TrophyIcon, UserPlusIcon, PlayIcon, TrashIcon, EyeIcon, CogIcon, FireIcon, ExclamationTriangleIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 import TournamentSetup from '../components/TournamentSetup';
 import TournamentBracket from '../components/TournamentBracket';
 import SwissTournamentPairings from '../components/SwissTournamentPairings';
@@ -86,8 +86,24 @@ const TournamentManagePage: React.FC = () => {
 
     console.log('🔌 Setting up WebSocket listeners for tournament:', tournamentId, 'event:', tournament.eventId);
     
-    // Join event chat synchronously since it doesn't return a promise
+    // Ensure WebSocket is connected
+    if (!webSocketService.isConnected()) {
+      const accessToken = localStorage.getItem('accessToken');
+      if (accessToken) {
+        console.log('🔌 Connecting WebSocket with authentication');
+        webSocketService.connect(accessToken);
+      } else {
+        console.log('🔌 Connecting WebSocket anonymously');
+        webSocketService.connectAnonymously();
+      }
+    }
+    
+    // Join event chat to receive event-wide updates
     webSocketService.joinEventChat(tournament.eventId);
+    
+    // CRITICAL: Also join the tournament-specific room to receive direct tournament events
+    webSocketService.joinTournament(tournamentId);
+    console.log('🔌 Joined tournament room:', tournamentId, 'and event room:', tournament.eventId);
 
     const handleTournamentUpdate = (data: any) => {
       console.log('🔔 Tournament Management WebSocket update received:', {
@@ -98,8 +114,10 @@ const TournamentManagePage: React.FC = () => {
       });
       
       // Check if this update is for our tournament
-      if (data.tournamentId && data.tournamentId !== tournamentId) {
-        console.log('🔕 Ignoring update for different tournament:', data.tournamentId);
+      // Handle both event room format (nested in data) and tournament room format (direct)
+      const updateTournamentId = data.tournamentId || (data.tournament && data.tournament.id);
+      if (updateTournamentId && updateTournamentId !== tournamentId) {
+        console.log('🔕 Ignoring update for different tournament:', updateTournamentId, 'vs our:', tournamentId);
         return;
       }
       
@@ -144,15 +162,74 @@ const TournamentManagePage: React.FC = () => {
         void loadTournament().catch(error => {
           console.error('Failed to refresh tournament:', error);
         });
+      } else if (data.type === 'player-registered') {
+        // Handle player registration in real-time
+        console.log('👤 Player registered via WebSocket:', data);
+        
+        // Handle both direct tournament room events and nested event room events
+        const playerName = data.playerName || (data.player && data.player.name) || 'A player';
+        toast.success(`👤 ${playerName} has registered for the tournament!`);
+        
+        // Update tournament data immediately
+        console.log('🔄 Refreshing tournament data after player registration');
+        void loadTournament().catch(error => {
+          console.error('Failed to refresh tournament:', error);
+        });
+      } else if (data.type === 'player-unregistered') {
+        // Handle player unregistration in real-time
+        console.log('👤 Player unregistered via WebSocket:', data);
+        
+        // Handle both direct tournament room events and nested event room events
+        const playerName = data.playerName || (data.player && data.player.name);
+        const message = playerName ? `${playerName} has left the tournament` : 'A player has left the tournament';
+        toast.info(`👤 ${message}`);
+        
+        // Update tournament data immediately
+        console.log('🔄 Refreshing tournament data after player unregistration');
+        void loadTournament().catch(error => {
+          console.error('Failed to refresh tournament:', error);
+        });
+      } else if (data.type === 'tournament-updated' && data.subType) {
+        // Handle nested event room updates (tournament-updated with subType)
+        console.log('🔄 Tournament updated via event room:', data.subType);
+        
+        if (data.subType === 'player-registered') {
+          const playerName = data.tournament?.players?.slice(-1)[0]?.name || 'A player';
+          toast.success(`👤 ${playerName} has registered for the tournament!`);
+        } else if (data.subType === 'player-unregistered') {
+          toast.info('👤 A player has left the tournament');
+        }
+        
+        // Update tournament data immediately
+        console.log('🔄 Refreshing tournament data after tournament-updated event');
+        void loadTournament().catch(error => {
+          console.error('Failed to refresh tournament:', error);
+        });
       }
     };
 
     // Set up tournament update listener
     webSocketService.onTournamentUpdate(handleTournamentUpdate);
+    
+    // Also set up specific player registration listeners to catch all events
+    webSocketService.onPlayerRegistered((data: any) => {
+      console.log('🔔 Specific player-registered event received:', data);
+      handleTournamentUpdate({ ...data, type: 'player-registered' });
+    });
+    
+    webSocketService.onPlayerUnregistered((data: any) => {
+      console.log('🔔 Specific player-unregistered event received:', data);
+      handleTournamentUpdate({ ...data, type: 'player-unregistered' });
+    });
 
     // Cleanup function
     return () => {
+      console.log('🔌 Cleaning up WebSocket listeners for tournament:', tournamentId);
       webSocketService.removeTournamentListeners();
+      webSocketService.leaveTournament(tournamentId);
+      if (tournament?.eventId) {
+        webSocketService.leaveEventChat(tournament.eventId);
+      }
     };
   }, [tournament?.eventId, tournamentId]);
 
@@ -525,19 +602,6 @@ const TournamentManagePage: React.FC = () => {
               </button>
             ))}
             </div>
-            
-            {/* Refresh Button */}
-            <button
-              onClick={() => {
-                console.log('🔄 Manual refresh triggered');
-                loadTournament().catch(console.error);
-              }}
-              className="flex items-center px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-              title="Refresh tournament data"
-            >
-              <ArrowPathIcon className="h-4 w-4 mr-1" />
-              Refresh
-            </button>
           </nav>
         </div>
       </div>

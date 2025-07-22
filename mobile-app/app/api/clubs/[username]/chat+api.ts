@@ -1,9 +1,9 @@
 import { ExpoRequest, ExpoResponse } from 'expo-router/server';
 import { z } from 'zod';
 import { connectDB } from '@/lib/db';
-import { Club } from '@/lib/models/club';
-import { ClubMember } from '@/lib/models/club-member';
-import { ChatMessage } from '@/lib/models/chat-message';
+import { Club } from '@/lib/models/club.model';
+import { ClubMember } from '@/lib/models/club-member.model';
+import { ChatMessage } from '@/lib/models/chat-message.model';
 import { AuthRequest, verifyToken } from '@/lib/middleware/auth';
 import { createRateLimiter } from '@/lib/middleware/rate-limit';
 
@@ -50,12 +50,12 @@ async function checkClubMembership(clubId: string, userId: string) {
 }
 
 // GET /api/clubs/[username]/chat - Get chat messages
-export async function GET(request: AuthRequest): Promise<ExpoResponse> {
+export async function GET(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
-    verifyToken(request, new ExpoResponse(), async () => {
+    verifyToken(request, new Response(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -74,7 +74,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
 
         // Check if chat is enabled
         if (!club.settings.allowChat) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Chat is disabled for this club' },
             { status: 403 }
           ));
@@ -135,7 +135,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
           );
         }
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           messages,
           hasMore: messages.length === limit,
           clubSettings: {
@@ -145,17 +145,17 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
       } catch (error) {
         console.error('Get chat messages error:', error);
         if (error.message === 'Club not found') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Club not found' },
             { status: 404 }
           ));
         } else if (error.message === 'Not a member of this club') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'You must be a member to view chat messages' },
             { status: 403 }
           ));
         } else {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to fetch messages' },
             { status: 500 }
           ));
@@ -166,13 +166,13 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // POST /api/clubs/[username]/chat - Send message
-export async function POST(request: AuthRequest): Promise<ExpoResponse> {
+export async function POST(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
-    sendMessageLimiter(request, new ExpoResponse(), () => {
-      verifyToken(request, new ExpoResponse(), async () => {
+    sendMessageLimiter(request, new Response(), () => {
+      verifyToken(request, new Response(), async () => {
         try {
           if (!request.user) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Authentication required' },
               { status: 401 }
             ));
@@ -192,7 +192,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 
           // Check if chat is enabled
           if (!club.settings.allowChat) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Chat is disabled for this club' },
               { status: 403 }
             ));
@@ -212,7 +212,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
             });
 
             if (!replyToMessage) {
-              resolve(ExpoResponse.json(
+              resolve(Response.json(
                 { error: 'Reply message not found' },
                 { status: 400 }
               ));
@@ -255,14 +255,14 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
           // TODO: Send notifications for mentions
           // This would integrate with your notification system
 
-          resolve(ExpoResponse.json({
+          resolve(Response.json({
             message: message.toObject(),
             success: true
           }));
         } catch (error) {
           if (error instanceof z.ZodError) {
-            resolve(ExpoResponse.json(
-              { error: 'Validation failed', details: error.errors },
+            resolve(Response.json(
+              { error: 'Validation failed', details: error.issues },
               { status: 400 }
             ));
             return;
@@ -270,17 +270,17 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 
           console.error('Send message error:', error);
           if (error.message === 'Club not found') {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Club not found' },
               { status: 404 }
             ));
           } else if (error.message === 'Not a member of this club') {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'You must be a member to send messages' },
               { status: 403 }
             ));
           } else {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Failed to send message' },
               { status: 500 }
             ));
@@ -292,12 +292,12 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // PUT /api/clubs/[username]/chat - Edit message
-export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
+export async function PUT(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
-    verifyToken(request, new ExpoResponse(), async () => {
+    verifyToken(request, new Response(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -308,7 +308,7 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
         const messageId = url.searchParams.get('messageId');
 
         if (!messageId) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Message ID is required' },
             { status: 400 }
           ));
@@ -329,7 +329,7 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
         }).populate('club');
 
         if (!message) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Message not found' },
             { status: 404 }
           ));
@@ -347,7 +347,7 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
                        (membership && membership.permissions.canModerateChat);
 
         if (!canEdit) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'You cannot edit this message' },
             { status: 403 }
           ));
@@ -367,13 +367,13 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
 
         await message.save();
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           message: 'Message updated successfully',
           editedMessage: message
         }));
       } catch (error) {
         console.error('Edit message error:', error);
-        resolve(ExpoResponse.json(
+        resolve(Response.json(
           { error: 'Failed to edit message' },
           { status: 500 }
         ));
@@ -383,12 +383,12 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // DELETE /api/clubs/[username]/chat - Delete message
-export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
+export async function DELETE(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
-    verifyToken(request, new ExpoResponse(), async () => {
+    verifyToken(request, new Response(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -399,7 +399,7 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
         const messageId = url.searchParams.get('messageId');
 
         if (!messageId) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Message ID is required' },
             { status: 400 }
           ));
@@ -415,7 +415,7 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
         }).populate('club');
 
         if (!message) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Message not found' },
             { status: 404 }
           ));
@@ -433,7 +433,7 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
                          (membership && membership.permissions.canModerateChat);
 
         if (!canDelete) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'You cannot delete this message' },
             { status: 403 }
           ));
@@ -447,12 +447,12 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
 
         await message.save();
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           message: 'Message deleted successfully'
         }));
       } catch (error) {
         console.error('Delete message error:', error);
-        resolve(ExpoResponse.json(
+        resolve(Response.json(
           { error: 'Failed to delete message' },
           { status: 500 }
         ));

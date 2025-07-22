@@ -1,9 +1,9 @@
 import { ExpoRequest, ExpoResponse } from 'expo-router/server';
 import { z } from 'zod';
 import { connectDB } from '@/lib/db';
-import { Event } from '@/lib/models/event';
+import { Event as EventModel } from '@/lib/models/event';
 import { EventRSVP } from '@/lib/models/event-rsvp';
-import { Club } from '@/lib/models/club';
+import { Club } from '@/lib/models/club.model';
 import { AuthRequest, verifyToken, optionalAuth } from '@/lib/middleware/auth';
 import { createRateLimiter } from '@/lib/middleware/rate-limit';
 import { uploadImage } from '@/lib/upload';
@@ -85,9 +85,9 @@ const createEventLimiter = createRateLimiter({
 });
 
 // GET /api/events - List events with filters and geolocation
-export async function GET(request: AuthRequest): Promise<ExpoResponse> {
+export async function GET(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
-    optionalAuth(request, new ExpoResponse(), async () => {
+    optionalAuth(request, new Response(), async () => {
       try {
         const url = new URL(request.url!);
         const query = eventQuerySchema.parse(Object.fromEntries(url.searchParams));
@@ -281,11 +281,11 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         );
 
         const [events, totalResult] = await Promise.all([
-          Event.aggregate(pipeline),
-          Event.countDocuments(filter),
+          (EventModel as any).aggregate(pipeline),
+          (EventModel as any).countDocuments(filter),
         ]);
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           events,
           pagination: {
             page,
@@ -303,15 +303,15 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         }));
       } catch (error) {
         if (error instanceof z.ZodError) {
-          resolve(ExpoResponse.json(
-            { error: 'Invalid query parameters', details: error.errors },
+          resolve(Response.json(
+            { error: 'Invalid query parameters', details: error.issues },
             { status: 400 }
           ));
           return;
         }
 
         console.error('Events list error:', error);
-        resolve(ExpoResponse.json(
+        resolve(Response.json(
           { error: 'Failed to fetch events' },
           { status: 500 }
         ));
@@ -321,13 +321,13 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // POST /api/events - Create new event
-export async function POST(request: AuthRequest): Promise<ExpoResponse> {
+export async function POST(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
-    createEventLimiter(request, new ExpoResponse(), () => {
-      verifyToken(request, new ExpoResponse(), async () => {
+    createEventLimiter(request, new Response(), () => {
+      verifyToken(request, new Response(), async () => {
         try {
           if (!request.user) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Authentication required' },
               { status: 401 }
             ));
@@ -376,7 +376,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 
           // Validate club membership if event is for a club
           if (validatedData.club) {
-            const clubMembership = await ClubMember.findOne({
+            const clubMembership = await (ClubMember as any).findOne({
               club: validatedData.club,
               user: request.user.id,
               status: 'active',
@@ -384,7 +384,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
             });
 
             if (!clubMembership) {
-              resolve(ExpoResponse.json(
+              resolve(Response.json(
                 { error: 'You must be a club admin to create events for this club' },
                 { status: 403 }
               ));
@@ -393,7 +393,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
           }
 
           // Create event
-          const event = new Event({
+          const event = new (EventModel as any)({
             ...validatedData,
             organizer: request.user.id,
             imageUrl: data.imageUrl,
@@ -410,21 +410,21 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
             { path: 'coOrganizers', select: 'name avatar' },
           ]);
 
-          resolve(ExpoResponse.json({
+          resolve(Response.json({
             event: event.toJSON(),
             message: 'Event created successfully',
           }));
         } catch (error) {
           if (error instanceof z.ZodError) {
-            resolve(ExpoResponse.json(
-              { error: 'Validation failed', details: error.errors },
+            resolve(Response.json(
+              { error: 'Validation failed', details: error.issues },
               { status: 400 }
             ));
             return;
           }
 
           console.error('Create event error:', error);
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to create event' },
             { status: 500 }
           ));

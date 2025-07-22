@@ -34,7 +34,10 @@ class NavigationService {
   private listeners: Array<(event: NavigationEvent) => void> = [];
 
   constructor() {
-    this.initializeService();
+    // Initialize service asynchronously without blocking app startup
+    this.initializeService().catch(error => 
+      console.warn('Navigation service initialization failed:', error)
+    );
   }
 
   private async initializeService() {
@@ -42,25 +45,27 @@ class NavigationService {
       // Generate session ID
       this.sessionId = `nav_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Load navigation history
-      await this.loadNavigationHistory();
-      
-      // Load analytics
-      await this.loadAnalytics();
-      
-      // Set up default guards
+      // Set up default guards and middleware first (these are synchronous)
       this.setupDefaultGuards();
-      
-      // Set up default middleware
       this.setupDefaultMiddleware();
       
+      // Mark as initialized early so navigation can work
       this.isInitialized = true;
+      
+      // Load navigation history asynchronously
+      await this.loadNavigationHistory();
+      
+      // Load analytics asynchronously
+      await this.loadAnalytics();
+      
       logger.info('Navigation service initialized', {
         sessionId: this.sessionId,
         historyLength: this.navigationHistory.length,
       });
     } catch (error) {
-      logger.error('Failed to initialize navigation service', error);
+      // Still mark as initialized even if async operations fail
+      this.isInitialized = true;
+      logger.warn('Navigation service partially initialized with errors', error);
     }
   }
 

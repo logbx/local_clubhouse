@@ -17,6 +17,7 @@ const TournamentPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [registering, setRegistering] = useState(false);
+  const [isStateSyncing, setIsStateSyncing] = useState(false);
 
   useEffect(() => {
     const fetchTournament = async () => {
@@ -40,26 +41,140 @@ const TournamentPage: React.FC = () => {
   useEffect(() => {
     if (!tournament?.eventId) return;
 
+    console.log('🔌 TournamentPage: Setting up WebSocket listeners for tournament:', tournamentId, 'event:', tournament.eventId);
+
     // Join the event room to receive tournament updates
     webSocketService.joinEventChat(tournament.eventId);
+    console.log('🔌 TournamentPage: Joined event room:', tournament.eventId);
+    
+    // Also join tournament-specific room for more targeted updates
+    if (tournamentId) {
+      webSocketService.joinTournament(tournamentId);
+      console.log('🔌 TournamentPage: Joined tournament room:', tournamentId);
+    }
+
+    // Request current tournament state for synchronization
+    const refreshTournamentState = async () => {
+      try {
+        console.log('🔄 TournamentPage: Refreshing tournament state for synchronization');
+        setIsStateSyncing(true);
+        if (tournamentId) {
+          const updatedTournament = await tournamentService.getTournament(tournamentId);
+          setTournament(updatedTournament);
+        }
+        console.log('✅ TournamentPage: Tournament state synchronized');
+      } catch (error) {
+        console.error('❌ Error refreshing tournament state:', error);
+      } finally {
+        setIsStateSyncing(false);
+      }
+    };
+    
+    // Refresh state to ensure we have the latest data
+    refreshTournamentState();
 
     const handleTournamentUpdate = (data: any) => {
-      console.log('🔔 Tournament WebSocket update received:', data);
+      console.log('🔔 TournamentPage WebSocket update received:', {
+        type: data.type,
+        tournamentId: data.tournamentId,
+        ourTournamentId: tournamentId,
+        fullData: data
+      });
+      
+      // Skip WebSocket updates if we're currently syncing state
+      if (isStateSyncing) {
+        console.log('🔐 Skipping WebSocket update - state sync in progress:', data.type);
+        return;
+      }
       
       if (data.type === 'registration-opened' || data.type === 'registration-closed' || 
-          data.type === 'player-registered' || data.type === 'tournament-started') {
-        // Refresh tournament data when registration status changes
-        const refreshTournament = async () => {
-          try {
-            if (tournamentId) {
-              const updatedTournament = await tournamentService.getTournament(tournamentId);
-              setTournament(updatedTournament);
-            }
-          } catch (error) {
-            console.error('❌ Error refreshing tournament data:', error);
+          data.type === 'player-registered' || data.type === 'guest-player-added' || 
+          data.type === 'player-removed' || data.type === 'tournament-started') {
+        
+        // Handle immediate state updates for better user experience
+        if (data.type === 'player-registered' && data.player) {
+          // Check if player already exists to prevent duplicates
+          const playerExists = tournament?.players.some(p => p.id === data.player.id);
+          
+          if (playerExists) {
+            console.log('⚠️ Player already exists, skipping duplicate registration:', data.player.name);
+            return;
           }
-        };
-        refreshTournament();
+          
+          console.log('🚀 Player registered! Updating waiting room UI immediately...');
+          
+          // Add player to state immediately for instant feedback
+          if (tournament) {
+            const updatedTournament = {
+              ...tournament,
+              players: [...tournament.players, data.player]
+            };
+            setTournament(updatedTournament);
+          }
+        }
+        
+        if (data.type === 'guest-player-added' && data.player) {
+          // Check if player already exists to prevent duplicates
+          const playerExists = tournament?.players.some(p => p.id === data.player.id);
+          
+          if (playerExists) {
+            console.log('⚠️ Guest player already exists, skipping duplicate add:', data.player.name);
+            return;
+          }
+          
+          console.log('🚀 Guest player added! Updating waiting room UI immediately...');
+          
+          // Add guest player to state immediately for instant feedback
+          if (tournament) {
+            const updatedTournament = {
+              ...tournament,
+              players: [...tournament.players, data.player]
+            };
+            setTournament(updatedTournament);
+          }
+        }
+        
+        if (data.type === 'player-removed' && data.playerId) {
+          console.log('🚀 Player removed! Updating waiting room UI immediately...');
+          
+          // Remove player from state immediately for instant feedback
+          if (tournament) {
+            const updatedTournament = {
+              ...tournament,
+              players: tournament.players.filter(p => p.id !== data.playerId)
+            };
+            setTournament(updatedTournament);
+          }
+        }
+        
+        // Handle tournament start - redirect registered users to match results
+        if (data.type === 'tournament-started') {
+          console.log('🚀 Tournament started, checking if user should be redirected...');
+          
+          // Check if current user is registered for this tournament
+          const isUserRegistered = tournament?.players.some(player => 
+            player.id === user?.id
+          );
+          
+          if (isUserRegistered && tournamentId) {
+            console.log('🔄 Redirecting registered user to match results page...');
+            
+            // Redirect to match results page based on tournament type
+            if (tournament.type === TournamentType.SINGLE_ELIMINATION) {
+              navigate(`/tournament/single-elimination/${tournamentId}/results`);
+            } else if (tournament.type === TournamentType.SWISS) {
+              navigate(`/tournament/swiss/${tournamentId}/results`);
+            } else {
+              // Fallback for any other tournament types
+              navigate(`/tournament/single-elimination/${tournamentId}/results`);
+            }
+            return; // Don't refresh tournament data if redirecting
+          }
+        }
+        
+        // No background refresh needed - immediate state updates are sufficient
+        // The WebSocket already provides the most up-to-date data
+        console.log('✅ Tournament state updated via WebSocket - no API call needed');
       }
     };
 
@@ -68,8 +183,11 @@ const TournamentPage: React.FC = () => {
 
     return () => {
       webSocketService.removeTournamentListeners();
+      if (tournamentId) {
+        webSocketService.leaveTournament(tournamentId);
+      }
     };
-  }, [tournament?.eventId, tournamentId]);
+  }, [tournament?.eventId, tournamentId, user?.id, navigate]);
 
   const handleRegister = async () => {
     if (!tournamentId || !user) return;
@@ -95,7 +213,7 @@ const TournamentPage: React.FC = () => {
   };
 
   const isUserRegistered = tournament?.players.some(player => 
-    player.userId === user?.id || player.id === user?.id
+    player.id === user?.id
   );
   const isOrganizer = tournament?.organizerId === user?.id;
   const canRegister = user && !isUserRegistered && !tournament?.isStarted && !tournament?.isFinished && tournament?.registrationOpen !== false;
@@ -150,7 +268,7 @@ const TournamentPage: React.FC = () => {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div key={`tournament-stats-${tournament.players.length}`} className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div className="flex items-center">
             <UserGroupIcon className="h-5 w-5 text-gray-400 dark:text-gray-500 mr-2" />
             <div>
@@ -263,7 +381,7 @@ const TournamentPage: React.FC = () => {
       </div>
 
       {/* Players List */}
-      <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200 mb-8">
+      <div key={`players-list-${tournament.players.length}`} className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg dark:shadow-gray-900/20 border border-gray-200/50 dark:border-gray-700/50 p-6 transition-colors duration-200 mb-8">
         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Registered Players</h2>
         
         {tournament.players.length === 0 ? (
@@ -272,7 +390,7 @@ const TournamentPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {tournament.players.map((player, index) => (
               <div 
-                key={player.id}
+                key={`player-${player.id}-${index}`}
                 className="bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 rounded-lg p-3 flex items-center"
               >
                 <div className="w-8 h-8 bg-primary-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3">

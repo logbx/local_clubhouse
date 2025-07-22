@@ -1,9 +1,9 @@
 import { ExpoRequest, ExpoResponse } from 'expo-router/server';
 import { z } from 'zod';
 import { connectDB } from '@/lib/db';
-import { Club } from '@/lib/models/club';
-import { ClubMember } from '@/lib/models/club-member';
-import { User } from '@/lib/models/user';
+import { Club } from '@/lib/models/club.model';
+import { ClubMember } from '@/lib/models/club-member.model';
+import { User } from '@/lib/models/user.model';
 import { AuthRequest, verifyToken } from '@/lib/middleware/auth';
 
 const memberQuerySchema = z.object({
@@ -45,12 +45,12 @@ async function checkMemberPermissions(clubId: string, userId: string, requiredRo
 }
 
 // GET /api/clubs/[username]/members - List club members
-export async function GET(request: AuthRequest): Promise<ExpoResponse> {
+export async function GET(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
-    verifyToken(request, new ExpoResponse(), async () => {
+    verifyToken(request, new Response(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -75,7 +75,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         });
 
         if (!userMembership) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'You must be a member to view club members' },
             { status: 403 }
           ));
@@ -146,7 +146,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
           ClubMember.countDocuments(filter)
         ]);
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           members,
           pagination: {
             page,
@@ -161,12 +161,12 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
       } catch (error) {
         console.error('Get members error:', error);
         if (error.message === 'Club not found') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Club not found' },
             { status: 404 }
           ));
         } else {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to fetch members' },
             { status: 500 }
           ));
@@ -177,12 +177,12 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // POST /api/clubs/[username]/members - Add member (admin only)
-export async function POST(request: AuthRequest): Promise<ExpoResponse> {
+export async function POST(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
-    verifyToken(request, new ExpoResponse(), async () => {
+    verifyToken(request, new Response(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -206,7 +206,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
         // Find user by email
         const targetUser = await User.findOne({ email });
         if (!targetUser) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'User not found' },
             { status: 404 }
           ));
@@ -221,13 +221,13 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 
         if (existingMembership) {
           if (existingMembership.status === 'active') {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'User is already a member' },
               { status: 400 }
             ));
             return;
           } else if (existingMembership.status === 'banned') {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'User is banned from this club' },
               { status: 400 }
             ));
@@ -261,7 +261,7 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
           'stats.memberCount': memberCount
         });
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           message: 'Member added successfully',
           member: {
             user: {
@@ -276,8 +276,8 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
         }));
       } catch (error) {
         if (error instanceof z.ZodError) {
-          resolve(ExpoResponse.json(
-            { error: 'Validation failed', details: error.errors },
+          resolve(Response.json(
+            { error: 'Validation failed', details: error.issues },
             { status: 400 }
           ));
           return;
@@ -285,17 +285,17 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 
         console.error('Add member error:', error);
         if (error.message === 'Club not found') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Club not found' },
             { status: 404 }
           ));
         } else if (error.message === 'Insufficient permissions') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'You do not have permission to add members' },
             { status: 403 }
           ));
         } else {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to add member' },
             { status: 500 }
           ));
@@ -306,12 +306,12 @@ export async function POST(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // PUT /api/clubs/[username]/members - Update member role
-export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
+export async function PUT(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
-    verifyToken(request, new ExpoResponse(), async () => {
+    verifyToken(request, new Response(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -324,7 +324,7 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
         const memberId = url.searchParams.get('memberId');
 
         if (!memberId) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Member ID is required' },
             { status: 400 }
           ));
@@ -353,28 +353,28 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
         ).populate('user', 'name email avatar');
 
         if (!updatedMember) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Member not found' },
             { status: 404 }
           ));
           return;
         }
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           message: 'Member role updated successfully',
           member: updatedMember,
         }));
       } catch (error) {
         if (error instanceof z.ZodError) {
-          resolve(ExpoResponse.json(
-            { error: 'Validation failed', details: error.errors },
+          resolve(Response.json(
+            { error: 'Validation failed', details: error.issues },
             { status: 400 }
           ));
           return;
         }
 
         console.error('Update member error:', error);
-        resolve(ExpoResponse.json(
+        resolve(Response.json(
           { error: 'Failed to update member' },
           { status: 500 }
         ));
@@ -384,12 +384,12 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // DELETE /api/clubs/[username]/members - Remove member
-export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
+export async function DELETE(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
-    verifyToken(request, new ExpoResponse(), async () => {
+    verifyToken(request, new Response(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -402,7 +402,7 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
         const memberId = url.searchParams.get('memberId');
 
         if (!memberId) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Member ID is required' },
             { status: 400 }
           ));
@@ -424,7 +424,7 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
         });
 
         if (!memberToRemove) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Member not found' },
             { status: 404 }
           ));
@@ -433,7 +433,7 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
 
         // Prevent removing the owner
         if (memberToRemove.role === 'owner') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Cannot remove the club owner' },
             { status: 400 }
           ));
@@ -453,18 +453,18 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
           'stats.memberCount': memberCount
         });
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           message: 'Member removed successfully',
         }));
       } catch (error) {
         console.error('Remove member error:', error);
         if (error.message === 'Insufficient permissions') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'You do not have permission to remove members' },
             { status: 403 }
           ));
         } else {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to remove member' },
             { status: 500 }
           ));

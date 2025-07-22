@@ -22,17 +22,21 @@ class Logger {
   private minLevel: LogLevel = __DEV__ ? LogLevel.DEBUG : LogLevel.INFO;
 
   constructor() {
-    this.loadPersistedLogs();
+    // Load persisted logs asynchronously without blocking
+    this.loadPersistedLogs().catch(error => 
+      console.warn('Logger initialization failed:', error)
+    );
   }
 
   private async loadPersistedLogs() {
     try {
       const persistedLogs = await storage.get<LogEntry[]>('app_logs');
-      if (persistedLogs) {
+      if (persistedLogs && Array.isArray(persistedLogs)) {
         this.logs = persistedLogs.slice(-this.maxLogs);
       }
     } catch (error) {
-      console.error('Failed to load persisted logs:', error);
+      console.warn('Failed to load persisted logs:', error);
+      // Continue without persisted logs
     }
   }
 

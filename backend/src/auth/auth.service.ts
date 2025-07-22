@@ -17,7 +17,7 @@ export class AuthService {
     private emailService: EmailService,
   ) {}
 
-  private async generateTokens(user: UserDocument) {
+  async generateTokens(user: UserDocument) {
     const payload = {
       sub: user._id,
       email: user.email,
@@ -102,6 +102,23 @@ export class AuthService {
 
     if (!user.password) {
       console.log('Password field is missing from user document');
+      
+      // Check if this is a Firebase user trying to login on web
+      if (user.firebaseUID && user.authMethod) {
+        const authMethodText = {
+          'phone': 'phone number',
+          'email': 'email (mobile app)',
+          'google': 'Google',
+          'apple': 'Apple'
+        }[user.authMethod] || user.authMethod;
+        
+        throw new BadRequestException(
+          `This account was created using ${authMethodText} authentication. ` +
+          `Please use the mobile app or sign in with your ${authMethodText} method. ` +
+          `If you want to use this account on web, you can set a password in the mobile app settings.`
+        );
+      }
+      
       throw new UnauthorizedException('Account configuration error. Please contact support.');
     }
 
@@ -320,5 +337,202 @@ export class AuthService {
     } catch (error) {
       throw new UnauthorizedException('Invalid token');
     }
+  }
+
+  // Firebase Authentication Methods
+  async findUserByFirebaseUID(firebaseUID: string): Promise<UserDocument | null> {
+    return this.userModel.findOne({ firebaseUID });
+  }
+
+  async createFirebaseUser(userData: {
+    firebaseUID: string;
+    email: string | null;
+    fullName: string;
+    username?: string;
+    phoneNumber?: string | null;
+    authMethod: string;
+    emailVerified: boolean;
+    roles: UserRole[];
+    profileImage?: string | null;
+  }): Promise<UserDocument> {
+    try {
+      // Generate username if not provided
+      if (!userData.username && userData.fullName) {
+        userData.username = await this.generateUsernameFromName(userData.fullName);
+      }
+
+      const user = new this.userModel({
+        firebaseUID: userData.firebaseUID,
+        email: userData.email,
+        fullName: userData.fullName,
+        username: userData.username,
+        phoneNumber: userData.phoneNumber,
+        authMethod: userData.authMethod,
+        isEmailVerified: userData.emailVerified,
+        roles: userData.roles,
+        profileImage: userData.profileImage,
+        profileCompleted: false,
+        // No password required for Firebase users
+      });
+
+      await user.save();
+      return user;
+    } catch (error: any) {
+      if (error.code === 11000) {
+        // Handle duplicate key errors
+        if (error.keyPattern?.email) {
+          throw new BadRequestException('Email already exists');
+        }
+        if (error.keyPattern?.username) {
+          throw new BadRequestException('Username already exists');
+        }
+      }
+      throw new BadRequestException('Failed to create user account');
+    }
+  }
+
+  private async generateUsernameFromName(fullName: string): Promise<string> {
+    // Clean the name: lowercase, remove special chars and extra spaces
+    const cleanName = fullName.toLowerCase().replace(/[^a-z\s]/g, '').trim();
+    const words = cleanName.split(' ').filter(word => word.length > 0);
+    
+    if (words.length === 0) {
+      return 'user' + Math.floor(Math.random() * 1000);
+    }
+    
+    let baseUsername: string;
+    if (words.length === 1) {
+      baseUsername = words[0];
+    } else {
+      baseUsername = words.join('');
+    }
+    
+    // Check if username is available, if not add numbers
+    let username = baseUsername;
+    let counter = 0;
+    
+    while (await this.userModel.findOne({ username })) {
+      username = baseUsername + counter;
+      counter++;
+    }
+    
+    return username;
+  }
+
+  async setWebPasswordForFirebaseUser(email: string, newPassword: string): Promise<UserDocument> {
+    const user = await this.userModel.findOne({ 
+      email: email.toLowerCase(),
+      firebaseUID: { $exists: true }
+    });
+    
+    if (!user) {
+      throw new BadRequestException('Firebase user not found with this email');
+    }
+    
+    if (user.password) {
+      throw new BadRequestException('This account already has a web password set');
+    }
+    
+    // Set password - the pre-save hook will hash it
+    user.password = newPassword;
+    await user.save();
+    
+    return user;
+  }
+
+  // Confirmation flow methods for passwordless web login
+  async findUserByEmail(email: string): Promise<UserDocument | null> {
+    return this.userModel.findOne({ email: email.toLowerCase() });
+  }
+
+  async sendWebLoginConfirmation(email: string): Promise<{ method: 'email' | 'sms'; phoneNumber?: string }> {
+    const user = await this.userModel.findOne({ 
+      email: email.toLowerCase(),
+      firebaseUID: { $exists: true }
+    });
+    
+    if (!user) {
+      throw new BadRequestException('No Firebase account found with this email');
+    }
+
+    // Generate 6-digit confirmation code
+    const confirmationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Store confirmation code temporarily (in production, use Redis)
+    user.passwordResetToken = confirmationCode;
+    user.passwordResetExpires = expiresAt;
+    await user.save();
+
+    // Determine confirmation method based on auth type
+    if (user.authMethod === 'phone' && user.phoneNumber) {
+      // In production, integrate with SMS service (Twilio, AWS SNS, etc.)
+      console.log(`SMS confirmation code for ${user.phoneNumber}: ${confirmationCode}`);
+      
+      return {
+        method: 'sms',
+        phoneNumber: `****${user.phoneNumber.slice(-4)}`
+      };
+    } else {
+      // Send email confirmation
+      try {
+        await this.emailService.sendWebLoginConfirmation(user.email, confirmationCode);
+      } catch (error) {
+        console.warn('Email service not available, code:', confirmationCode);
+      }
+      
+      return { method: 'email' };
+    }
+  }
+
+  async confirmWebLogin(email: string, confirmationCode: string, rememberMe?: boolean): Promise<{
+    user: UserDocument;
+    accessToken: string;
+    refreshToken: string;
+  }> {
+    const user = await this.userModel.findOne({ 
+      email: email.toLowerCase(),
+      firebaseUID: { $exists: true },
+      passwordResetToken: confirmationCode,
+      passwordResetExpires: { $gt: new Date() }
+    });
+    
+    if (!user) {
+      throw new UnauthorizedException('Invalid or expired confirmation code');
+    }
+
+    // Clear confirmation code
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save();
+
+    // Generate tokens with extended expiration if "remember me" is checked
+    const tokenOptions = rememberMe ? {
+      accessTokenExpiration: '24h',
+      refreshTokenExpiration: '30d'
+    } : undefined;
+
+    const payload = {
+      sub: user._id,
+      email: user.email,
+      roles: user.roles,
+    };
+
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(payload, {
+        secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
+        expiresIn: tokenOptions?.accessTokenExpiration || this.configService.get<string>('JWT_ACCESS_EXPIRATION', '1h'),
+      }),
+      this.jwtService.signAsync(payload, {
+        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+        expiresIn: tokenOptions?.refreshTokenExpiration || this.configService.get<string>('JWT_REFRESH_EXPIRATION', '7d'),
+      }),
+    ]);
+
+    return {
+      user,
+      accessToken,
+      refreshToken
+    };
   }
 } 

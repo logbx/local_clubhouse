@@ -163,4 +163,71 @@ export class EmailService {
       console.log(`[DEV] Password change confirmation for ${email}`);
     }
   }
+
+  async sendWebLoginConfirmation(email: string, confirmationCode: string): Promise<void> {
+    if (this.sgMail) {
+      try {
+        await this.sgMail.send({
+          to: email,
+          from: this.configService.get<string>('FROM_EMAIL', 'noreply@localclubhouse.com'),
+          subject: 'Web Login Confirmation Code - Local Clubhouse',
+          html: `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f8fafc;">
+              <div style="background: white; border-radius: 12px; padding: 32px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);">
+                <h2 style="color: #2563eb; font-size: 24px; margin-bottom: 16px; text-align: center;">Web Login Confirmation</h2>
+                <p style="color: #374151; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
+                  Someone is trying to access your Local Clubhouse account from a web browser.
+                </p>
+                <p style="color: #374151; font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
+                  If this was you, use this confirmation code:
+                </p>
+                
+                <!-- Confirmation Code Display -->
+                <div style="text-align: center; margin: 32px 0;">
+                  <div style="
+                    background: #f3f4f6; 
+                    border: 2px solid #2563eb; 
+                    border-radius: 12px; 
+                    padding: 24px; 
+                    display: inline-block;
+                    font-family: 'Courier New', monospace;
+                    font-size: 36px;
+                    font-weight: bold;
+                    color: #2563eb;
+                    letter-spacing: 8px;
+                    min-width: 200px;
+                  ">
+                    ${confirmationCode}
+                  </div>
+                </div>
+                
+                <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 12px; margin-bottom: 24px;">
+                  <p style="color: #92400e; font-size: 14px; margin: 0; font-weight: 600;">
+                    ⚠️ This code will expire in 10 minutes for security reasons.
+                  </p>
+                </div>
+                
+                <p style="color: #6b7280; font-size: 14px; line-height: 1.5; margin-bottom: 0;">
+                  If you didn't try to login to the website, please ignore this email. Your mobile app access remains secure.
+                </p>
+              </div>
+              
+              <div style="text-align: center; margin-top: 20px;">
+                <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+                  This is an automated email from Local Clubhouse. Please do not reply to this email.
+                </p>
+              </div>
+            </div>
+          `,
+        });
+        console.log(`Web login confirmation sent to ${email} with code: ${confirmationCode}`);
+      } catch (error) {
+        console.error('Failed to send web login confirmation:', error);
+        throw new Error('Failed to send web login confirmation');
+      }
+    } else {
+      console.log(`[DEV] Web login confirmation for ${email}`);
+      console.log(`[DEV] Confirmation code: ${confirmationCode}`);
+    }
+  }
 } 

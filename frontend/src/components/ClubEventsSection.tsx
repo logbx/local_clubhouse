@@ -306,6 +306,83 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
     loadTournamentData();
   }, [allEvents]);
 
+  // Auto-update event status based on actual time
+  useEffect(() => {
+    if (!allEvents) return;
+
+    const now = new Date();
+    const eventsToUpdate: Array<{ event: Event; newStatus: EventStatus }> = [];
+
+    allEvents.forEach((event: Event) => {
+      if (!event.startDate || !event.endDate) return;
+
+      const startDate = new Date(event.startDate);
+      const endDate = new Date(event.endDate);
+      
+      // Add 1 minute buffer after end time before marking as PAST
+      const endDateWithBuffer = new Date(endDate.getTime() + 60000); // +1 minute
+      
+      let newStatus: EventStatus | null = null;
+
+      // Determine correct status based on current time
+      if (now > endDateWithBuffer) {
+        // Event has ended (with buffer) - should be PAST
+        if (event.status !== EventStatus.PAST) {
+          newStatus = EventStatus.PAST;
+        }
+      } else {
+        // Event is upcoming or currently active - should be LIVE
+        // This includes events that haven't started yet (upcoming) and events that are currently happening
+        if (event.status !== EventStatus.LIVE) {
+          newStatus = EventStatus.LIVE;
+        }
+      }
+
+      if (newStatus && newStatus !== event.status) {
+        eventsToUpdate.push({ event, newStatus });
+      }
+    });
+
+    if (eventsToUpdate.length > 0) {
+      log.info(LogCategory.EVENT, `ClubEventsSection: Auto-updating ${eventsToUpdate.length} events based on time`, {
+        updates: eventsToUpdate.map(({ event, newStatus }) => ({
+          eventId: event.id,
+          title: event.title,
+          currentStatus: event.status,
+          newStatus,
+          startDate: event.startDate,
+          endDate: event.endDate
+        }))
+      });
+
+      // Update events one by one to avoid overwhelming the API
+      eventsToUpdate.forEach(({ event, newStatus }) => {
+        eventApi.updateEvent(event.id, { status: newStatus })
+          .then(() => {
+            log.debug(LogCategory.EVENT, `ClubEventsSection: Updated event ${event.title} from ${event.status} to ${newStatus}`);
+            // Invalidate queries to refresh the data
+            queryClient.invalidateQueries({ queryKey: ['club-events', clubId] });
+          })
+          .catch((error: any) => {
+            log.error(LogCategory.EVENT, `ClubEventsSection: Failed to update event ${event.title} status from ${event.status} to ${newStatus}`, error);
+          });
+      });
+    }
+  }, [allEvents, queryClient, clubId]);
+
+  // Periodic check to update event status every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (allEvents && allEvents.length > 0) {
+        log.debug(LogCategory.EVENT, 'ClubEventsSection: Periodic event status check triggered');
+        // Force re-evaluation of event statuses by updating state
+        queryClient.invalidateQueries({ queryKey: ['club-events', clubId] });
+      }
+    }, 60000); // Check every minute
+
+    return () => clearInterval(interval);
+  }, [allEvents, queryClient, clubId]);
+
   const getFrontendTournament = (eventId: string) => {
     const tournaments = eventTournaments[eventId];
     if (!tournaments || tournaments.length === 0) return null;
@@ -384,7 +461,7 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
         if (isCreator) {
           return { text: 'Manage Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/manage`), disabled: false };
         } else {
-          const isParticipant = user && tournament.players?.some((p: any) => p.userId === user.id);
+          const isParticipant = user && tournament.players?.some((p: any) => p.id === user.id);
           return isParticipant
             ? { text: 'Tournament Ready', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}`), disabled: false }
             : { text: 'Join Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}`), disabled: false };
@@ -394,7 +471,7 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
         if (isCreator) {
           return { text: 'Start Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/manage`), disabled: false };
         } else {
-          const isParticipant = user && tournament.players?.some((p: any) => p.userId === user.id);
+          const isParticipant = user && tournament.players?.some((p: any) => p.id === user.id);
           return isParticipant
             ? { text: 'Tournament Ready', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}`), disabled: false }
             : { text: 'Registration Closed', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}`), disabled: false };
@@ -404,7 +481,7 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
         if (isCreator) {
           return { text: 'Manage Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/manage`), disabled: false };
         } else {
-          const isParticipant = user && tournament.players?.some((p: any) => p.userId === user.id);
+          const isParticipant = user && tournament.players?.some((p: any) => p.id === user.id);
           return isParticipant
             ? { text: 'Tournament Live', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/results`), disabled: false }
             : { text: 'View Tournament', action: () => navigate(`/tournament/${tournamentType}/${tournamentId}/results`), disabled: false };
@@ -973,7 +1050,7 @@ const ClubEventsSection: React.FC<ClubEventsSectionProps> = ({
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60]">
           <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg p-6 max-w-md w-full mx-4 shadow-xl dark:shadow-gray-900/50 border border-gray-200/50 dark:border-gray-700/50">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Delete Event</h3>
             <p className="text-gray-600 dark:text-gray-300 mb-6">

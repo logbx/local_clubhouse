@@ -1,6 +1,6 @@
 import { Platform, Dimensions, StatusBar } from 'react-native';
 import * as Device from 'expo-device';
-import { getStatusBarHeight } from 'react-native-status-bar-height';
+// import { getStatusBarHeight } from 'react-native-status-bar-height'; // Removed for compatibility
 
 export interface PlatformInfo {
   os: 'ios' | 'android' | 'web';

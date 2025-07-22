@@ -330,7 +330,7 @@ export const SponsorSidebar: React.FC<SponsorSidebarProps> = ({
                                 )}
                               </div>
                             )}
-                            {item.isOnline && (
+                            {'isOnline' in item && item.isOnline && (
                               <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-400 border-2 border-white dark:border-gray-800 rounded-full"></div>
                             )}
                           </div>

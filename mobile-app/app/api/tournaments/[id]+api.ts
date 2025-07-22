@@ -75,7 +75,7 @@ async function checkTournamentPermissions(tournamentId: string, userId: string, 
 }
 
 // GET /api/tournaments/[id] - Get tournament details
-export async function GET(request: AuthRequest): Promise<ExpoResponse> {
+export async function GET(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     optionalAuth(request, new ExpoResponse(), async () => {
       try {
@@ -83,7 +83,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         const tournamentId = url.pathname.split('/').pop();
 
         if (!tournamentId) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Tournament ID is required' },
             { status: 400 }
           ));
@@ -197,7 +197,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         const tournament = tournaments[0];
 
         if (!tournament) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Tournament not found' },
             { status: 404 }
           ));
@@ -209,7 +209,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
           try {
             await checkTournamentPermissions(tournamentId, request.user.id, ['organizer', 'club-admin']);
           } catch {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: 'Tournament not found' },
               { status: 404 }
             ));
@@ -295,7 +295,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
           .lean();
         }
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           tournament,
           userRegistration,
           permissions,
@@ -303,7 +303,7 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
         }));
       } catch (error) {
         console.error('Get tournament error:', error);
-        resolve(ExpoResponse.json(
+        resolve(Response.json(
           { error: 'Failed to fetch tournament' },
           { status: 500 }
         ));
@@ -313,12 +313,12 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // PUT /api/tournaments/[id] - Update tournament
-export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
+export async function PUT(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     verifyToken(request, new ExpoResponse(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -329,7 +329,7 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
         const tournamentId = url.pathname.split('/').pop();
 
         if (!tournamentId) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Tournament ID is required' },
             { status: 400 }
           ));
@@ -352,7 +352,7 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
         if (tournament.status === 'active' && Object.keys(validatedData).some(key => 
           key !== 'status' && key !== 'settings'
         )) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Cannot modify active tournament details' },
             { status: 400 }
           ));
@@ -370,7 +370,7 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
           };
 
           if (!validTransitions[tournament.status]?.includes(validatedData.status)) {
-            resolve(ExpoResponse.json(
+            resolve(Response.json(
               { error: `Cannot change status from ${tournament.status} to ${validatedData.status}` },
               { status: 400 }
             ));
@@ -385,7 +385,7 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
             });
 
             if (playerCount < 2) {
-              resolve(ExpoResponse.json(
+              resolve(Response.json(
                 { error: 'Need at least 2 players to start tournament' },
                 { status: 400 }
               ));
@@ -409,7 +409,7 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
         ]);
 
         if (!updatedTournament) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Tournament not found' },
             { status: 404 }
           ));
@@ -419,14 +419,14 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
         // TODO: Send WebSocket updates to connected clients
         // TODO: Generate first round if tournament was started
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           tournament: updatedTournament.toJSON(),
           message: 'Tournament updated successfully',
         }));
       } catch (error) {
         if (error instanceof z.ZodError) {
-          resolve(ExpoResponse.json(
-            { error: 'Validation failed', details: error.errors },
+          resolve(Response.json(
+            { error: 'Validation failed', details: error.issues },
             { status: 400 }
           ));
           return;
@@ -434,17 +434,17 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
 
         console.error('Update tournament error:', error);
         if (error.message === 'Tournament not found') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Tournament not found' },
             { status: 404 }
           ));
         } else if (error.message === 'Insufficient permissions') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'You do not have permission to edit this tournament' },
             { status: 403 }
           ));
         } else {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to update tournament' },
             { status: 500 }
           ));
@@ -455,12 +455,12 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // DELETE /api/tournaments/[id] - Cancel/Delete tournament
-export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
+export async function DELETE(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
     verifyToken(request, new ExpoResponse(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -471,7 +471,7 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
         const tournamentId = url.pathname.split('/').pop();
 
         if (!tournamentId) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Tournament ID is required' },
             { status: 400 }
           ));
@@ -499,7 +499,7 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
             TournamentMatch.deleteMany({ tournament: tournamentId }),
           ]);
 
-          resolve(ExpoResponse.json({
+          resolve(Response.json({
             message: 'Tournament deleted permanently',
           }));
         } else {
@@ -517,7 +517,7 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
           // TODO: Send cancellation notifications to all participants
           // TODO: Send WebSocket updates
 
-          resolve(ExpoResponse.json({
+          resolve(Response.json({
             tournament: updatedTournament,
             message: 'Tournament cancelled successfully',
           }));
@@ -525,17 +525,17 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
       } catch (error) {
         console.error('Delete tournament error:', error);
         if (error.message === 'Tournament not found') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Tournament not found' },
             { status: 404 }
           ));
         } else if (error.message === 'Insufficient permissions') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Only the tournament organizer can delete this tournament' },
             { status: 403 }
           ));
         } else {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to delete tournament' },
             { status: 500 }
           ));

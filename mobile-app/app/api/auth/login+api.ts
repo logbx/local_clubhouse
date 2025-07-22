@@ -1,7 +1,7 @@
 import { ExpoRequest, ExpoResponse } from 'expo-router/server';
 import { z } from 'zod';
 import { connectDB } from '@/lib/db';
-import { User } from '@/lib/models/user';
+import { User } from '@/lib/models/user.model';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { createRateLimiter } from '@/lib/middleware/rate-limit';
@@ -20,10 +20,10 @@ const loginRateLimiter = createRateLimiter({
   message: 'Too many login attempts, please try again later',
 });
 
-export async function POST(request: ExpoRequest): Promise<ExpoResponse> {
+export async function POST(request: Request): Promise<Response> {
   // Apply rate limiting
   return new Promise((resolve) => {
-    loginRateLimiter(request, new ExpoResponse(), async () => {
+    loginRateLimiter(request, new Response(), async () => {
       try {
         const body = await request.json();
         const { email, password, rememberMe, deviceInfo } = loginSchema.parse(body);
@@ -34,7 +34,7 @@ export async function POST(request: ExpoRequest): Promise<ExpoResponse> {
         const user = await User.findOne({ email }).select('+password +refreshTokens');
         
         if (!user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Invalid credentials' },
             { status: 401 }
           ));
@@ -44,7 +44,7 @@ export async function POST(request: ExpoRequest): Promise<ExpoResponse> {
         // Verify password
         const isValidPassword = await user.comparePassword(password);
         if (!isValidPassword) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Invalid credentials' },
             { status: 401 }
           ));
@@ -94,7 +94,7 @@ export async function POST(request: ExpoRequest): Promise<ExpoResponse> {
         await user.save();
 
         // Prepare response
-        const response = ExpoResponse.json({
+        const response = Response.json({
           user: {
             id: user._id.toString(),
             name: user.name,
@@ -120,15 +120,15 @@ export async function POST(request: ExpoRequest): Promise<ExpoResponse> {
         resolve(response);
       } catch (error) {
         if (error instanceof z.ZodError) {
-          resolve(ExpoResponse.json(
-            { error: 'Invalid input', details: error.errors },
+          resolve(Response.json(
+            { error: 'Invalid input', details: error.issues },
             { status: 400 }
           ));
           return;
         }
 
         console.error('Login error:', error);
-        resolve(ExpoResponse.json(
+        resolve((ExpoResponse as any).json(
           { error: 'Internal server error' },
           { status: 500 }
         ));

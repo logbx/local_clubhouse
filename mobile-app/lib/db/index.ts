@@ -1,16 +1,31 @@
 import { Platform } from 'react-native';
-import { drizzle } from 'drizzle-orm/expo-sqlite';
+// Database imports temporarily disabled for Metro bundler compatibility
+// import { drizzle } from 'drizzle-orm/expo-sqlite';
 import { openDatabaseSync } from 'expo-sqlite/next';
-import { migrate } from 'drizzle-orm/expo-sqlite/migrator';
-import * as schema from './schema';
+// import { migrate } from 'drizzle-orm/expo-sqlite/migrator';
+// import * as schema from './schema';
 
 // Database configuration
 const DATABASE_NAME = 'saas_app.db';
 const DATABASE_VERSION = 1;
 
 // Create database instance based on platform
-let db: ReturnType<typeof drizzle>;
+// Database functionality temporarily disabled for Metro bundler compatibility
+let db: any; // ReturnType<typeof drizzle>;
 
+// Placeholder database functions
+export const getDB = () => {
+  console.warn('Database functionality temporarily disabled for compatibility');
+  return null;
+};
+
+// Placeholder for API routes that expect connectDB
+export const connectDB = async () => {
+  console.warn('Database connection temporarily disabled for compatibility');
+  return Promise.resolve();
+};
+
+/*
 if (Platform.OS === 'web') {
   // For web, we'll use IndexedDB through SQL.js
   // This provides a consistent SQLite interface across platforms

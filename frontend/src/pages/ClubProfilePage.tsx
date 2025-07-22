@@ -136,7 +136,7 @@ const ClubProfilePage: React.FC = () => {
   if (!club) return <div className="text-center py-8">Club not found</div>;
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900 pb-24">
+    <div className="min-h-screen bg-white dark:bg-gray-900 pb-20">
       {/* Fixed Action Buttons - Top Right Corner */}
       <div className="fixed top-20 right-4 z-40">
         {/* Admin Dashboard Link */}
@@ -153,7 +153,7 @@ const ClubProfilePage: React.FC = () => {
       </div>
 
       {/* Main Content Container */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-28">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-24">
         
         {/* Instagram-Style Hero Section */}
         <div className="flex flex-col sm:flex-row gap-8 sm:gap-12 mb-12">
@@ -326,7 +326,7 @@ const ClubProfilePage: React.FC = () => {
         )}
 
         {/* Tab Content */}
-        <div className="min-h-96">
+        <div className="min-h-[24rem]">
           {activeTab === 'about' && (
             <div className="space-y-8">
                 {/* Active Cities Section */}

@@ -244,18 +244,16 @@ export class SwissTournamentStrategy extends TournamentStrategy {
     }
 
     console.log('🔍 Checking if round is complete...');
-    // Mark round as complete if all matches are done (completed, forfeit, resolved, etc.)
-    // Include ALL possible final statuses that indicate a match is finished
-    // IMPORTANT: For guest matches, 'submitted' status from organizer should also be considered complete
-    const finalStatuses = ['completed', 'forfeit', 'resolved', 'resolvedByCreator', 'submitted'];
-    const allMatchesComplete = matchRound.matches.every(m => finalStatuses.includes(m.status));
+    // Simplified logic: a match is complete when it has a final result, regardless of how it was achieved
+    // This covers all scenarios: player-to-player confirmation, organizer override, guest matches, etc.
+    const allMatchesComplete = matchRound.matches.every(m => m.status === 'completed');
     console.log('📊 Round completion status:', {
       roundNumber: matchRound.roundNumber,
       totalMatches: matchRound.matches.length,
-      completedMatches: matchRound.matches.filter(m => finalStatuses.includes(m.status)).length,
+      completedMatches: matchRound.matches.filter(m => m.status === 'completed').length,
       matchStatuses: matchRound.matches.map(m => ({ id: m.matchId, status: m.status })),
       allMatchesComplete,
-      finalStatusesConsidered: finalStatuses
+      note: "Only matches with 'completed' status count as finished"
     });
 
     if (allMatchesComplete) {

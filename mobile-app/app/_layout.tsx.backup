@@ -1,0 +1,90 @@
+import { Stack } from 'expo-router';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { useColorScheme } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import '../global.css';
+import { AuthProvider } from '../hooks/useAuth';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ThemeProvider } from '../contexts/ThemeContext';
+import { NotificationProvider } from '../contexts/NotificationContext';
+import { LocationProvider } from '../contexts/LocationContext';
+import { useEffect } from 'react';
+import { Platform } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
+import { queryClient } from '../lib/react-query/query-client';
+import { ErrorBoundary } from '../lib/components/ErrorBoundary';
+import { initializeDeepLinking } from '../lib/navigation';
+
+// Keep the splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync();
+
+export default function RootLayout() {
+  const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    const setup = async () => {
+      try {
+        // Wait for app to initialize
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await SplashScreen.hideAsync();
+      } catch (error) {
+        console.error('Error hiding splash screen:', error);
+      }
+    };
+
+    setup();
+
+    // Initialize deep linking with proper cleanup
+    let cleanup: (() => void) | undefined;
+    
+    const initDeepLinking = async () => {
+      try {
+        cleanup = initializeDeepLinking();
+      } catch (error) {
+        console.error('Deep linking initialization failed:', error);
+      }
+    };
+
+    initDeepLinking();
+
+    return () => {
+      if (cleanup && typeof cleanup === 'function') {
+        cleanup();
+      }
+    };
+  }, []);
+
+  return (
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <QueryClientProvider client={queryClient}>
+            <QueryErrorBoundary>
+              <ThemeProvider>
+                <NotificationProvider>
+                  <LocationProvider>
+                    <AuthProvider>
+                      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+                      <Stack screenOptions={{ headerShown: false }}>
+                        <Stack.Screen name="index" />
+                        <Stack.Screen name="(auth)" />
+                        <Stack.Screen name="(tabs)" />
+                        <Stack.Screen name="+not-found" />
+                        <Stack.Screen name="_sitemap" />
+                      </Stack>
+                      
+                      {/* Development Tools */}
+                      <ReactQueryDevTools />
+                      <QueryPerformanceMonitor />
+                    </AuthProvider>
+                  </LocationProvider>
+                </NotificationProvider>
+              </ThemeProvider>
+            </QueryErrorBoundary>
+          </QueryClientProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
+  );
+}

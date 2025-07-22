@@ -56,27 +56,27 @@ const SponsorTestimonials: React.FC<SponsorTestimonialsProps> = ({
       <div className="space-y-6">
         {sponsor.testimonials.map((testimonial) => (
           <div 
-            key={testimonial._id} 
+            key={testimonial.clubId._id} 
             className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700"
           >
             {/* Club Info */}
             <div className="flex items-center gap-3 mb-4">
-              {testimonial.clubLogo ? (
+              {testimonial.clubId.logoUrl ? (
                 <img 
-                  src={testimonial.clubLogo} 
-                  alt={testimonial.clubName}
+                  src={testimonial.clubId.logoUrl} 
+                  alt={testimonial.clubId.name}
                   className="w-10 h-10 rounded-full object-cover"
                 />
               ) : (
                 <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-800 flex items-center justify-center">
                   <span className="text-sm font-bold text-primary-600 dark:text-primary-300">
-                    {testimonial.clubName.charAt(0).toUpperCase()}
+                    {testimonial.clubId.name.charAt(0).toUpperCase()}
                   </span>
                 </div>
               )}
               <div className="flex-1">
                 <h4 className="font-semibold text-gray-900 dark:text-white">
-                  {testimonial.clubName}
+                  {testimonial.clubId.name}
                 </h4>
                 <div className="flex items-center gap-2">
                   {renderStars(testimonial.rating)}

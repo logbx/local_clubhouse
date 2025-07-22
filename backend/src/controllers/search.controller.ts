@@ -10,6 +10,7 @@ interface SearchResults {
   users: any[];
   events: any[];
   clubs: any[];
+  sponsors: any[];
   recommendations?: {
     events: any[];
     clubs: any[];
@@ -32,7 +33,8 @@ export class SearchController {
       return {
         users: [],
         events: [],
-        clubs: []
+        clubs: [],
+        sponsors: []
       };
     }
 
@@ -119,7 +121,7 @@ export class SearchController {
 
       // Enhanced club search
       let clubDocs = [];
-      let recommendedClubDocs = [];
+      let recommendedClubDocs: any[] = [];
       try {
         clubDocs = await this.clubModel.find({
           $and: [

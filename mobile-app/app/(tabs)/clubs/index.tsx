@@ -45,7 +45,7 @@ export default function ClubListScreen() {
     error,
   } = useInfiniteQuery({
     queryKey: ['clubs', debouncedSearch, selectedCategory, sortBy],
-    queryFn: ({ pageParam = 1 }) =>
+    queryFn: ({ pageParam }) =>
       api.getClubs({
         page: pageParam,
         limit: 20,
@@ -53,14 +53,15 @@ export default function ClubListScreen() {
         category: selectedCategory !== 'all' ? selectedCategory : undefined,
         sortBy,
       }),
-    getNextPageParam: (lastPage) => {
-      return lastPage.pagination.hasNext ? lastPage.pagination.page + 1 : undefined;
+    initialPageParam: 1,
+    getNextPageParam: (lastPage: any) => {
+      return lastPage?.pagination?.hasNext ? lastPage.pagination.page + 1 : undefined;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   const clubs = useMemo(() => {
-    return data?.pages.flatMap(page => page.clubs) || [];
+    return data?.pages.flatMap((page: any) => page.clubs) || [];
   }, [data]);
 
   const onRefresh = useCallback(async () => {
@@ -76,7 +77,7 @@ export default function ClubListScreen() {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleCreateClub = () => {
-    router.push('/clubs/create');
+    router.push('/events/create' as any);
   };
 
   const renderClubItem = useCallback(({ item }: { item: any }) => (
@@ -184,7 +185,7 @@ export default function ClubListScreen() {
           {debouncedSearch ? `Results for "${debouncedSearch}"` : 'All Clubs'}
         </Text>
         <Text className="text-sm text-gray-500 dark:text-gray-400">
-          {data?.pages[0]?.pagination.total || 0} clubs
+          {(data?.pages[0] as any)?.pagination?.total || 0} clubs
         </Text>
       </View>
     </View>

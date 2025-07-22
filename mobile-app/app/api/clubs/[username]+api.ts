@@ -1,9 +1,9 @@
 import { ExpoRequest, ExpoResponse } from 'expo-router/server';
 import { z } from 'zod';
 import { connectDB } from '@/lib/db';
-import { Club } from '@/lib/models/club';
-import { ClubMember } from '@/lib/models/club-member';
-import { ChatMessage } from '@/lib/models/chat-message';
+import { Club } from '@/lib/models/club.model';
+import { ClubMember } from '@/lib/models/club-member.model';
+import { ChatMessage } from '@/lib/models/chat-message.model';
 import { AuthRequest, verifyToken, optionalAuth } from '@/lib/middleware/auth';
 import { uploadImage } from '@/lib/upload';
 
@@ -60,15 +60,15 @@ async function checkClubPermissions(clubId: string, userId: string, requiredRole
 }
 
 // GET /api/clubs/[username] - Get club details
-export async function GET(request: AuthRequest): Promise<ExpoResponse> {
+export async function GET(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
-    optionalAuth(request, new ExpoResponse(), async () => {
+    optionalAuth(request, new Response(), async () => {
       try {
         const url = new URL(request.url!);
         const username = url.pathname.split('/').pop();
 
         if (!username) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Username is required' },
             { status: 400 }
           ));
@@ -129,16 +129,16 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
           canDelete: userMembership?.role === 'owner',
         };
 
-        resolve(ExpoResponse.json(response));
+        resolve(Response.json(response));
       } catch (error) {
         console.error('Get club error:', error);
         if (error.message === 'Club not found') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Club not found' },
             { status: 404 }
           ));
         } else {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to fetch club' },
             { status: 500 }
           ));
@@ -149,12 +149,12 @@ export async function GET(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // PUT /api/clubs/[username] - Update club (admin only)
-export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
+export async function PUT(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
-    verifyToken(request, new ExpoResponse(), async () => {
+    verifyToken(request, new Response(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -165,7 +165,7 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
         const username = url.pathname.split('/').pop();
 
         if (!username) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Username is required' },
             { status: 400 }
           ));
@@ -228,14 +228,14 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
           { new: true, runValidators: true }
         ).populate('owner', 'name avatar email');
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           club: updatedClub,
           message: 'Club updated successfully',
         }));
       } catch (error) {
         if (error instanceof z.ZodError) {
-          resolve(ExpoResponse.json(
-            { error: 'Validation failed', details: error.errors },
+          resolve(Response.json(
+            { error: 'Validation failed', details: error.issues },
             { status: 400 }
           ));
           return;
@@ -243,17 +243,17 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
 
         console.error('Update club error:', error);
         if (error.message === 'Club not found') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Club not found' },
             { status: 404 }
           ));
         } else if (error.message === 'Insufficient permissions') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'You do not have permission to edit this club' },
             { status: 403 }
           ));
         } else {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to update club' },
             { status: 500 }
           ));
@@ -264,12 +264,12 @@ export async function PUT(request: AuthRequest): Promise<ExpoResponse> {
 }
 
 // DELETE /api/clubs/[username] - Delete club (owner only)
-export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
+export async function DELETE(request: AuthRequest): Promise<Response> {
   return new Promise((resolve) => {
-    verifyToken(request, new ExpoResponse(), async () => {
+    verifyToken(request, new Response(), async () => {
       try {
         if (!request.user) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Authentication required' },
             { status: 401 }
           ));
@@ -280,7 +280,7 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
         const username = url.pathname.split('/').pop();
 
         if (!username) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Username is required' },
             { status: 400 }
           ));
@@ -301,23 +301,23 @@ export async function DELETE(request: AuthRequest): Promise<ExpoResponse> {
           Club.findByIdAndDelete(club._id),
         ]);
 
-        resolve(ExpoResponse.json({
+        resolve(Response.json({
           message: 'Club deleted successfully',
         }));
       } catch (error) {
         console.error('Delete club error:', error);
         if (error.message === 'Club not found') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Club not found' },
             { status: 404 }
           ));
         } else if (error.message === 'Insufficient permissions') {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Only the club owner can delete the club' },
             { status: 403 }
           ));
         } else {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'Failed to delete club' },
             { status: 500 }
           ));

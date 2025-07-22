@@ -25,8 +25,8 @@ interface ThemeProviderProps {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const [theme, setThemeState] = useState<Theme>('system');
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>('light');
+  const [theme, setThemeState] = useState<Theme>('dark');
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>('dark');
 
   // Get system preference
   const getSystemTheme = (): ResolvedTheme => {
@@ -75,9 +75,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
   // Initialize theme on mount
   useEffect(() => {
-    // Get saved theme or default to system
+    // Get saved theme or default to dark
     const savedTheme = localStorage.getItem('theme') as Theme | null;
-    const initialTheme = savedTheme || 'system';
+    const initialTheme = savedTheme || 'dark';
     
     const resolved = resolveTheme(initialTheme);
     setThemeState(initialTheme);

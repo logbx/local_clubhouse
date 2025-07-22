@@ -1,7 +1,7 @@
 import { ExpoRequest, ExpoResponse } from 'expo-router/server';
 import { z } from 'zod';
 import { connectDB } from '@/lib/db';
-import { User } from '@/lib/models/user';
+import { User } from '@/lib/models/user.model';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { sendWelcomeEmail } from '@/lib/email';
@@ -30,9 +30,9 @@ const registerRateLimiter = createRateLimiter({
   message: 'Too many registration attempts, please try again later',
 });
 
-export async function POST(request: ExpoRequest): Promise<ExpoResponse> {
+export async function POST(request: Request): Promise<Response> {
   return new Promise((resolve) => {
-    registerRateLimiter(request, new ExpoResponse(), async () => {
+    registerRateLimiter(request, new Response(), async () => {
       try {
         const body = await request.json();
         const { name, email, password, acceptTerms, newsletter, deviceInfo } = registerSchema.parse(body);
@@ -42,7 +42,7 @@ export async function POST(request: ExpoRequest): Promise<ExpoResponse> {
         // Check if user already exists
         const existingUser = await User.findOne({ email });
         if (existingUser) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { error: 'An account with this email already exists' },
             { status: 400 }
           ));
@@ -103,7 +103,7 @@ export async function POST(request: ExpoRequest): Promise<ExpoResponse> {
         }
 
         // Prepare response
-        const response = ExpoResponse.json({
+        const response = Response.json({
           user: {
             id: user._id.toString(),
             name: user.name,
@@ -130,10 +130,10 @@ export async function POST(request: ExpoRequest): Promise<ExpoResponse> {
         resolve(response);
       } catch (error) {
         if (error instanceof z.ZodError) {
-          resolve(ExpoResponse.json(
+          resolve(Response.json(
             { 
               error: 'Validation failed', 
-              details: error.errors.map(e => ({
+              details: error.issues.map(e => ({
                 field: e.path.join('.'),
                 message: e.message,
               }))
@@ -144,7 +144,7 @@ export async function POST(request: ExpoRequest): Promise<ExpoResponse> {
         }
 
         console.error('Registration error:', error);
-        resolve(ExpoResponse.json(
+        resolve((ExpoResponse as any).json(
           { error: 'Failed to create account. Please try again.' },
           { status: 500 }
         ));

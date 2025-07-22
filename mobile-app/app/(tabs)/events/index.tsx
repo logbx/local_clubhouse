@@ -148,13 +148,13 @@ export default function EventsScreen() {
     isFetching,
   } = useQuery({
     queryKey: ['events', queryParams],
-    queryFn: () => api.get('/events', { params: queryParams }),
+    queryFn: () => api.getEvents(queryParams),
     enabled: true,
     staleTime: 60000, // 1 minute
   });
 
-  const events = eventsData?.data?.events || [];
-  const pagination = eventsData?.data?.pagination;
+  const events = (eventsData as any)?.data?.events || [];
+  const pagination = (eventsData as any)?.data?.pagination;
   const hasNextPage = pagination?.hasNext || false;
 
   // Auto-request location on mount if needed

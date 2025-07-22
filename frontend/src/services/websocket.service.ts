@@ -31,6 +31,41 @@ class WebSocketService {
       reconnectionAttempts: 5
     });
 
+    this.setupSocketListeners();
+  }
+
+  // Connect anonymously for public tournament pages
+  connectAnonymously() {
+    if (this.socket?.connected) {
+      return;
+    }
+
+    this.token = null;
+    
+    // Use localhost for development, production URL otherwise
+    const wsUrl = import.meta.env.VITE_WS_URL || 
+                  (import.meta.env.DEV ? 'http://localhost:3001' : 'wss://localclubhouse.com');
+    
+    console.log('🔌 WebSocketService: Connecting anonymously to:', wsUrl);
+    
+    this.socket = io(wsUrl, {
+      auth: {
+        anonymous: true
+      },
+      transports: ['websocket', 'polling'],
+      timeout: 20000,
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5
+    });
+
+    this.setupSocketListeners();
+  }
+
+  private setupSocketListeners() {
+    if (!this.socket) return;
+
     this.socket.on('connect', () => {
       console.log('🔌 WebSocket connected successfully');
       // Notify any waiting callbacks
@@ -39,29 +74,39 @@ class WebSocketService {
     });
 
     this.socket.on('disconnect', (reason) => {
-      console.log('🔌 WebSocket disconnected:', reason);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔌 WebSocket disconnected:', reason);
+      }
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('🔌 WebSocket connection error:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('🔌 WebSocket connection error:', error);
+      }
     });
 
     this.socket.on('reconnect', (attemptNumber) => {
-      console.log('🔌 WebSocket reconnected after', attemptNumber, 'attempts');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔌 WebSocket reconnected after', attemptNumber, 'attempts');
+      }
     });
 
     this.socket.on('reconnect_error', (error) => {
-      console.error('🔌 WebSocket reconnection error:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('🔌 WebSocket reconnection error:', error);
+      }
     });
 
     this.socket.on('reconnect_failed', () => {
       console.error('🔌 WebSocket failed to reconnect after maximum attempts');
     });
 
-    // Debug: Log all incoming events
-    this.socket.onAny((eventName, ...args) => {
-      console.log(`🔌 WebSocket Event: ${eventName}`, args);
-    });
+    // Debug: Log all incoming events (development only)
+    if (process.env.NODE_ENV === 'development') {
+      this.socket.onAny((eventName, ...args) => {
+        console.log(`🔌 WebSocket Event: ${eventName}`, args);
+      });
+    }
   }
 
   disconnect() {
@@ -69,6 +114,11 @@ class WebSocketService {
       this.socket.disconnect();
       this.socket = null;
     }
+  }
+
+  // Check if WebSocket is connected
+  isConnected(): boolean {
+    return this.socket?.connected || false;
   }
 
   // Join conversation room for one-on-one messages
@@ -248,6 +298,20 @@ class WebSocketService {
     }
   }
 
+  // Listen for player registration events
+  onPlayerRegistered(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('player-registered', callback);
+    }
+  }
+
+  // Listen for player unregistration events
+  onPlayerUnregistered(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('player-unregistered', callback);
+    }
+  }
+
   // Listen for match updates
   onMatchUpdate(callback: (update: any) => void) {
     if (this.socket) {
@@ -295,6 +359,8 @@ class WebSocketService {
     if (this.socket) {
       this.socket.off('tournament-update');
       this.socket.off('match-update');
+      this.socket.off('player-registered');
+      this.socket.off('player-unregistered');
     }
   }
 
@@ -308,10 +374,6 @@ class WebSocketService {
     }
   }
 
-  // Check if connected
-  isConnected(): boolean {
-    return this.socket?.connected || false;
-  }
 
   // Wait for connection to be established
   onConnected(callback: () => void) {

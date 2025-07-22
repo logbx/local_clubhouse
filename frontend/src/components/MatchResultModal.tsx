@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { TournamentMatch } from '../services/tournament.service';
 
 interface MatchResultModalProps {
@@ -33,6 +33,27 @@ export const MatchResultModal: React.FC<MatchResultModalProps> = ({
   const [disputeReason, setDisputeReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmActions, setShowConfirmActions] = useState(false);
+  const [showDisputeForm, setShowDisputeForm] = useState(false);
+
+  // Add this check at the start of the component
+  const userSubmittedResult = useMemo(() => {
+    // Check if the current user has already submitted a result
+    return match.resultReportedBy?.includes(currentUserId) || false;
+  }, [match.resultReportedBy, currentUserId]);
+
+  // Check if the current user submitted the result
+  const isSubmitter = useMemo(() => {
+    if (!match.resultReportedBy) return false;
+    return match.resultReportedBy === currentUserId || 
+           (Array.isArray(match.resultReportedBy) && match.resultReportedBy.includes(currentUserId));
+  }, [match.resultReportedBy, currentUserId]);
+
+  // Determine if we should show the confirm/dispute section
+  const shouldShowConfirmDispute = useMemo(() => {
+    const isSubmittedMatch = match.status === 'submitted';
+    const isPlayerInMatch = match.player1.id === currentUserId || match.player2.id === currentUserId;
+    return isSubmittedMatch && isPlayerInMatch && !isSubmitter;
+  }, [match, currentUserId, isSubmitter]);
 
   const handleSubmit = async () => {
     if (isSubmitting) return;
@@ -108,23 +129,34 @@ export const MatchResultModal: React.FC<MatchResultModalProps> = ({
         return false;
       }) 
     : false;
+
+  // Additional check: if the match is submitted and we're the only player in the match
+  // who can submit results, we likely submitted it (fallback for race conditions)
+  const isLikelySubmitter = match.status === 'submitted' && 
+    (match.player1.id === currentUserId || match.player2.id === currentUserId) &&
+    !hasSubmittedResult && // Only if the primary check failed
+    !isCreator; // Creators can submit on behalf of others
+
+  const actuallySubmittedResult = hasSubmittedResult || isLikelySubmitter;
   
   // Debug logging for ID matching issues
   console.log('🔍 Match result modal debug:', {
     matchId: match.matchId,
     currentUserId,
     player1Id: match.player1.id,
-    player1UserId: match.player1.userId,
+    player1UserId: match.player1.id,
     player2Id: match.player2.id,
-    player2UserId: match.player2.userId,
+    player2UserId: match.player2.id,
     resultReportedBy: match.resultReportedBy,
     hasSubmittedResult,
+    isLikelySubmitter,
+    actuallySubmittedResult,
     matchStatus: match.status,
     isCreator
   });
   
-  const canConfirmResult = match.status === 'submitted' && !hasSubmittedResult && !isCreator;
-  const canDisputeResult = match.status === 'submitted' && !hasSubmittedResult;
+  const canConfirmResult = match.status === 'submitted' && !actuallySubmittedResult && !isCreator;
+  const canDisputeResult = match.status === 'submitted' && !actuallySubmittedResult;
   const canSubmitResult = match.status === 'pending' && 
     (isCreator || match.player1.id === currentUserId || match.player2.id === currentUserId);
 

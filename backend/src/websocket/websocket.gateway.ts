@@ -252,11 +252,14 @@ export class AppWebSocketGateway implements OnGatewayInit, OnGatewayConnection, 
 
   // Tournament broadcasting methods
   broadcastTournamentUpdate(eventId: string, update: any, excludeUserId?: string) {
-    const roomName = `event:${eventId}`;
+    const eventRoomName = `event:${eventId}`;
+    const publicRoomName = 'public-events';
+
+    // Broadcast to event-specific room
     if (excludeUserId) {
-      const room = this.server.sockets.adapter.rooms.get(roomName);
-      if (room) {
-        room.forEach((socketId) => {
+      const eventRoom = this.server.sockets.adapter.rooms.get(eventRoomName);
+      if (eventRoom) {
+        eventRoom.forEach((socketId) => {
           const socket = this.server.sockets.sockets.get(socketId) as AuthenticatedSocket;
           if (socket && socket.user?.userId !== excludeUserId) {
             socket.emit('tournament-update', update);
@@ -264,8 +267,25 @@ export class AppWebSocketGateway implements OnGatewayInit, OnGatewayConnection, 
         });
       }
     } else {
-      this.server.to(roomName).emit('tournament-update', update);
+      this.server.to(eventRoomName).emit('tournament-update', update);
     }
+
+    // Also broadcast to public events room for dashboard updates
+    if (excludeUserId) {
+      const publicRoom = this.server.sockets.adapter.rooms.get(publicRoomName);
+      if (publicRoom) {
+        publicRoom.forEach((socketId) => {
+          const socket = this.server.sockets.sockets.get(socketId) as AuthenticatedSocket;
+          if (socket && socket.user?.userId !== excludeUserId) {
+            socket.emit('tournament-update', update);
+          }
+        });
+      }
+    } else {
+      this.server.to(publicRoomName).emit('tournament-update', update);
+    }
+
+    this.logger.log(`Broadcast tournament update to event ${eventId}: ${update.type}`);
   }
 
   broadcastTournamentToParticipants(tournamentId: string, update: any, excludeUserId?: string) {
