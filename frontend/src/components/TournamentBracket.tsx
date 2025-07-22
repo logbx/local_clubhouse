@@ -74,6 +74,7 @@ const MatchCard: React.FC<MatchCardProps> = ({
   matchNumber,
   roundName
 }) => {
+  const { user } = useAuth();
   const [showReportModal, setShowReportModal] = useState(false);
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [showResolveModal, setShowResolveModal] = useState(false);
@@ -87,12 +88,36 @@ const MatchCard: React.FC<MatchCardProps> = ({
   const [resolving, setResolving] = useState(false);
   const [overriding, setOverriding] = useState(false);
 
+  // Debug player matching ALWAYS for any match involving test3 or test4
+  if (process.env.NODE_ENV === 'development' && (match.player1.name === 'test3' || match.player1.name === 'test4' || match.player2.name === 'test3' || match.player2.name === 'test4')) {
+    console.log('🚨 TEST MATCH FOUND - PLAYER DEBUG:', {
+      matchId: match.matchId,
+      status: match.status,
+      currentUserId: currentUserId,
+      currentUserIdType: typeof currentUserId,
+      player1: { 
+        id: match.player1.id, 
+        idType: typeof match.player1.id, 
+        name: match.player1.name,
+        directMatch: match.player1.id === currentUserId,
+        stringMatch: String(match.player1.id) === String(currentUserId)
+      },
+      player2: { 
+        id: match.player2.id, 
+        idType: typeof match.player2.id, 
+        name: match.player2.name,
+        directMatch: match.player2.id === currentUserId,
+        stringMatch: String(match.player2.id) === String(currentUserId)
+      }
+    });
+  }
+
   // Check if current user is a player in this match (handle both id and userId)
   const isPlayerInMatch = currentUserId && (
-    match.player1.userId === currentUserId || 
-    match.player2.userId === currentUserId ||
     match.player1.id === currentUserId || 
-    match.player2.id === currentUserId
+    match.player2.id === currentUserId ||
+    String(match.player1.id) === String(currentUserId) ||
+    String(match.player2.id) === String(currentUserId)
   );
   const hasGuestPlayer = match.player1.isGuest || match.player2.isGuest;
   
@@ -101,9 +126,15 @@ const MatchCard: React.FC<MatchCardProps> = ({
   // or submit results against guest players
   const canReport = isOrganizer || isPlayerInMatch;
   
+  // Check localStorage for submission info (temporary workaround)
+  const submissionKey = `match_submission_${match.matchId}`;
+  const storedSubmitterId = localStorage.getItem(submissionKey);
+  const hasSubmittedViaLocalStorage = storedSubmitterId === currentUserId || 
+                                     storedSubmitterId === String(currentUserId);
+  
   // Check if current user submitted the result (more robust checking)
   // Handle multiple ID formats that might be stored in resultReportedBy
-  const hasSubmittedResult = match.resultReportedBy && Array.isArray(match.resultReportedBy)
+  const hasSubmittedResult = hasSubmittedViaLocalStorage || (match.resultReportedBy && Array.isArray(match.resultReportedBy)
     ? match.resultReportedBy.some(reporterId => {
         if (!currentUserId) return false;
         // Direct match
@@ -113,36 +144,76 @@ const MatchCard: React.FC<MatchCardProps> = ({
         if (String(reporterId) === currentUserId) return true;
         return false;
       })
-    : false;
+    : match.resultReportedBy === currentUserId || 
+      match.resultReportedBy === String(currentUserId) || 
+      String(match.resultReportedBy) === currentUserId);
+
+  // Additional check: if the match is submitted and we're the only player in the match
+  // who can submit results, we likely submitted it (fallback for race conditions)
+  // IMPORTANT: Only use this fallback if resultReportedBy is completely missing/null
+  const isLikelySubmitter = false; // Disabled to fix the confirm/dispute issue
   
-  // Debug logging for ID matching issues
+  // Smart detection: If resultReportedBy is missing but we have a winner,
+  // the winner is likely the one who submitted (common pattern)
+  let smartSubmitterDetection = false;
+  if (match.status === 'submitted' && !match.resultReportedBy && match.winnerId && isPlayerInMatch) {
+    // If current user is the winner, they likely submitted the result
+    smartSubmitterDetection = match.winnerId === currentUserId || 
+                            String(match.winnerId) === String(currentUserId);
+  }
+
+  const actuallySubmittedResult = hasSubmittedResult || isLikelySubmitter || smartSubmitterDetection;
+  
+  // Debug logging for ID matching issues - ALWAYS LOG for submitted matches
   if (match.status === 'submitted' && process.env.NODE_ENV === 'development') {
-    console.log('🔍 Match result debug:', {
-      matchId: match.matchId,
-      currentUserId,
-      resultReportedBy: match.resultReportedBy,
-      hasSubmittedResult,
-      canConfirm: match.status === 'submitted' && isPlayerInMatch && !hasSubmittedResult && !isOrganizer,
-      canDispute: match.status === 'submitted' && isPlayerInMatch && !hasSubmittedResult
-    });
+    console.log('🔍 SUBMITTED MATCH DEBUG - Current User View:', {
+        matchId: match.matchId,
+        currentUserId,
+        currentUser: user?.email || 'N/A',
+      player1: { id: match.player1.id, name: match.player1.name, isGuest: match.player1.isGuest },
+      player2: { id: match.player2.id, name: match.player2.name, isGuest: match.player2.isGuest },
+      winnerId: match.winnerId,
+      loserId: match.loserId,
+        resultReportedBy: match.resultReportedBy,
+      resultObject: match.result, // Check if result info is here
+      localStorageSubmitter: storedSubmitterId,
+      hasSubmittedViaLocalStorage,
+        hasSubmittedResult,
+        isLikelySubmitter,
+      smartSubmitterDetection,
+        actuallySubmittedResult,
+        isPlayerInMatch,
+      isOrganizer,
+      hasGuestPlayer,
+      shouldSeeConfirmDispute: match.status === 'submitted' && isPlayerInMatch && !actuallySubmittedResult && !isOrganizer && !hasGuestPlayer
+      });
   }
   
   // Updated logic: Allow both players in match AND organizers to confirm submitted results
   // Players can confirm if they're in the match and didn't submit the result
   // Organizers can confirm any submitted result (especially for guest player matches)
   const needsConfirmation = match.status === 'submitted' && (
-    (isPlayerInMatch && !hasSubmittedResult) || // Player confirmation
+    (isPlayerInMatch && !actuallySubmittedResult) || // Player confirmation
     (isOrganizer && hasGuestPlayer) // Organizer confirmation for guest matches
   );
   
   // Add canConfirm variable for the UI - Only non-organizer players can confirm
   const canConfirm = match.status === 'submitted' && 
     isPlayerInMatch && 
-    !hasSubmittedResult && 
+    !actuallySubmittedResult && 
     !isOrganizer;
   
   // Show dispute button if user is in match, match is submitted, and user did NOT submit the result
-  const canDispute = match.status === 'submitted' && isPlayerInMatch && !hasSubmittedResult;
+  const canDispute = match.status === 'submitted' && isPlayerInMatch && !actuallySubmittedResult;
+  
+  // Failsafe: If result is submitted but no one can confirm, allow both players to act
+  // This handles edge cases where resultReportedBy might be incorrect
+  const noOneCanConfirm = match.status === 'submitted' && 
+    !canConfirm && !canDispute && 
+    isPlayerInMatch && !isOrganizer;
+  
+  const canConfirmFailsafe = noOneCanConfirm;
+  const canDisputeFailsafe = noOneCanConfirm;
 
   // Show resolve button if user is organizer and match is disputed
   const canResolve = match.status === 'disputed' && isOrganizer;
@@ -199,6 +270,14 @@ const MatchCard: React.FC<MatchCardProps> = ({
           false, // isDraw - false for SET
           reason
         );
+        
+        // Store submission info in localStorage as temporary workaround
+        if (currentUserId) {
+          const submissionKey = `match_submission_${match.matchId}`;
+          localStorage.setItem(submissionKey, currentUserId);
+          // Auto-cleanup after 1 hour
+          setTimeout(() => localStorage.removeItem(submissionKey), 3600000);
+        }
       }
       onTournamentUpdate?.(updatedTournament);
       
@@ -307,33 +386,28 @@ const MatchCard: React.FC<MatchCardProps> = ({
     }
   };
 
-  const handleOverrideResult = async () => {
-    if (!selectedWinner) {
-      alert('Please select a winner.');
-      return;
-    }
-    
+  const handleOverrideResultWithStandardFormat = async (winnerId: string, reason?: string) => {
     setOverriding(true);
     try {
-      const loserId = selectedWinner === match.player1.id ? match.player2.id : match.player1.id;
+      const loserId = winnerId === match.player1.id ? match.player2.id : match.player1.id;
       
       console.log('🔧 Overriding match result:', {
         tournamentId,
         matchId: match.matchId,
-        selectedWinner,
+        winnerId,
         loserId,
-        reason: overrideReason.trim(),
+        reason: reason?.trim() || '',
         isOrganizer
       });
       
       const updatedTournament = await tournamentService.overrideMatchResult(
         tournamentId,
         match.matchId,
-        selectedWinner,
+        winnerId,
         loserId,
         'completed',
         'win',
-        overrideReason.trim()
+        reason?.trim() || ''
       );
       
       console.log('✅ Match result overridden successfully');
@@ -438,23 +512,46 @@ const MatchCard: React.FC<MatchCardProps> = ({
               <ClockIcon className="h-4 w-4 mr-2" />
               <span className="text-sm font-medium">Result Submitted - Awaiting Confirmation</span>
             </div>
+            
+            {/* Message for user who submitted the result */}
+            {actuallySubmittedResult && (
+              <div className="text-xs text-orange-600 dark:text-orange-400 mb-2 italic">
+                You submitted this result. Waiting for your opponent to confirm.
+              </div>
+            )}
+            
+            {/* Message for user who needs to confirm */}
+            {isPlayerInMatch && !actuallySubmittedResult && (
+              <div className="text-xs text-orange-600 dark:text-orange-400 mb-2 italic">
+                Your opponent submitted this result. Please confirm or contest it.
+              </div>
+            )}
+            
             <div className="space-y-2">
-              {canConfirm && (
+              {(canConfirm || canConfirmFailsafe) && (
                 <button 
                   onClick={handleConfirmResult}
-                  className="w-full btn btn-success text-sm py-2"
+                  className="w-full btn btn-success text-sm py-2 font-medium"
                 >
-                  Confirm Result
+                  ✅ Accept Result
                 </button>
               )}
-              {canDispute && (
+              {(canDispute || canDisputeFailsafe) && (
                 <button 
                   onClick={() => setShowDisputeModal(true)}
-                  className="w-full btn btn-warning text-sm py-2"
+                  className="w-full btn btn-warning text-sm py-2 font-medium"
                 >
-                  Dispute Result
+                  ⚠️ Contest Result
                 </button>
               )}
+              
+              {/* Failsafe message */}
+              {noOneCanConfirm && (
+                <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                  ⚠️ System detected submission issue. You can still accept or contest this result.
+                </div>
+              )}
+              
               {isOrganizer && showAdminControls && (
                 <button 
                   onClick={() => setShowOverrideModal(true)}
@@ -517,6 +614,133 @@ const MatchCard: React.FC<MatchCardProps> = ({
             )}
           </div>
         )}
+
+        {/* New section: Confirm/Dispute area for registered players when result is submitted */}
+        {(() => {
+          // More robust check for who should see confirm/dispute options
+          const isSubmittedMatch = match.status === 'submitted';
+          const isBothRegisteredPlayers = !hasGuestPlayer;
+          const isPlayerInThisMatch = isPlayerInMatch && !isOrganizer;
+          
+          // Check if current user did NOT submit the result (more explicit check)
+          const didNotSubmitResult = !actuallySubmittedResult;
+          
+          // Alternative check: if we have resultReportedBy data, use it explicitly
+          let alternativeCheck = true;
+          if (match.resultReportedBy) {
+            // Handle both array and single value formats
+            if (Array.isArray(match.resultReportedBy)) {
+              alternativeCheck = !match.resultReportedBy.includes(currentUserId) && 
+                               !match.resultReportedBy.includes(String(currentUserId));
+            } else {
+              alternativeCheck = match.resultReportedBy !== currentUserId && 
+                               match.resultReportedBy !== String(currentUserId) && 
+                               String(match.resultReportedBy) !== currentUserId;
+            }
+          }
+          
+          // Updated logic: Only show confirm/dispute for registered vs registered matches
+          // If there's a guest player, only organizer can confirm
+          const shouldShowConfirmDispute = isSubmittedMatch && 
+                                         isBothRegisteredPlayers && 
+                                         isPlayerInThisMatch && 
+                                         didNotSubmitResult && 
+                                         alternativeCheck &&
+                                         !hasGuestPlayer; // Hide buttons if there's a guest player
+
+          // Debug log for this specific section
+          if (match.status === 'submitted' && process.env.NODE_ENV === 'development') {
+            console.log('🎯 CONFIRM/DISPUTE SECTION CHECK:', {
+              matchId: match.matchId,
+              shouldShowConfirmDispute,
+              breakdown: {
+                isSubmittedMatch,
+                isBothRegisteredPlayers, 
+                isPlayerInThisMatch,
+                didNotSubmitResult,
+                alternativeCheck,
+                hasGuestPlayer
+              },
+              resultReportedBy: match.resultReportedBy,
+              currentUserId
+            });
+          }
+          
+          return shouldShowConfirmDispute;
+        })() && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mt-4">
+            <div className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-3">
+              Your opponent submitted a result. Please review and respond:
+            </div>
+            
+            <div className="space-y-2">
+              <button 
+                onClick={handleConfirmResult}
+                className="w-full btn btn-success text-sm py-2 font-medium"
+              >
+                ✅ Confirm Result
+              </button>
+              <button 
+                onClick={() => setShowDisputeModal(true)}
+                className="w-full btn btn-warning text-sm py-2 font-medium"
+              >
+                ⚠️ Dispute Result
+              </button>
+            </div>
+            
+            <div className="text-xs text-blue-600 dark:text-blue-400 mt-2 italic">
+              This match is between two registered players. Please confirm or dispute the submitted result.
+            </div>
+          </div>
+        )}
+
+        {/* Show organizer waiting message for guest player matches */}
+        {match.status === 'submitted' && hasGuestPlayer && isPlayerInMatch && !isOrganizer && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mt-4">
+            <div className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">
+              Result submitted - awaiting organizer confirmation
+            </div>
+            <div className="text-xs text-blue-600 dark:text-blue-400 italic">
+              This match involves a guest player. Only the organizer can confirm results for guest players.
+            </div>
+          </div>
+        )}
+
+        {/* Debug info for new confirm/dispute section */}
+        {process.env.NODE_ENV === 'development' && match.status === 'submitted' && (() => {
+          // Recreate the logic for debugging
+          const isSubmittedMatch = match.status === 'submitted';
+          const isBothRegisteredPlayers = !hasGuestPlayer;
+          const isPlayerInThisMatch = isPlayerInMatch && !isOrganizer;
+          const didNotSubmitResult = !actuallySubmittedResult;
+          
+          let alternativeCheck = true;
+          if (match.resultReportedBy) {
+            alternativeCheck = match.resultReportedBy !== currentUserId && 
+                             match.resultReportedBy !== String(currentUserId) && 
+                             String(match.resultReportedBy) !== currentUserId;
+          }
+          
+          const shouldShowConfirmDispute = isSubmittedMatch && 
+                                         isBothRegisteredPlayers && 
+                                         isPlayerInThisMatch && 
+                                         didNotSubmitResult && 
+                                         alternativeCheck;
+          
+          return (
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 p-2 bg-gray-100 dark:bg-gray-700 rounded">
+              🔧 New Confirm/Dispute Section Debug:<br />
+              shouldShowConfirmDispute={String(shouldShowConfirmDispute)}<br />
+              isSubmittedMatch={String(isSubmittedMatch)}, isBothRegisteredPlayers={String(isBothRegisteredPlayers)}<br />
+              isPlayerInThisMatch={String(isPlayerInThisMatch)}, didNotSubmitResult={String(didNotSubmitResult)}<br />
+              alternativeCheck={String(alternativeCheck)}<br />
+              actuallySubmittedResult={String(actuallySubmittedResult)} (hasSubmitted={String(hasSubmittedResult)}, isLikely={String(isLikelySubmitter)})<br />
+              currentUserId="{currentUserId}"<br />
+              resultReportedBy="{String(match.resultReportedBy)}" (type: {typeof match.resultReportedBy})<br />
+              MATCH_CHECK: reportedBy===currentUserId? {String(match.resultReportedBy === currentUserId)}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Standardized Result Modal */}
@@ -691,84 +915,44 @@ const MatchCard: React.FC<MatchCardProps> = ({
       )}
 
       {/* Override Result Modal */}
-      {showOverrideModal && (
-        <div 
-          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center" 
-          style={{ zIndex: 999999 }}
-        >
-          <div 
-            className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl border border-gray-200 dark:border-gray-700"
-            style={{ zIndex: 1000000 }}
-          >
-            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-              Override Match Result
-            </h3>
-            
-            <div className="space-y-3 mb-6">
-              <label className="flex items-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors">
-                <input 
-                  type="radio" 
-                  name="overrideWinner" 
-                  value={match.player1.id}
-                  checked={selectedWinner === match.player1.id}
-                  onChange={(e) => setSelectedWinner(e.target.value)}
-                  className="mr-3"
-                />
-                <span className="text-gray-900 dark:text-white font-medium">
-                  {match.player1.name} wins
-                </span>
-              </label>
-              
-              <label className="flex items-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors">
-                <input 
-                  type="radio" 
-                  name="overrideWinner" 
-                  value={match.player2.id}
-                  checked={selectedWinner === match.player2.id}
-                  onChange={(e) => setSelectedWinner(e.target.value)}
-                  className="mr-3"
-                />
-                <span className="text-gray-900 dark:text-white font-medium">
-                  {match.player2.name} wins
-                </span>
-              </label>
-              
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Reason for override (optional)
-                </label>
-                <textarea
-                  value={overrideReason}
-                  onChange={(e) => setOverrideReason(e.target.value)}
-                  placeholder="Add any notes about why you're overriding this result..."
-                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                  rows={3}
-                />
-              </div>
-            </div>
-
-            <div className="flex space-x-3">
-              <button 
-                onClick={handleOverrideResult}
-                disabled={!selectedWinner || overriding}
-                className="flex-1 btn btn-primary"
-              >
-                {overriding ? 'Overriding...' : 'Override Result'}
-              </button>
-              <button 
-                onClick={() => {
+      {showOverrideModal && (() => {
+        // Determine the current winner from the match to pre-select in override modal
+        let initialResult: 'win' | 'loss' | 'draw' = 'win'; // default
+        
+        if (match.winnerId) {
+          if (match.winnerId === match.player1.id) {
+            initialResult = 'win';  // Player 1 wins
+          } else if (match.winnerId === match.player2.id) {
+            initialResult = 'loss'; // Player 2 wins (loss from player1 perspective)
+          }
+        }
+        
+        return (
+          <StandardizedResultModal
+            isOpen={showOverrideModal}
+            onClose={() => {
                   setShowOverrideModal(false);
                   setSelectedWinner('');
                   setOverrideReason('');
                 }}
-                className="flex-1 btn btn-secondary"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            match={match}
+            onSubmit={(result: 'win' | 'loss' | 'draw', reason?: string) => {
+              // Convert the standardized result format to override format
+              const winnerId = result === 'win' ? match.player1.id : match.player2.id;
+              setSelectedWinner(winnerId);
+              setOverrideReason(reason || '');
+              
+              // Call the override handler with the selected winner and reason
+              handleOverrideResultWithStandardFormat(winnerId, reason);
+            }}
+            allowDraws={false}
+            isSwissTournament={false}
+            title="Override Match Result"
+            submitButtonText="Override Result"
+            initialResult={initialResult}
+          />
+        );
+      })()}
     </div>
   );
 };
@@ -781,8 +965,38 @@ const TournamentBracket: React.FC<TournamentBracketProps> = ({
 }) => {
   const { user } = useAuth();
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // IMPORTANT: Only apply filtering logic to Single Elimination tournaments
+  // Swiss tournaments should display all data exactly as provided by backend
+  const isSwissTournament = tournament.type === 'swiss';
+
+  // Helper function to filter bye players to prevent duplicates across rounds
+  const getFilteredByePlayers = (round: TournamentRound, roundIndex: number): any[] => {
+    if (!round.byePlayers) return [];
+    
+    // For Swiss tournaments, always show all bye players as provided by backend
+    if (isSwissTournament) return round.byePlayers;
+    
+    // For Single Elimination tournaments:
+    // FIXED: Players can legitimately receive multiple byes across different rounds
+    // Only filter out duplicate bye entries within the same round, not across rounds
+    // The backend manages bye logic correctly, so trust its data
+    return round.byePlayers;
+  };
+
+  // Helper function to determine if a match should be displayed
+  const shouldShowMatch = (match: TournamentMatch): boolean => {
+    // For Swiss tournaments, always show all matches as provided by backend
+    if (isSwissTournament) return true;
+    
+    // For Single Elimination, don't show matches where both players are TBD
+    if (match.player1?.id === 'TBD' && match.player2?.id === 'TBD') {
+      return false;
+    }
+    return true;
+  };
   
-  // Add WebSocket integration for real-time updates
+  // Add WebSocket integration for real-time updates with optimizations
   useEffect(() => {
     if (!tournament || !tournament.isStarted) return;
 
@@ -792,74 +1006,86 @@ const TournamentBracket: React.FC<TournamentBracketProps> = ({
     // Join tournament room for real-time updates
     webSocketService.joinTournament(tournamentId);
 
-    const handleTournamentUpdate = (data: any) => {
-      console.log('🔔 Tournament Bracket WebSocket update received:', data);
+    // Event deduplication and debouncing
+    const processedEvents = new Set<string>();
+    let refreshTimeout: NodeJS.Timeout | null = null;
+
+    const debouncedRefresh = (eventType: string, delay: number = 300) => {
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+      }
       
-      // Handle various tournament update types
+      refreshTimeout = setTimeout(async () => {
+        try {
+          setIsUpdating(true);
+            const updatedTournament = await tournamentService.getTournament(tournamentId);
+          console.log(`✅ Tournament data refreshed from ${eventType} (debounced)`);
+            onTournamentUpdate?.(updatedTournament);
+          } catch (error) {
+            console.error('❌ Error refreshing tournament data:', error);
+          } finally {
+          setTimeout(() => setIsUpdating(false), 500);
+          refreshTimeout = null;
+        }
+      }, delay);
+    };
+
+    const handleTournamentUpdate = (data: any) => {
+      // Check if event is for our tournament
+      if (data.tournamentId && data.tournamentId !== tournamentId) {
+        return;
+      }
+
+      // Create unique event key for deduplication
+      const eventKey = `${data.type}-${data.tournamentId || tournamentId}-${data.matchId || 'no-match'}-${Date.now()}`;
+      
+      // Skip if this exact event was processed recently (within 1 second)
+      const recentEventKey = `${data.type}-${data.tournamentId || tournamentId}-${data.matchId || 'no-match'}`;
+      if (processedEvents.has(recentEventKey)) {
+        console.log('🔒 Duplicate event ignored:', data.type);
+        return;
+      }
+      
+      processedEvents.add(recentEventKey);
+      
+      // Clean up old events to prevent memory leaks
+      if (processedEvents.size > 20) {
+        const eventsArray = Array.from(processedEvents);
+        eventsArray.slice(0, 10).forEach(event => processedEvents.delete(event));
+      }
+
+      // Remove event from deduplication after 2 seconds to allow legitimate repeats
+      setTimeout(() => {
+        processedEvents.delete(recentEventKey);
+      }, 2000);
+
+      console.log('🔔 Tournament Bracket WebSocket update received:', data.type);
+      
+      // Handle different event types with appropriate debouncing
       if (data.type === 'match-result-reported' || data.type === 'match-result-submitted') {
-        // Show specific match update notification
         console.log('🏓 Match result submitted/reported:', data.matchId);
-        setIsUpdating(true);
-        
-        // Refresh tournament data
-        const refreshTournament = async () => {
-          try {
-            const updatedTournament = await tournamentService.getTournament(tournamentId);
-            console.log('✅ Tournament data refreshed from match result update');
-            onTournamentUpdate?.(updatedTournament);
-          } catch (error) {
-            console.error('❌ Error refreshing tournament data:', error);
-          } finally {
-            setTimeout(() => setIsUpdating(false), 1500);
-          }
-        };
-        refreshTournament();
-      } else if (data.type === 'round-completed') {
-        // Show round completion notification
-        console.log('🏆 Round completed, advancing to next round');
-        setIsUpdating(true);
-        
-        const refreshTournament = async () => {
-          try {
-            const updatedTournament = await tournamentService.getTournament(tournamentId);
-            console.log('✅ Tournament data refreshed from round completion');
-            onTournamentUpdate?.(updatedTournament);
-          } catch (error) {
-            console.error('❌ Error refreshing tournament data:', error);
-          } finally {
-            setTimeout(() => setIsUpdating(false), 2000);
-          }
-        };
-        refreshTournament();
-      } else if (data.type === 'tournament-finished') {
-        // Show tournament completion notification
-        console.log('🎉 Tournament finished!');
-        setIsUpdating(true);
-        
-        const refreshTournament = async () => {
-          try {
-            const updatedTournament = await tournamentService.getTournament(tournamentId);
-            console.log('✅ Tournament data refreshed from tournament completion');
-            onTournamentUpdate?.(updatedTournament);
-          } catch (error) {
-            console.error('❌ Error refreshing tournament data:', error);
-          } finally {
-            setTimeout(() => setIsUpdating(false), 3000);
-          }
-        };
-        refreshTournament();
+        debouncedRefresh('match-result-update', 200); // Quick refresh for match results
+      }
+      else if (data.type === 'round-started') {
+        console.log('🚀 Round started! Refreshing tournament data...');
+        debouncedRefresh('round-start', 500); // Slightly longer delay for round starts
+      }
+      else if (data.type === 'tournament-completed') {
+        console.log('🏆 Tournament completed! Refreshing data...');
+        debouncedRefresh('tournament-completion', 100); // Quick refresh for completion
       }
     };
 
-    // Subscribe to WebSocket tournament updates
     webSocketService.onTournamentUpdate(handleTournamentUpdate);
 
-    // Cleanup on unmount
     return () => {
-      webSocketService.leaveTournament(tournamentId);
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+      }
       webSocketService.removeTournamentListeners();
+      webSocketService.leaveTournament(tournamentId);
     };
-  }, [tournament?.id, tournament?._id, tournament?.isStarted, onTournamentUpdate]);
+  }, [tournament?.id, tournament?.isStarted, onTournamentUpdate]);
   
   if (!tournament.isStarted || tournament.rounds.length === 0) {
     return (
@@ -893,6 +1119,78 @@ const TournamentBracket: React.FC<TournamentBracketProps> = ({
     );
   }
 
+  // Add this helper function at the top level
+  const didUserSubmitResult = (match: TournamentMatch, userId: string): boolean => {
+    if (!match.resultReportedBy) return false;
+    return Array.isArray(match.resultReportedBy) 
+      ? match.resultReportedBy.includes(userId)
+      : match.resultReportedBy === userId;
+  };
+
+  // In the TournamentBracket component
+  const renderMatchStatus = (match: TournamentMatch) => {
+    const userSubmittedResult = didUserSubmitResult(match, user?.id);
+    const isUserInMatch = match.player1.id === user?.id || match.player2.id === user?.id;
+
+    if (match.status === 'completed') {
+      return (
+        <div className="text-green-600 dark:text-green-400">
+          Match Completed
+        </div>
+      );
+    }
+
+    if (match.status === 'submitted') {
+      if (userSubmittedResult) {
+        // User submitted - only show waiting message
+        return (
+          <div className="text-orange-500 dark:text-orange-400">
+            You submitted this result. Waiting for your opponent to confirm.
+          </div>
+        );
+      }
+
+      if (isUserInMatch && !userSubmittedResult) {
+        // User is in match but hasn't submitted - show confirm/contest buttons
+        return (
+          <div className="space-y-2">
+            <div className="text-orange-500 dark:text-orange-400">
+              Result Submitted - Awaiting Confirmation
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => handleConfirmResult(match)}
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+              >
+                ✓ Accept Result
+              </button>
+              <button
+                onClick={() => handleDisputeResult(match)}
+                className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700"
+              >
+                ⚠ Contest Result
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      // User not in match or other cases
+      return (
+        <div className="text-orange-500 dark:text-orange-400">
+          Result Submitted - Awaiting Confirmation
+        </div>
+      );
+    }
+
+    // Match is pending
+    return (
+      <div className="text-gray-500 dark:text-gray-400">
+        Match Pending
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-8">
       {/* Real-time update indicator */}
@@ -913,6 +1211,15 @@ const TournamentBracket: React.FC<TournamentBracketProps> = ({
         const currentActiveRound = tournament.rounds.find(r => !r.isComplete);
         const isCurrentActiveRound = currentActiveRound && round.roundNumber === currentActiveRound.roundNumber;
         
+        // Filter matches and bye players using our helper functions
+        const visibleMatches = round.matches.filter(shouldShowMatch);
+        const filteredByePlayers = getFilteredByePlayers(round, roundIndex);
+        
+        // Don't render empty rounds (no visible matches and no bye players)
+        if (visibleMatches.length === 0 && filteredByePlayers.length === 0) {
+          return null;
+        }
+        
         return (
           <div key={roundIndex} className="space-y-4">
             {!hideRoundHeaders && (
@@ -927,7 +1234,7 @@ const TournamentBracket: React.FC<TournamentBracketProps> = ({
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {/* Regular Matches */}
-              {round.matches.map((match: TournamentMatch, index: number) => (
+              {visibleMatches.map((match: TournamentMatch, index: number) => (
                 <MatchCard
                   key={match.matchId || `match-${roundIndex}-${index}`}
                   match={match}
@@ -945,8 +1252,8 @@ const TournamentBracket: React.FC<TournamentBracketProps> = ({
                 />
               ))}
               
-              {/* Bye Players */}
-              {round.byePlayers && round.byePlayers.map((player: any, index: number) => (
+              {/* Bye Players - Only show filtered ones */}
+              {filteredByePlayers.map((player: any, index: number) => (
                 <ByePlayerCard
                   key={`bye-${player.id}-${index}`}
                   player={player}

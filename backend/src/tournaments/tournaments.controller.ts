@@ -28,6 +28,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Event, EventDocument } from '../events/schemas/event.schema';
+import { AppWebSocketGateway } from '../websocket/websocket.gateway';
 import { Public } from '../auth/decorators/public.decorator';
 import { TournamentType } from '../models/tournament.model';
 
@@ -46,7 +47,8 @@ interface AuthenticatedRequest {
 export class TournamentsController {
   constructor(
     private readonly tournamentsService: TournamentsService,
-    @InjectModel(Event.name) private eventModel: Model<EventDocument>
+    @InjectModel(Event.name) private eventModel: Model<EventDocument>,
+    private readonly webSocketGateway: AppWebSocketGateway
   ) {}
 
   // Temporary test endpoint without auth guard
@@ -278,6 +280,7 @@ export class TournamentsController {
           loserId: match.loserId,
           isDraw: match.isDraw || false,
           result: match.result,
+          resultReportedBy: match.resultReportedBy || [],
           // Ensure player structure is simplified for frontend
           player1: {
             id: match.player1.id,
@@ -337,6 +340,33 @@ export class TournamentsController {
       );
       
       console.log('✅ Registration successful');
+      
+      // Broadcast real-time registration update
+      if (tournament) {
+        console.log('🔔 Broadcasting tournament registration update via WebSocket');
+        
+        // Broadcast to tournament room
+        this.webSocketGateway.broadcastTournamentToParticipants(tournamentId, {
+          type: 'player-registered',
+          tournamentId,
+          playerId: userId,
+          playerName: username,
+          tournament: tournament,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Also broadcast to event room if tournament has an eventId
+        if (tournament.eventId) {
+          this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), {
+            type: 'tournament-updated',
+            subType: 'player-registered',
+            tournamentId,
+            tournament: tournament,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+      
       return {
         success: true,
         message: 'Successfully registered for tournament',
@@ -360,6 +390,33 @@ export class TournamentsController {
         addGuestPlayerDto, 
         userId
       );
+      
+      // Broadcast real-time guest player addition update
+      if (tournament) {
+        console.log('🔔 Broadcasting guest player addition update via WebSocket');
+        
+        // Broadcast to tournament room
+        this.webSocketGateway.broadcastTournamentToParticipants(addGuestPlayerDto.tournamentId, {
+          type: 'player-registered',
+          tournamentId: addGuestPlayerDto.tournamentId,
+          playerId: 'guest',
+          playerName: addGuestPlayerDto.name,
+          tournament: tournament,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Also broadcast to event room if tournament has an eventId
+        if (tournament.eventId) {
+          this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), {
+            type: 'tournament-updated',
+            subType: 'player-registered',
+            tournamentId: addGuestPlayerDto.tournamentId,
+            tournament: tournament,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+      
       return {
         success: true,
         message: 'Guest player added successfully',
@@ -382,12 +439,89 @@ export class TournamentsController {
         removePlayerDto, 
         userId
       );
+      
+      // Broadcast real-time player removal update
+      if (tournament) {
+        console.log('🔔 Broadcasting player removal update via WebSocket');
+        
+        // Broadcast to tournament room
+        this.webSocketGateway.broadcastTournamentToParticipants(removePlayerDto.tournamentId, {
+          type: 'player-unregistered',
+          tournamentId: removePlayerDto.tournamentId,
+          playerId: removePlayerDto.playerId,
+          tournament: tournament,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Also broadcast to event room if tournament has an eventId
+        if (tournament.eventId) {
+          this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), {
+            type: 'tournament-updated',
+            subType: 'player-unregistered',
+            tournamentId: removePlayerDto.tournamentId,
+            tournament: tournament,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+      
       return {
         success: true,
         message: 'Player removed successfully',
         data: tournament,
       };
     } catch (error: any) {
+      throw error;
+    }
+  }
+
+  @Post(':id/unregister')
+  @HttpCode(HttpStatus.OK)
+  async unregisterPlayer(@Param('id') tournamentId: string, @Request() req: AuthenticatedRequest) {
+    try {
+      const userId = req.user.sub || req.user._id || req.user.id;
+      if (!userId) {
+        throw new BadRequestException('User ID not found in request');
+      }
+      
+      console.log('🔄 Player unregistering from tournament:', { tournamentId, userId });
+      
+      const tournament = await this.tournamentsService.unregisterPlayer(tournamentId, userId);
+      
+      console.log('✅ Player unregistered successfully');
+      
+      // Broadcast real-time unregistration update
+      if (tournament) {
+        console.log('🔔 Broadcasting tournament unregistration update via WebSocket');
+        
+        // Broadcast to tournament room
+        this.webSocketGateway.broadcastTournamentToParticipants(tournamentId, {
+          type: 'player-unregistered',
+          tournamentId,
+          playerId: userId,
+          tournament: tournament,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Also broadcast to event room if tournament has an eventId
+        if (tournament.eventId) {
+          this.webSocketGateway.broadcastTournamentUpdate(tournament.eventId.toString(), {
+            type: 'tournament-updated',
+            subType: 'player-unregistered',
+            tournamentId,
+            tournament: tournament,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+      
+      return {
+        success: true,
+        message: 'Successfully unregistered from tournament',
+        data: tournament,
+      };
+    } catch (error: any) {
+      console.error('❌ Error unregistering player:', error);
       throw error;
     }
   }
