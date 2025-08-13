@@ -39,16 +39,25 @@ export class AuthService {
       accessToken,
       refreshToken,
       user: {
-        id: user._id,
-        username: user.username,
-        fullName: user.fullName,
-        email: user.email,
+        _id: user._id?.toString(),
+        username: user.username || null,
+        fullName: user.fullName || '',
+        email: user.email || '',
+        firebaseUID: user.firebaseUID || null,
+        authMethod: user.authMethod || 'email',
         roles: user.roles || [],
-        phoneNumber: user.phoneNumber || '',
-        bio: user.bio || '',
+        phoneNumber: user.phoneNumber || null,
+        bio: user.bio || null,
         interests: user.interests || [],
         profileImage: user.profileImage || null,
-        profileCompleted: user.profileCompleted || false
+        profileCompleted: user.profileCompleted !== false,
+        friends: user.friends || [],
+        sentRequests: user.sentRequests || [],
+        receivedRequests: user.receivedRequests || [],
+        isEmailVerified: user.isEmailVerified === true,
+        isActive: user.isActive !== false,
+        createdAt: user.createdAt?.toISOString(),
+        updatedAt: user.updatedAt?.toISOString()
       }
     };
   }
@@ -124,6 +133,12 @@ export class AuthService {
 
     // Use the schema's comparePassword method
     try {
+      console.log('About to compare passwords:', {
+        inputPassword: password,
+        storedPasswordHash: user.password?.substring(0, 20) + '...',
+        passwordLength: user.password?.length
+      });
+      
       const isPasswordValid = await user.comparePassword(password);
       console.log('Password comparison details:', {
         inputPassword: password,
@@ -287,8 +302,11 @@ export class AuthService {
       }
       
       // Update the user's password - let the pre-save hook handle hashing
+      console.log('Setting new password:', newPassword);
+      console.log('Password before save:', user.password?.substring(0, 10) + '...');
       user.password = newPassword;
       await user.save();
+      console.log('Password after save (should be hashed):', user.password?.substring(0, 10) + '...');
       console.log('Password updated successfully');
 
       return this.generateTokens(user);
@@ -303,6 +321,42 @@ export class AuthService {
       username: username.toLowerCase() 
     });
     return !existingUser;
+  }
+
+  async generateUniqueUsername(fullName: string): Promise<string> {
+    // Clean the name: remove special characters, convert to lowercase
+    let cleaned = fullName
+      .toLowerCase()
+      .trim()
+      .replace(/[\s\-]+/g, '_')
+      .replace(/[^a-z0-9_]/g, '')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
+    if (cleaned.length === 0) {
+      cleaned = 'user';
+    }
+
+    // Start with base username + 0
+    let baseUsername = `${cleaned}0`;
+    let counter = 0;
+
+    // Keep checking until we find an available username
+    while (true) {
+      const username = counter === 0 ? baseUsername : `${cleaned}${counter}`;
+      const available = await this.checkUsernameAvailability(username);
+      
+      if (available) {
+        return username;
+      }
+      
+      counter++;
+      
+      // Safety check to prevent infinite loop
+      if (counter > 9999) {
+        throw new BadRequestException('Unable to generate unique username');
+      }
+    }
   }
 
   async refreshTokens(refreshToken: string) {
@@ -342,6 +396,10 @@ export class AuthService {
   // Firebase Authentication Methods
   async findUserByFirebaseUID(firebaseUID: string): Promise<UserDocument | null> {
     return this.userModel.findOne({ firebaseUID });
+  }
+
+  async findUserByPhoneNumber(phoneNumber: string): Promise<UserDocument | null> {
+    return this.userModel.findOne({ phoneNumber });
   }
 
   async createFirebaseUser(userData: {

@@ -223,6 +223,16 @@ export class AuthController {
         let user = await this.authService.findUserByFirebaseUID(firebaseAuthDto.authUser.uid);
         
         if (!user) {
+          // For phone users with null email, check if this might be an existing user
+          if (!firebaseAuthDto.authUser.email && firebaseAuthDto.authUser.phoneNumber) {
+            // Check if a user with this phone number already exists
+            const existingUser = await this.authService.findUserByPhoneNumber(firebaseAuthDto.authUser.phoneNumber);
+            if (existingUser) {
+              // User exists with this phone number - they should log in instead
+              throw new BadRequestException('An account with this phone number already exists. Please log in instead.');
+            }
+          }
+          
           // Create new user if doesn't exist
           user = await this.authService.createFirebaseUser({
             firebaseUID: firebaseAuthDto.authUser.uid,
@@ -309,6 +319,27 @@ export class AuthController {
         throw error;
       }
       throw new BadRequestException('Failed to set web password');
+    }
+  }
+
+  @Post('generate-username')
+  @HttpCode(HttpStatus.OK)
+  async generateUsername(@Body() body: { fullName: string }) {
+    try {
+      if (!body.fullName || body.fullName.trim().length === 0) {
+        throw new BadRequestException('Full name is required');
+      }
+
+      const username = await this.authService.generateUniqueUsername(body.fullName.trim());
+      return { 
+        username,
+        message: 'Username generated successfully'
+      };
+    } catch (error: any) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Error generating username');
     }
   }
 
@@ -414,6 +445,38 @@ export class AuthController {
         throw error;
       }
       throw new UnauthorizedException('Web login confirmation failed');
+    }
+  }
+
+  // Development only endpoint - remove in production
+  @Post('dev-reset-password')
+  @HttpCode(HttpStatus.OK)
+  async devResetPassword(@Body() body: { 
+    email: string; 
+    newPassword: string;
+  }) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new BadRequestException('This endpoint is not available in production');
+    }
+
+    try {
+      if (!body.email || !body.newPassword) {
+        throw new BadRequestException('Email and new password are required');
+      }
+
+      const result = await this.authService.resetPassword(body.email, body.newPassword);
+      
+      return {
+        message: 'Password reset successful for development',
+        user: {
+          id: result.user.id,
+          email: result.user.email,
+          username: result.user.username,
+        }
+      };
+    } catch (error: any) {
+      console.error('Dev password reset error:', error);
+      throw new BadRequestException('Failed to reset password: ' + error.message);
     }
   }
 } 

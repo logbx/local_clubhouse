@@ -64,27 +64,35 @@ export class SingleEliminationFixedStrategy extends TournamentStrategy {
     const { match, matchRound } = this.findMatch(tournament, matchId);
     
     if (match.status === 'completed') {
-      throw new BadRequestException('Match has already been completed');
+      console.log(`⚠️ Match ${matchId} already completed, skipping processing but continuing with tournament advancement check`);
+      // Don't throw error - just log and continue with advancement check
+      // This prevents race conditions from blocking tournament progression
+      return tournament;
     }
 
     // Update match result
     match.status = 'completed';
     match.winnerId = winnerId;
     match.loserId = loserId;
+    console.log(`✅ Match ${matchId} result processed: ${winnerId} defeats ${loserId}`);
 
     // Check round completion
     const allMatchesComplete = matchRound.matches.every(m => m.status === 'completed');
     
     if (allMatchesComplete && !matchRound.isComplete) {
       matchRound.isComplete = true;
-      console.log(`✅ Round ${matchRound.roundNumber} marked as complete`);
+      console.log(`✅ Round ${matchRound.roundNumber} marked as complete - all ${matchRound.matches.length} matches finished`);
     }
 
     return tournament;
   }
 
   checkAdvancement(tournament: ITournament, completedRoundNumber: number): TournamentAdvancementResult {
-    console.log(`🔄 Checking advancement for round ${completedRoundNumber}`);
+    console.log(`🔄 Checking advancement for round ${completedRoundNumber}`, {
+      totalRoundsCreated: tournament.rounds.length,
+      playerCount: tournament.players.length,
+      expectedRounds: Math.ceil(Math.log2(tournament.players.length))
+    });
 
     // VALIDATION: Check for bye violations before processing advancement
     this.validateTournamentByeState(tournament, `during advancement check for round ${completedRoundNumber}`);
@@ -92,11 +100,25 @@ export class SingleEliminationFixedStrategy extends TournamentStrategy {
     const completedRound = tournament.rounds.find(r => r.roundNumber === completedRoundNumber);
     
     if (!completedRound?.isComplete) {
+      console.log(`❌ Round ${completedRoundNumber} not found or not complete`);
       return { shouldAdvance: false };
     }
 
-    // Check if final round
-    if (completedRoundNumber === tournament.rounds.length) {
+    // ENHANCED: Check if this is truly the final round based on remaining players
+    const winnersFromCompletedRound = this.getWinners(completedRound);
+    const byesFromCompletedRound = completedRound.byePlayers || [];
+    const playersAdvancing = winnersFromCompletedRound.length + byesFromCompletedRound.length;
+    
+    console.log(`📊 Round ${completedRoundNumber} advancement analysis:`, {
+      winners: winnersFromCompletedRound.length,
+      byes: byesFromCompletedRound.length,
+      totalAdvancing: playersAdvancing,
+      isActualFinalRound: playersAdvancing <= 1
+    });
+
+    // Check if this is the actual final round (1 or fewer players advancing)
+    if (playersAdvancing <= 1) {
+      console.log(`🏁 Tournament complete - only ${playersAdvancing} player(s) remaining`);
       const winner = this.getWinner(tournament);
       return {
         shouldAdvance: false,
@@ -108,11 +130,15 @@ export class SingleEliminationFixedStrategy extends TournamentStrategy {
     // Get next round (should already exist from initial structure)
     const nextRound = tournament.rounds.find(r => r.roundNumber === completedRoundNumber + 1);
     if (!nextRound) {
-      console.error('❌ Next round not found in tournament structure');
+      console.error(`❌ Next round ${completedRoundNumber + 1} not found in tournament structure`, {
+        availableRounds: tournament.rounds.map(r => r.roundNumber),
+        totalRoundsCreated: tournament.rounds.length,
+        expectedTotalRounds: Math.ceil(Math.log2(tournament.players.length))
+      });
       return { shouldAdvance: false };
     }
 
-    console.log(`🔄 Populating round ${nextRound.roundNumber} with winners`);
+    console.log(`🔄 Populating round ${nextRound.roundNumber} with ${playersAdvancing} advancing players`);
     const success = this.populateNextRound(tournament, completedRoundNumber, nextRound);
     
     return {

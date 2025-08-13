@@ -292,6 +292,21 @@ export class SwissTournamentStrategy extends TournamentStrategy {
       numRounds: tournament.numRounds
     });
 
+    // DIAGNOSTIC: Log detailed tournament state for corruption tracking
+    console.log('🔍 DIAGNOSTIC - Tournament state on advancement check:', {
+      tournamentId: tournament._id || tournament.id,
+      name: tournament.name,
+      type: tournament.type,
+      numRounds: tournament.numRounds,
+      currentRound: tournament.currentRound,
+      roundsLength: tournament.rounds.length,
+      isStarted: tournament.isStarted,
+      isFinished: tournament.isFinished,
+      playersCount: tournament.players.length,
+      timestamp: new Date().toISOString(),
+      stackTrace: new Error('Stack trace for debugging').stack?.split('\n').slice(0, 5).join('\n')
+    });
+
     const completedRound = tournament.rounds.find(r => r.roundNumber === completedRoundNumber);
     console.log('🔍 Completed round found:', {
       found: !!completedRound,
@@ -303,15 +318,43 @@ export class SwissTournamentStrategy extends TournamentStrategy {
       return { shouldAdvance: false };
     }
 
-    // Check if tournament is complete
+    // CRITICAL FIX: Handle corrupted numRounds field
+    // Swiss tournaments should have at least 3-4 rounds minimum for proper competition
+    // If numRounds is 1 or less, it's likely corrupted data
+    let effectiveNumRounds = tournament.numRounds || 0;
+    if (effectiveNumRounds < 2) {
+      console.error('🚨 CRITICAL: Swiss tournament numRounds is corrupted!', {
+        tournamentId: tournament._id || tournament.id,
+        corruptedNumRounds: tournament.numRounds,
+        playersCount: tournament.players.length
+      });
+      
+      // Calculate appropriate number of rounds based on player count
+      // Swiss tournament typically uses log2(players) rounds, minimum 3-4 rounds
+      const playerCount = tournament.players.length;
+      effectiveNumRounds = Math.max(4, Math.ceil(Math.log2(playerCount)));
+      
+      console.log('🔧 Auto-correcting numRounds:', {
+        original: tournament.numRounds,
+        corrected: effectiveNumRounds,
+        playerCount,
+        reason: 'Data corruption recovery'
+      });
+      
+      // Update the tournament object with the corrected value
+      tournament.numRounds = effectiveNumRounds;
+    }
+
+    // Check if tournament is complete using the effective numRounds
     console.log('🔍 Checking tournament completion:', {
       completedRoundNumber,
-      numRounds: tournament.numRounds,
+      originalNumRounds: tournament.numRounds,
+      effectiveNumRounds,
       totalRounds: tournament.rounds.length,
-      comparison: `${completedRoundNumber} >= ${tournament.numRounds}`
+      comparison: `${completedRoundNumber} >= ${effectiveNumRounds}`
     });
     
-    if (completedRoundNumber >= (tournament.numRounds || 0)) {
+    if (completedRoundNumber >= effectiveNumRounds) {
       console.log('🏁 Tournament complete, calculating final standings');
       // Calculate Buchholz scores for final standings
       EnhancedSwissPairingService.updateBuchholzScores(tournament.players);
@@ -463,16 +506,25 @@ export class SwissTournamentStrategy extends TournamentStrategy {
       return false;
     }
 
+    // Use same corruption handling as checkAdvancement
+    let effectiveNumRounds = tournament.numRounds || 0;
+    if (effectiveNumRounds < 2) {
+      // Calculate appropriate number of rounds based on player count for consistency
+      const playerCount = tournament.players.length;
+      effectiveNumRounds = Math.max(4, Math.ceil(Math.log2(playerCount)));
+    }
+
     console.log('🔍 Checking if Swiss tournament is complete:', {
       isStarted: tournament.isStarted,
       roundsCount: tournament.rounds.length,
       numRounds: tournament.numRounds,
+      effectiveNumRounds,
       lastRoundComplete: tournament.rounds.length > 0 ? tournament.rounds[tournament.rounds.length - 1].isComplete : false,
-      condition1: tournament.rounds.length >= (tournament.numRounds || 0),
+      condition1: tournament.rounds.length >= effectiveNumRounds,
       condition2: tournament.rounds.length > 0 && tournament.rounds[tournament.rounds.length - 1].isComplete === true
     });
 
-    return tournament.rounds.length >= (tournament.numRounds || 0) &&
+    return tournament.rounds.length >= effectiveNumRounds &&
            tournament.rounds[tournament.rounds.length - 1].isComplete === true;
   }
 

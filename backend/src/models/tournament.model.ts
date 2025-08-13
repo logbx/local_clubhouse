@@ -138,7 +138,23 @@ export const TournamentSchema = new Schema<ITournament>({
   winnerId: { type: String },
   // Swiss tournament specific fields
   type: { type: String, enum: Object.values(TournamentType), default: TournamentType.SINGLE_ELIMINATION },
-  numRounds: { type: Number, min: 1, max: 10 },
+  numRounds: { 
+    type: Number, 
+    min: 1, 
+    max: 10,
+    // Custom validation for Swiss tournaments
+    validate: {
+      validator: function(this: ITournament, value: number) {
+        // If this is a Swiss tournament, numRounds is required and must be >= 2
+        if (this.type === TournamentType.SWISS) {
+          return value && value >= 2 && value <= 10;
+        }
+        // For Single Elimination, numRounds is optional
+        return true;
+      },
+      message: 'Swiss tournaments must have numRounds between 2 and 10'
+    }
+  },
   currentRound: { type: Number, default: 0 }
 }, {
   timestamps: true,
@@ -149,6 +165,68 @@ export const TournamentSchema = new Schema<ITournament>({
       return ret;
     }
   }
+});
+
+// Add pre-save middleware to validate Swiss tournament requirements
+TournamentSchema.pre('save', function(next) {
+  const tournament = this as ITournament;
+  
+  // Validate Swiss tournament numRounds
+  if (tournament.type === TournamentType.SWISS) {
+    if (!tournament.numRounds || tournament.numRounds < 2) {
+      console.error('🚨 VALIDATION ERROR: Swiss tournament save blocked - invalid numRounds:', {
+        tournamentId: tournament._id,
+        name: tournament.name,
+        type: tournament.type,
+        numRounds: tournament.numRounds
+      });
+      return next(new Error(`Swiss tournament "${tournament.name}" must have numRounds >= 2, got: ${tournament.numRounds}`));
+    }
+    
+    if (tournament.numRounds > 10) {
+      console.error('🚨 VALIDATION ERROR: Swiss tournament save blocked - numRounds too high:', {
+        tournamentId: tournament._id,
+        name: tournament.name,
+        numRounds: tournament.numRounds
+      });
+      return next(new Error(`Swiss tournament "${tournament.name}" cannot have more than 10 rounds, got: ${tournament.numRounds}`));
+    }
+  }
+  
+  // Additional validation: ensure currentRound is not greater than numRounds
+  if (tournament.numRounds && tournament.currentRound && tournament.currentRound > tournament.numRounds) {
+    console.warn('⚠️  VALIDATION WARNING: currentRound > numRounds, adjusting:', {
+      tournamentId: tournament._id,
+      name: tournament.name,
+      currentRound: tournament.currentRound,
+      numRounds: tournament.numRounds
+    });
+    tournament.currentRound = tournament.numRounds;
+  }
+  
+  next();
+});
+
+// Add pre-update middleware to validate updates
+TournamentSchema.pre(['updateOne', 'findOneAndUpdate', 'updateMany'], function(next) {
+  const update = this.getUpdate() as any;
+  
+  // If numRounds is being updated, validate it
+  if (update.$set && 'numRounds' in update.$set) {
+    const numRounds = update.$set.numRounds;
+    
+    // We can't easily access the tournament type in update middleware,
+    // so we'll add a query filter to only allow valid numRounds
+    if (numRounds !== undefined && (numRounds < 1 || numRounds > 10)) {
+      console.error('🚨 UPDATE VALIDATION ERROR: Invalid numRounds in update:', {
+        numRounds,
+        updateQuery: this.getQuery()
+      });
+      return next(new Error(`Invalid numRounds: ${numRounds}. Must be between 1 and 10.`));
+    }
+  }
+  
+  next();
 });
 
 export const Tournament = model<ITournament>('Tournament', TournamentSchema); 

@@ -16,11 +16,11 @@ export class CreateTournamentDto {
   @IsEnum(TournamentType)
   type: TournamentType;
 
-  @IsOptional()
+  @ValidateIf(o => o.type === TournamentType.SWISS)
   @IsNumber()
-  @Min(1)
-  @Max(10)
-  numRounds?: number; // Optional for Single Elimination, required for Swiss (validated in controller)
+  @Min(2, { message: 'Swiss tournaments must have at least 2 rounds' })
+  @Max(10, { message: 'Swiss tournaments cannot have more than 10 rounds' })
+  numRounds?: number; // Required for Swiss tournaments, optional for Single Elimination
 }
 
 export class RegisterPlayerDto {

@@ -799,17 +799,37 @@ export class BaseTournamentService {
       return { nextRoundStarted: false, tournamentCompleted: false };
     }
     
-    // For SET tournaments: Find the FIRST incomplete round that just became complete
-    // This prevents multiple simultaneous advancements and ensures proper sequential progression
-    const firstIncompleteRound = tournament.rounds.find(round => !round.isComplete);
+    // FIXED LOGIC: Handle Swiss vs SET tournaments differently
+    let roundToProcess = null;
     
-    if (firstIncompleteRound && this.isRoundComplete(firstIncompleteRound)) {
-      // Mark this round as complete
-      console.log(`🔧 Marking round ${firstIncompleteRound.roundNumber} as complete`);
-      firstIncompleteRound.isComplete = true;
+    if (tournament.type === TournamentType.SWISS) {
+      // For Swiss tournaments: Find the LAST completed round (most recent)
+      // Swiss tournaments generate rounds dynamically as previous rounds complete
+      const completedRounds = tournament.rounds.filter(round => round.isComplete);
+      if (completedRounds.length > 0) {
+        roundToProcess = completedRounds.sort((a, b) => b.roundNumber - a.roundNumber)[0];
+        console.log('🔄 Swiss tournament: Processing advancement from completed round:', roundToProcess.roundNumber);
+      }
+    } else {
+      // For SET tournaments: Find the FIRST incomplete round that just became complete
+      // This prevents multiple simultaneous advancements and ensures proper sequential progression
+      const firstIncompleteRound = tournament.rounds.find(round => !round.isComplete);
+      if (firstIncompleteRound && this.isRoundComplete(firstIncompleteRound)) {
+        roundToProcess = firstIncompleteRound;
+        console.log('🔄 SET tournament: Processing newly completed round:', roundToProcess.roundNumber);
+      }
+    }
+    
+    if (roundToProcess) {
+      // For SET tournaments, mark the round as complete here
+      if (tournament.type !== TournamentType.SWISS && !roundToProcess.isComplete) {
+        // Mark this round as complete
+        console.log(`🔧 Marking round ${roundToProcess.roundNumber} as complete`);
+        roundToProcess.isComplete = true;
+      }
       
-      const round = firstIncompleteRound;
-      console.log(`🔍 Processing advancement for newly completed round:`, {
+      const round = roundToProcess;
+      console.log(`🔍 Processing advancement for completed round:`, {
         roundNumber: round.roundNumber,
         totalMatches: round.matches.length,
         matchStatuses: round.matches.map(m => ({ id: m.matchId, status: m.status }))

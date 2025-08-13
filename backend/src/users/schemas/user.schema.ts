@@ -22,13 +22,17 @@ export class User {
   fullName: string;
 
   @Prop({
-    required: [true, 'Email is required'],
+    required: function() {
+      // Email only required for non-phone auth users
+      return this.authMethod !== 'phone';
+    },
     unique: true,
+    sparse: true, // Allow multiple null values for phone users
     trim: true,
     lowercase: true,
     match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email']
   })
-  email: string;
+  email?: string;
 
   @Prop({
     required: function() {

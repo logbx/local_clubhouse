@@ -22,6 +22,7 @@ async function bootstrap() {
   const allowedOrigins = process.env.NODE_ENV === 'development' 
     ? [
         corsOrigin,
+        'http://localhost:8080',   // Flutter web
         'http://localhost:19006', // Expo web
         'http://localhost:8081',   // Metro bundler
         'http://10.0.2.2:3001',    // Android emulator
