@@ -44,7 +44,7 @@ export class EventsController {
 
   @Get()
   async findAll(@Request() req: AuthenticatedRequest) {
-    const userId = req.user.sub;
+    const userId = req.user.sub || req.user._id || req.user.id;
     
     const events = await this.eventModel
       .find()
@@ -353,7 +353,7 @@ export class EventsController {
 
   @Post()
   async create(@Request() req: AuthenticatedRequest, @Body() createEventDto: any) {
-    const userId = req.user.sub;
+    const userId = req.user.sub || req.user._id || req.user.id;
     if (!userId) {
       throw new UnauthorizedException('User ID not found in token');
     }
@@ -520,8 +520,46 @@ export class EventsController {
   }
 
   @Put(':id')
-  async update(@Param('id') id: string, @Body() updateEventDto: any) {
+  async update(@Param('id') id: string, @Body() updateEventDto: any, @Request() req: AuthenticatedRequest) {
     try {
+    // Extract user ID with fallback logic (same as tournaments)
+    const userId = req.user.sub || req.user._id || req.user.id;
+    console.log('🔍 Event update permission check:', { 
+      eventId: id, 
+      userId, 
+      userSub: req.user.sub,
+      userFullData: req.user 
+    });
+    
+    if (!userId) {
+      console.error('❌ No user ID found in request');
+      throw new UnauthorizedException('User ID not found in token');
+    }
+
+    // Check if event exists and user has permission to edit it
+    const existingEvent = await this.eventModel.findById(id);
+    if (!existingEvent) {
+      throw new NotFoundException('Event not found');
+    }
+
+    // Check if user is the event creator
+    const eventCreatorId = existingEvent.creator._id ? 
+      existingEvent.creator._id.toString() : 
+      existingEvent.creator.toString();
+    
+    console.log('🔍 Event creator permission check:', {
+      eventCreatorId,
+      requestingUserId: userId,
+      isMatch: eventCreatorId === userId
+    });
+
+    if (eventCreatorId !== userId) {
+      console.error('❌ Permission denied: User is not the event creator');
+      throw new ForbiddenException('Only the event creator can edit this event');
+    }
+
+    console.log('✅ Permission granted: User is the event creator');
+
     // Ensure tags are properly formatted before updating
     if (updateEventDto.tags !== undefined) {
       if (typeof updateEventDto.tags === 'string') {
@@ -672,7 +710,7 @@ export class EventsController {
 
   @Delete(':id')
   async remove(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
-    const userId = req.user.sub;
+    const userId = req.user.sub || req.user._id || req.user.id;
     
     // First, check if the event exists and user has permission
     const event = await this.eventModel.findById(id).lean().exec();
@@ -728,7 +766,7 @@ export class EventsController {
 
   @Post(':id/publish')
   async publishEvent(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
-    const userId = req.user.sub;
+    const userId = req.user.sub || req.user._id || req.user.id;
     if (!userId) {
       throw new UnauthorizedException('User ID not found in token');
     }
@@ -749,7 +787,7 @@ export class EventsController {
 
   @Post(':id/rsvp')
   async rsvpEvent(@Param('id') id: string, @Body() _rsvpData: { status: string }, @Request() req: AuthenticatedRequest) {
-    const userId = req.user.sub;
+    const userId = req.user.sub || req.user._id || req.user.id;
     
     const event = await this.eventModel.findById(id);
     if (!event) {
@@ -785,7 +823,7 @@ export class EventsController {
     @Param('sponsorId') sponsorId: string,
     @Request() req: AuthenticatedRequest
   ) {
-    const userId = req.user.sub;
+    const userId = req.user.sub || req.user._id || req.user.id;
     
     console.log('🔍 Sponsor approval request:', {
       eventId,
@@ -869,7 +907,7 @@ export class EventsController {
     @Param('sponsorId') sponsorId: string,
     @Request() req: AuthenticatedRequest
   ) {
-    const userId = req.user.sub;
+    const userId = req.user.sub || req.user._id || req.user.id;
     
     const event = await this.eventModel.findById(eventId);
     if (!event) {
