@@ -108,7 +108,7 @@ export class TournamentsController {
   ) {
     console.log('🏆 Tournament creation request received:', {
       body: createTournamentDto,
-      userId: req.user.sub,
+      userId: req.user.sub || req.user._id || req.user.id,
       type: createTournamentDto.type,
       numRounds: createTournamentDto.numRounds
     });
@@ -126,8 +126,17 @@ export class TournamentsController {
     }
 
     try {
+      // Extract user ID with fallback logic (same as registration endpoint)
+      const userId = req.user.sub || req.user._id || req.user.id;
+      console.log('🔍 Extracted organizer ID:', { userId, userSub: req.user.sub, userFullData: req.user });
+      
+      if (!userId) {
+        console.error('❌ No user ID found in request');
+        throw new BadRequestException('User ID not found in request');
+      }
+      
       console.log('🚀 Calling tournamentsService.createTournament...');
-      const tournament = await this.tournamentsService.createTournament(createTournamentDto, req.user.sub);
+      const tournament = await this.tournamentsService.createTournament(createTournamentDto, userId);
       console.log('✅ Tournament created successfully:', { id: tournament.id, name: tournament.name });
       return { data: tournament };
     } catch (error: any) {
@@ -145,7 +154,7 @@ export class TournamentsController {
   @Get('debug/available-events')
   async getAvailableEvents(@Request() req: AuthenticatedRequest) {
     try {
-      const userId = req.user.sub || req.user.id;
+      const userId = req.user.sub || req.user._id || req.user.id;
       if (!userId) {
         throw new UnauthorizedException('User ID not found in token');
       }
@@ -533,8 +542,10 @@ export class TournamentsController {
     @Request() req: AuthenticatedRequest
   ) {
     try {
-      console.log('🚀 Starting tournament:', id, 'by user:', req.user.sub);
-      const result = await this.tournamentsService.startTournament(id, req.user.sub);
+      // Extract user ID with fallback logic
+      const userId = req.user.sub || req.user._id || req.user.id;
+      console.log('🚀 Starting tournament:', id, 'by user:', userId);
+      const result = await this.tournamentsService.startTournament(id, userId);
       console.log('✅ Tournament started successfully');
       return result;
     } catch (error: any) {
@@ -552,7 +563,7 @@ export class TournamentsController {
     return this.tournamentsService.reportResult({
       ...reportResultDto,
       tournamentId: id
-    }, req.user.sub);
+    }, req.user.sub || req.user._id || req.user.id);
   }
 
   @Get(':id/standings')
@@ -568,7 +579,7 @@ export class TournamentsController {
       body: confirmResultDto,
       hasUser: !!req.user,
       userInfo: req.user ? {
-        sub: req.user.sub,
+        sub: req.user.sub || req.user._id || req.user.id,
         id: req.user.id,
         _id: req.user._id
       } : null
@@ -614,7 +625,7 @@ export class TournamentsController {
       rawBody: JSON.stringify(overrideResultDto),
       hasUser: !!req.user,
       userInfo: req.user ? {
-        sub: req.user.sub,
+        sub: req.user.sub || req.user._id || req.user.id,
         id: req.user.id,
         _id: req.user._id
       } : null
@@ -673,7 +684,7 @@ export class TournamentsController {
       bodyStringified: JSON.stringify(submitResultDto),
       hasUser: !!req.user,
       userInfo: req.user ? {
-        sub: req.user.sub,
+        sub: req.user.sub || req.user._id || req.user.id,
         id: req.user.id,
         _id: req.user._id
       } : null
@@ -729,7 +740,7 @@ export class TournamentsController {
       body: disputeResultDto,
       hasUser: !!req.user,
       userInfo: req.user ? {
-        sub: req.user.sub,
+        sub: req.user.sub || req.user._id || req.user.id,
         id: req.user.id,
         _id: req.user._id
       } : null
@@ -998,8 +1009,10 @@ export class TournamentsController {
     @Request() req: AuthenticatedRequest
   ) {
     try {
-      console.log('🚀 Starting next round for tournament:', id, 'by user:', req.user.sub);
-      const result = await this.tournamentsService.startNextRound(id, req.user.sub);
+      // Extract user ID with fallback logic
+      const userId = req.user.sub || req.user._id || req.user.id;
+      console.log('🚀 Starting next round for tournament:', id, 'by user:', userId);
+      const result = await this.tournamentsService.startNextRound(id, userId);
       console.log('✅ Next round started successfully');
       return result;
     } catch (error: any) {
