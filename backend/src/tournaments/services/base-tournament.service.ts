@@ -36,8 +36,17 @@ export class BaseTournamentService {
       throw new NotFoundException(`Event not found. Event ID ${options.eventId} does not exist in the database.`);
     }
 
-    if (event.creator.toString() !== options.organizerId) {
-      throw new ForbiddenException('Only the event creator can create tournaments');
+    // Debug logging for creator comparison
+    const eventCreatorId = event.creator._id ? event.creator._id.toString() : event.creator.toString();
+    console.log('🔍 Tournament creation permission check:', {
+      eventId: options.eventId,
+      eventCreatorId,
+      requestingUserId: options.organizerId,
+      isMatch: eventCreatorId === options.organizerId
+    });
+
+    if (eventCreatorId !== options.organizerId) {
+      throw new ForbiddenException(`Only the event creator can create tournaments. Event creator: ${eventCreatorId}, Requesting user: ${options.organizerId}`);
     }
 
     if ((event as any).status === 'DRAFT') {
