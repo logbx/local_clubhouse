@@ -193,8 +193,19 @@ TournamentSchema.pre('save', function(next) {
     }
   }
   
-  // Additional validation: ensure currentRound is not greater than numRounds
-  if (tournament.numRounds && tournament.currentRound && tournament.currentRound > tournament.numRounds) {
+  // For Single Elimination tournaments, numRounds should be undefined or null
+  if (tournament.type === TournamentType.SINGLE_ELIMINATION && tournament.numRounds !== undefined && tournament.numRounds !== null) {
+    console.warn('⚠️  VALIDATION WARNING: Single Elimination tournament should not have numRounds, setting to undefined:', {
+      tournamentId: tournament._id,
+      name: tournament.name,
+      type: tournament.type,
+      numRounds: tournament.numRounds
+    });
+    tournament.numRounds = undefined;
+  }
+  
+  // Additional validation: ensure currentRound is not greater than numRounds (only for Swiss)
+  if (tournament.type === TournamentType.SWISS && tournament.numRounds && tournament.currentRound && tournament.currentRound > tournament.numRounds) {
     console.warn('⚠️  VALIDATION WARNING: currentRound > numRounds, adjusting:', {
       tournamentId: tournament._id,
       name: tournament.name,

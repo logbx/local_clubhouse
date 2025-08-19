@@ -120,8 +120,8 @@ export class TournamentsController {
         console.error('❌ Swiss tournament validation failed: numRounds is missing');
         throw new BadRequestException('Number of rounds is required for Swiss tournaments');
       }
-      if (createTournamentDto.numRounds < 1 || createTournamentDto.numRounds > 10) {
-        throw new BadRequestException('Number of rounds must be between 1 and 10');
+      if (createTournamentDto.numRounds < 2 || createTournamentDto.numRounds > 10) {
+        throw new BadRequestException('Swiss tournaments must have between 2 and 10 rounds');
       }
     }
 

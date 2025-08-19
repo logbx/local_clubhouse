@@ -35,8 +35,8 @@ export class TournamentsService {
     }
 
     if (createTournamentDto.type === TournamentType.SWISS && 
-        (createTournamentDto.numRounds! < 1 || createTournamentDto.numRounds! > 10)) {
-      throw new BadRequestException('Number of rounds must be between 1 and 10');
+        (createTournamentDto.numRounds! < 2 || createTournamentDto.numRounds! > 10)) {
+      throw new BadRequestException('Swiss tournaments must have between 2 and 10 rounds');
     }
 
     const tournament = new this.tournamentModel({
