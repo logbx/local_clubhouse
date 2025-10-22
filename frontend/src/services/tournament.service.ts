@@ -150,6 +150,13 @@ export class TournamentService {
       return response.data.data || [];
     } catch (error) {
       console.error('Error fetching tournaments by event:', error);
+      // Re-throw authentication errors so they can be handled properly by the frontend
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as AxiosError;
+        if (axiosError.response?.status === 401 || axiosError.response?.status === 403) {
+          throw { status: axiosError.response.status, message: 'Authentication required' };
+        }
+      }
       return [];
     }
   }

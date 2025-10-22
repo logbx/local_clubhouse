@@ -4,9 +4,11 @@ import { PublicEvent, EventVisibility, EventStatus, RecurrenceType } from '../ty
 import { useAuth } from '../context/AuthContext';
 import { publicApi, eventApi } from '../services/api';
 import { format, isValid } from 'date-fns';
-import { CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, ExclamationTriangleIcon, UserIcon, BuildingOfficeIcon, CurrencyDollarIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, MapPinIcon, TagIcon, UserGroupIcon, ExclamationTriangleIcon, UserIcon, BuildingOfficeIcon, CurrencyDollarIcon, CheckIcon, XMarkIcon, TrophyIcon } from '@heroicons/react/24/outline';
 import EventChat from '../components/EventChat';
 import SubGroupList from '../components/SubGroupList';
+import { tournamentService } from '../services/tournament.service';
+import { EventFeatures } from '../types/event';
 import { toast } from 'react-toastify';
 
 const PublicEventPage: React.FC = () => {
@@ -23,6 +25,8 @@ const PublicEventPage: React.FC = () => {
   const [isRsvpLoading, setIsRsvpLoading] = useState(false);
   const [userRsvpStatus, setUserRsvpStatus] = useState<boolean>(false);
   const [processing, setProcessing] = useState<string | null>(null);
+  const [tournaments, setTournaments] = useState<any[]>([]);
+  const [tournamentLoading, setTournamentLoading] = useState(false);
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -55,6 +59,29 @@ const PublicEventPage: React.FC = () => {
     };
 
     fetchEvent();
+  }, [eventId, currentUser]);
+
+  // Fetch tournaments for this event
+  useEffect(() => {
+    const fetchTournaments = async () => {
+      if (!eventId || !currentUser) return;
+      
+      try {
+        setTournamentLoading(true);
+        const tournamentData = await tournamentService.getTournamentsByEvent(eventId);
+        setTournaments(tournamentData || []);
+      } catch (err) {
+        console.error('Error fetching tournaments:', err);
+        // Ignore 401/403 errors as they're expected for non-creators
+        if (err && typeof err === 'object' && 'status' in err && (err.status === 401 || err.status === 403)) {
+          setTournaments([]);
+        }
+      } finally {
+        setTournamentLoading(false);
+      }
+    };
+
+    fetchTournaments();
   }, [eventId, currentUser]);
 
   const handleRsvp = async () => {
@@ -181,6 +208,25 @@ const PublicEventPage: React.FC = () => {
   if (!event) return <div className="flex justify-center items-center min-h-screen">Event not found</div>;
 
   const isOwnEvent = currentUser?.id === event.creatorId;
+  
+  // Tournament helper functions
+  const hasTournaments = tournaments.length > 0;
+  const tournamentType = event?.features?.includes(EventFeatures.SWISS_TOURNAMENT) ? 'swiss' : 'single-elimination';
+  
+  const handleCreateTournament = () => {
+    if (!event || !currentUser || !isOwnEvent) return;
+    
+    const creatorId = event.creator?.id || event.creatorId || currentUser.id;
+    const feature = event.features?.includes(EventFeatures.SWISS_TOURNAMENT) 
+      ? EventFeatures.SWISS_TOURNAMENT 
+      : EventFeatures.SINGLE_ELIMINATION_TOURNAMENT;
+    
+    navigate(`/tournament/${tournamentType}?eventId=${event.id}&eventTitle=${encodeURIComponent(event.title)}&creatorId=${creatorId}&feature=${feature}`);
+  };
+
+  const handleViewTournament = (tournament: any) => {
+    navigate(`/tournament/${tournament.id}`);
+  };
   
   // Helper function to safely check if event is past
   const getIsPastEvent = () => {
@@ -605,6 +651,53 @@ const PublicEventPage: React.FC = () => {
             <div className="bg-yellow-50/80 dark:bg-yellow-900/20 border border-yellow-200/50 dark:border-yellow-800/50 rounded-lg p-4">
               <div className="flex items-center justify-center">
                 <span className="text-yellow-700 dark:text-yellow-300">This event has ended. You can still view details and previous messages.</span>
+              </div>
+            </div>
+          )}
+
+          {/* Tournament Section */}
+          {currentUser && !isPastEvent && (
+            <div className="mt-4 bg-purple-50/80 dark:bg-purple-900/20 border border-purple-200/50 dark:border-purple-800/50 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <TrophyIcon className="h-5 w-5 text-purple-600 dark:text-purple-400 mr-2" />
+                  <div>
+                    <span className="text-purple-800 dark:text-purple-300 font-medium">Tournament</span>
+                    {tournamentLoading && (
+                      <span className="text-sm text-purple-600 dark:text-purple-400 ml-2">Loading...</span>
+                    )}
+                  </div>
+                </div>
+                
+                {!tournamentLoading && (
+                  <div className="flex gap-2">
+                    {hasTournaments ? (
+                      tournaments.map((tournament, index) => (
+                        <button
+                          key={tournament.id || index}
+                          onClick={() => handleViewTournament(tournament)}
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
+                        >
+                          View Tournament
+                        </button>
+                      ))
+                    ) : isOwnEvent ? (
+                      <button
+                        onClick={handleCreateTournament}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
+                      >
+                        Create Tournament
+                      </button>
+                    ) : (
+                      <button
+                        disabled
+                        className="px-4 py-2 bg-gray-400 text-white rounded-lg font-medium cursor-not-allowed"
+                      >
+                        No Tournament
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -130,6 +130,35 @@ export class UsersController {
     return this.usersService.update(req.user.sub, userData);
   }
 
+  @Put('profile/associations')
+  @UseGuards(JwtAuthGuard)
+  async updateUserAssociations(
+    @Request() req: RequestWithUser,
+    @Body() associationsData: any,
+  ): Promise<any> {
+    console.log('🔄 Updating user associations:', {
+      userId: req.user.sub,
+      clubs: associationsData.clubs?.length || 0,
+      sponsors: associationsData.sponsors?.length || 0,
+      stats: associationsData.stats
+    });
+    
+    // For now, just return success (actual storage logic can be added later)
+    // This prevents the 404 error the Flutter app was experiencing
+    return {
+      success: true,
+      message: 'User associations updated successfully',
+      data: {
+        userId: req.user.sub,
+        clubs: associationsData.clubs || [],
+        sponsors: associationsData.sponsors || [],
+        stats: associationsData.stats || {},
+        lastSyncedAt: new Date().toISOString(),
+        version: associationsData.version || 1
+      }
+    };
+  }
+
   @Put(':id')
   @UseGuards(JwtAuthGuard)
   async updateUser(

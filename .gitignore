@@ -1,26 +1,69 @@
-
-# Node
-node_modules
+# Dependencies
+node_modules/
 npm-debug.log
 yarn-error.log
+package-lock.json
 
-# Builds
-dist
-build
+# Build outputs
+dist/
+build/
+.next/
+out/
 
-# Env
+# Environment variables
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 .env.*
 
-# Mac / system
-.DS_Store
-
 # Logs
-logs
+logs/
 *.log
+backend.log
+server.log
+
+# Testing
+coverage/
+.nyc_output/
 
 # IDE
-.vscode
-.idea
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
+
+# Test scripts (keep in repo but can exclude specific ones if needed)
+# Uncomment to exclude test scripts:
+# test-*.js
+# *-test.js
+
+# Mobile
+mobile-app/.expo/
+mobile-app/ios/Pods/
+mobile-app/android/app/build/
+
+# Backup and reference files
+*-backup/
+*-reference/
+claude-reference-backup/
+
+# Misc
 __misc__
+.cursor/
+*.bak

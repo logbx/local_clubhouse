@@ -29,11 +29,12 @@ cd /Applications/Projects/saas-app-devops # DevOps & testing
 ### 📚 Documentation
 
 - **[🚀 Quick Start Guide](./QUICK_START.md)** - Get up and running in 5 minutes
-- **[🌐 Full-Stack Development](./README-FULLSTACK.md)** - React + NestJS development
-- **[📱 Mobile Development](../saas-app-mobile/README-MOBILE.md)** - React Native + Expo
-- **[🚀 DevOps & Testing](../saas-app-devops/README-DEVOPS.md)** - CI/CD, Docker, Testing
-- **[🔄 Worktree Sync Guide](./WORKTREE_SYNC.md)** - Keep worktrees synchronized
-- **[🛠️ Development Workflow](./DEVELOPMENT_WORKFLOW.md)** - When to use each environment
+- **[📖 Complete Documentation](./docs/README.md)** - Full documentation index
+- **[💻 Development Guide](./docs/development/README-FULLSTACK.md)** - React + NestJS development
+- **[🎯 Feature Guides](./docs/features/)** - Tournament system, sponsorships, real-time features
+- **[🚀 Deployment Guide](./docs/deployment/DEPLOYMENT_GUIDE.md)** - Production deployment
+- **[🔧 Troubleshooting](./docs/troubleshooting/)** - Common issues and solutions
+- **[🔄 Development Roadmap](./docs/development/ROADMAP.md)** - Project roadmap and priorities
 
 ---
 
