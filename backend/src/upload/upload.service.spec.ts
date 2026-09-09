@@ -1,10 +1,22 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { UploadService } from './upload.service';
+import { BadRequestException } from '@nestjs/common';
 
 describe('UploadService', () => {
   let service: UploadService;
-  let configService: ConfigService;
+
+  const mockConfigService = {
+    get: jest.fn((key: string) => {
+      const config: Record<string, string> = {
+        AWS_REGION: 'us-east-1',
+        AWS_ACCESS_KEY_ID: 'test-access-key',
+        AWS_SECRET_ACCESS_KEY: 'test-secret-key',
+        AWS_S3_BUCKET: 'test-bucket',
+      };
+      return config[key];
+    }),
+  };
 
   beforeEach(async () => {
     const module = await Test.createTestingModule({
@@ -12,36 +24,45 @@ describe('UploadService', () => {
         UploadService,
         {
           provide: ConfigService,
-          useValue: {
-            get: jest.fn((key: string) => {
-              if (key === 'APP_URL') return 'http://localhost:5000';
-              return null;
-            }),
-          },
+          useValue: mockConfigService,
         },
       ],
     }).compile();
 
     service = module.get(UploadService);
-    configService = module.get(ConfigService);
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
-  describe('getFileUrl', () => {
-    it('should return the correct file URL', () => {
-      const filename = 'test-image.jpg';
-      const expectedUrl = 'http://localhost:5000/uploads/test-image.jpg';
-      expect(service.getFileUrl(filename)).toBe(expectedUrl);
-    });
+  it('should throw BadRequestException if AWS config is missing', async () => {
+    const invalidConfigService = {
+      get: jest.fn(() => undefined),
+    };
 
-    it('should use default URL if APP_URL is not set', () => {
-      jest.spyOn(configService, 'get').mockReturnValue(undefined);
-      const filename = 'test-image.jpg';
-      const expectedUrl = 'http://localhost:5000/uploads/test-image.jpg';
-      expect(service.getFileUrl(filename)).toBe(expectedUrl);
+    await expect(async () => {
+      await Test.createTestingModule({
+        providers: [
+          UploadService,
+          {
+            provide: ConfigService,
+            useValue: invalidConfigService,
+          },
+        ],
+      }).compile();
+    }).rejects.toThrow(BadRequestException);
+  });
+
+  describe('getSignedUrl', () => {
+    it('should return a signed URL with key and public URL', async () => {
+      const result = await service.getSignedUrl('test-file.jpg', 'image/jpeg');
+      
+      expect(result).toHaveProperty('url');
+      expect(result).toHaveProperty('key');
+      expect(result).toHaveProperty('publicUrl');
+      expect(result.key).toContain('test-file.jpg');
+      expect(result.publicUrl).toContain('test-bucket.s3.amazonaws.com');
     });
   });
 }); 

@@ -22,7 +22,7 @@ export class User {
   fullName: string;
 
   @Prop({
-    required: function() {
+    required: function(this: User) {
       // Email only required for non-phone auth users
       return this.authMethod !== 'phone';
     },
@@ -35,7 +35,7 @@ export class User {
   email?: string;
 
   @Prop({
-    required: function() {
+    required: function(this: User) {
       // Password only required for non-Firebase users
       return !this.firebaseUID;
     },
