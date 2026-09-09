@@ -254,7 +254,9 @@ export class AuthService {
     await user.save();
 
     // Send email with reset link
-    await this.emailService.sendPasswordResetEmail(user.email, resetToken);
+    if (user.email) {
+      await this.emailService.sendPasswordResetEmail(user.email, resetToken);
+    }
   }
 
   async resetPasswordWithToken(token: string, newPassword: string): Promise<void> {
@@ -278,7 +280,9 @@ export class AuthService {
     await user.save();
 
     // Send confirmation email
-    await this.emailService.sendPasswordChangeConfirmation(user.email);
+    if (user.email) {
+      await this.emailService.sendPasswordChangeConfirmation(user.email);
+    }
   }
 
   async resetPassword(email: string, newPassword: string) {
@@ -533,10 +537,12 @@ export class AuthService {
       };
     } else {
       // Send email confirmation
-      try {
-        await this.emailService.sendWebLoginConfirmation(user.email, confirmationCode);
-      } catch (error) {
-        console.warn('Email service not available, code:', confirmationCode);
+      if (user.email) {
+        try {
+          await this.emailService.sendWebLoginConfirmation(user.email, confirmationCode);
+        } catch (error) {
+          console.warn('Email service not available, code:', confirmationCode);
+        }
       }
       
       return { method: 'email' };

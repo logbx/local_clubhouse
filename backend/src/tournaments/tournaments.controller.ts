@@ -544,6 +544,9 @@ export class TournamentsController {
     try {
       // Extract user ID with fallback logic
       const userId = req.user.sub || req.user._id || req.user.id;
+      if (!userId) {
+        throw new UnauthorizedException('User ID not found in request');
+      }
       console.log('🚀 Starting tournament:', id, 'by user:', userId);
       const result = await this.tournamentsService.startTournament(id, userId);
       console.log('✅ Tournament started successfully');
@@ -560,10 +563,14 @@ export class TournamentsController {
     @Body() reportResultDto: ReportResultDto,
     @Request() req: AuthenticatedRequest
   ) {
+    const userId = req.user.sub || req.user._id || req.user.id;
+    if (!userId) {
+      throw new UnauthorizedException('User ID not found in request');
+    }
     return this.tournamentsService.reportResult({
       ...reportResultDto,
       tournamentId: id
-    }, req.user.sub || req.user._id || req.user.id);
+    }, userId);
   }
 
   @Get(':id/standings')
@@ -1011,6 +1018,9 @@ export class TournamentsController {
     try {
       // Extract user ID with fallback logic
       const userId = req.user.sub || req.user._id || req.user.id;
+      if (!userId) {
+        throw new UnauthorizedException('User ID not found in request');
+      }
       console.log('🚀 Starting next round for tournament:', id, 'by user:', userId);
       const result = await this.tournamentsService.startNextRound(id, userId);
       console.log('✅ Next round started successfully');
