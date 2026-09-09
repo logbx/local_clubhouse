@@ -469,7 +469,7 @@ export class AuthController {
       return {
         message: 'Password reset successful for development',
         user: {
-          id: result.user.id,
+          id: (result.user as any)._id || (result.user as any).id,
           email: result.user.email,
           username: result.user.username,
         }

@@ -37,7 +37,7 @@ export class BaseTournamentService {
     }
 
     // Debug logging for creator comparison
-    const eventCreatorId = event.creator._id ? event.creator._id.toString() : event.creator.toString();
+    const eventCreatorId = (event.creator as any)._id ? (event.creator as any)._id.toString() : event.creator.toString();
     console.log('🔍 Tournament creation permission check:', {
       eventId: options.eventId,
       eventCreatorId,
