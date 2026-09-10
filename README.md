@@ -37,6 +37,11 @@ npm install
 cp .env.example .env
 # Edit .env with your API URL
 
+# Install mobile app dependencies
+cd ../mobile-app
+npm install
+# Configure EXPO_PUBLIC_* environment variables
+
 # Build and verify
 cd ../backend && npm run build
 cd ../frontend && npm run build
@@ -60,12 +65,17 @@ npm run dev
 # Terminal 4: Start Frontend
 cd frontend
 npm run dev
+
+# Terminal 5: Start Mobile App (optional)
+cd mobile-app
+npm start
 ```
 
 Access the application:
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:3001
 - API Health: http://localhost:3001/health
+- Mobile App: Scan QR code with Expo Go app
 
 ## 🧪 Testing
 
@@ -77,9 +87,30 @@ npm test
 # Frontend tests (1 suite, 2 tests)
 cd frontend
 npm test
+
+# Mobile app tests
+cd mobile-app
+npm test
 ```
 
 All tests are passing ✅
+
+## 🔒 Security
+
+### Recent Security Updates
+
+**September 2026 - Expo SDK 57 Upgrade**
+- Upgraded from Expo SDK 53 to 57.0.21
+- Updated React Native 0.79.5 → 0.86.3
+- Updated React 19.0.0 → 19.2.3
+- Fixed all high/critical vulnerabilities in transitive dependencies
+
+**Vulnerability Status**:
+- ✅ Backend: 0 vulnerabilities
+- ✅ Frontend: 0 vulnerabilities  
+- ✅ Mobile App: 0 vulnerabilities
+
+All security scans (npm audit, Trivy) pass with no high/critical issues.
 
 ## 🛠️ Technology Stack
 
@@ -99,6 +130,15 @@ All tests are passing ✅
 - **React Query** 5.71.5 - Server state management
 - **React Router** 7.4.0 - Routing
 - **Socket.io Client** 4.8.1 - Real-time updates
+
+### Mobile App
+- **Expo SDK** 57.0.21 - React Native development platform
+- **React Native** 0.86.3 - Cross-platform mobile framework
+- **React** 19.2.3 - UI framework
+- **Expo Router** 57.0.20 - File-based routing
+- **React Query** 5.102.8 - Server state management
+- **React Native Reanimated** 4.6.0 - Animations
+- **React Native Gesture Handler** 3.2.1 - Touch interactions
 
 ## ✨ Key Features
 
@@ -149,6 +189,14 @@ local_clubhouse/
 │   │   ├── context/       # React contexts
 │   │   └── types/         # TypeScript types
 │   ├── .env.example       # Environment template
+│   └── package.json
+│
+├── mobile-app/            # React Native/Expo mobile app
+│   ├── app/              # Expo Router file-based routing
+│   ├── components/       # Reusable mobile components
+│   ├── services/         # API and utility services
+│   ├── types/            # TypeScript type definitions
+│   ├── app.json          # Expo configuration
 │   └── package.json
 │
 └── docker-compose.yml     # Docker setup (optional)
