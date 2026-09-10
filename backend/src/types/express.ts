@@ -3,6 +3,8 @@ import { User, UserRole } from '../users/schemas/user.schema';
 
 export interface AuthenticatedUser {
   sub: string;
+  _id?: string;
+  id?: string;
   email: string;
   roles: UserRole[];
 }
